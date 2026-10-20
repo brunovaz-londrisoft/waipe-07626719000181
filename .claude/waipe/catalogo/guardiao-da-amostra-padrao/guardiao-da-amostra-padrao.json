@@ -1,0 +1,466 @@
+{
+  "waipe_flow_version": "2",
+  "name": "Guardião da Amostra Padrão",
+  "description": "Lista os clientes que compraram nos últimos 12 meses mas não compram há mais de 40 dias, separa por vendedor, cria uma planilha do Google Sheets para cada um e envia o consolidado por e-mail ao gestor.",
+  "triggerType": "schedule",
+  "scheduleConfig": {
+    "hour": 7,
+    "type": "monthly",
+    "minute": 0,
+    "interval": 1,
+    "timezone": "America/Sao_Paulo",
+    "weekdays": "1,2,3,4,5",
+    "monthDays": "4,15",
+    "cronExpression": "0 9 * * *"
+  },
+  "nodes": [
+    {
+      "id": "n2",
+      "type": "waipe_data",
+      "name": "Clientes 12 Meses",
+      "position": {
+        "x": 390,
+        "y": 144
+      },
+      "parameters": {
+        "dataSource": "data_lab",
+        "companyIds": [],
+        "message": "",
+        "messageMode": "fixed",
+        "expertModelId": "",
+        "dataLabReportId": "SUBSTITUA_PELO_ID_DO_RELATORIO"
+      }
+    },
+    {
+      "id": "n3",
+      "type": "code",
+      "name": "Processar Adormecidos",
+      "position": {
+        "x": 700,
+        "y": 144
+      },
+      "parameters": {
+        "mode": "all_items",
+        "jsCode": "// ============================================================\n// CONFIG - único bloco que deveria precisar de ajuste\n// ============================================================\nconst CONFIG = {\n  diasSemComprar: 40,          // adormecido = última compra há MAIS de X dias\n  janelaDiasCompra: 365,       // só considera quem comprou nos últimos 12 meses\n  nomesIgnorados: [\"CONSUMIDOR FINAL\"],\n  nomeSemVendedor: \"SEM VENDEDOR\",\n  nomeAba: \"Página1\",          // nome da primeira aba das planilhas novas (conta em português)\n  // Nomes possíveis das colunas do relatório do Data Lab (comparados sem acento, sem símbolos e em minúsculas)\n  aliases: {\n    cliente: [\"nomcliente\", \"nomecliente\", \"cliente\", \"razaosocial\", \"nomefantasia\", \"nome\"],\n    ultimaCompra: [\"dtultimacompra\", \"dataultimacompra\", \"ultimacompra\", \"dtultcompra\", \"datault\", \"dtultcomp\", \"ultimacomp\"],\n    vendedor: [\"nomvendedor\", \"nomevendedor\", \"vendedor\", \"representante\", \"nomerepresentante\"],\n    telefone: [\"telefone\", \"fone\", \"celular\", \"telefonecontato\", \"fonecliente\", \"nrtelefone\", \"numtelefone\", \"whatsapp\"],\n    email: [\"email\", \"emailcliente\", \"emailcontato\"]\n  },\n  // Plano B: trechos que a coluna deve conter quando nenhum nome acima bate\n  trechos: {\n    vendedor: [\"vend\", \"repres\"],\n    ultimaCompra: [\"ultimacompra\", \"ultcompra\", \"ultcomp\"],\n    telefone: [\"fone\", \"celular\", \"whats\"],\n    email: [\"mail\"]\n  }\n};\n\n// Cache da normalização: cada nome de coluna é normalizado uma única vez (o relatório pode ter milhares de linhas)\nconst cacheChave = {};\nfunction normalizarChave(texto) {\n  const bruto = String(texto);\n  if (cacheChave[bruto] !== undefined) return cacheChave[bruto];\n  const r = bruto.toLowerCase()\n    .replace(/[àáâãä]/g, \"a\").replace(/[èéêë]/g, \"e\").replace(/[ìíîï]/g, \"i\")\n    .replace(/[òóôõö]/g, \"o\").replace(/[ùúûü]/g, \"u\").replace(/ç/g, \"c\")\n    .replace(/[^a-z0-9]/g, \"\");\n  cacheChave[bruto] = r;\n  return r;\n}\n\nfunction decodificarEntidadesHtml(texto) {\n  if (texto === null || texto === undefined) return \"\";\n  const t = String(texto);\n  if (t.indexOf(\"&\") < 0) return t;\n  return t\n    .replace(/&amp;/g, \"&\").replace(/&lt;/g, \"<\").replace(/&gt;/g, \">\")\n    .replace(/&quot;/g, \"\\\"\").replace(/&#39;/g, \"'\").replace(/&apos;/g, \"'\");\n}\n\n// Descobre uma vez, por conjunto de colunas, qual coluna real corresponde a cada campo\nconst cacheColunas = {};\nfunction colunasDe(registro) {\n  const chaves = Object.keys(registro);\n  const assinatura = chaves.join(\"|\");\n  if (cacheColunas[assinatura]) return cacheColunas[assinatura];\n  const mapa = {};\n  chaves.forEach(function (k) { mapa[normalizarChave(k)] = k; });\n  const resolvido = {};\n  Object.keys(CONFIG.aliases).forEach(function (campo) {\n    resolvido[campo] = null;\n    const lista = CONFIG.aliases[campo];\n    for (let i = 0; i < lista.length; i++) {\n      if (mapa[lista[i]] !== undefined) { resolvido[campo] = mapa[lista[i]]; break; }\n    }\n  });\n  // Se o nome exato não bate, procura uma coluna cujo nome CONTENHA um dos trechos\n  Object.keys(CONFIG.trechos).forEach(function (campo) {\n    if (resolvido[campo] !== null) return;\n    const lista = CONFIG.trechos[campo];\n    const normalizadas = Object.keys(mapa);\n    for (let i = 0; i < lista.length && resolvido[campo] === null; i++) {\n      for (let j = 0; j < normalizadas.length; j++) {\n        if (normalizadas[j].indexOf(lista[i]) >= 0) { resolvido[campo] = mapa[normalizadas[j]]; break; }\n      }\n    }\n  });\n  // Telefone: junta todas as colunas de telefone (fixo e celular), para não perder o número quando uma delas está vazia\n  const tels = [];\n  Object.keys(mapa).forEach(function (nk) {\n    const ehTel = CONFIG.aliases.telefone.indexOf(nk) >= 0 || CONFIG.trechos.telefone.some(function (t) { return nk.indexOf(t) >= 0; });\n    if (ehTel) tels.push(mapa[nk]);\n  });\n  resolvido.telefone = tels.length > 0 ? tels : null;\n  console.log(\"Colunas do relatório: \" + chaves.join(\", \") + \" | usadas: \" + JSON.stringify(resolvido));\n  cacheColunas[assinatura] = resolvido;\n  return resolvido;\n}\n\nfunction pegarCampo(registro, campo) {\n  const col = colunasDe(registro)[campo];\n  if (col === null || col === undefined) return \"\";\n  if (Array.isArray(col)) {\n    const achados = [];\n    col.forEach(function (k) {\n      const t = String(registro[k] === null || registro[k] === undefined ? \"\" : registro[k]).trim();\n      if (t !== \"\" && achados.indexOf(t) < 0) achados.push(t);\n    });\n    return achados.join(\" / \");\n  }\n  const v = registro[col];\n  return (v === undefined || v === null) ? \"\" : v;\n}\n\n// A saída do Data Lab pode vir como { dados: [ { dados: [registros] } ] } ou como um item por registro\nfunction coletarRegistros(listaItens) {\n  const registros = [];\n  listaItens.forEach(function (it) {\n    const j = it.json || {};\n    if (Array.isArray(j.dados) && j.dados.length > 0 && j.dados[0] && Array.isArray(j.dados[0].dados)) {\n      const lista = j.dados[0].dados;\n      for (let i = 0; i < lista.length; i++) registros.push(lista[i]);\n    } else {\n      for (const k in j) { registros.push(j); break; }\n    }\n  });\n  return registros;\n}\n\n// Retorna dias desde 1970 (UTC) ou null. Aceita AAAA-MM-DD (com ou sem hora) e DD/MM/AAAA. 1900-01-01 = nulo do ERP.\nfunction diaDaData(valor) {\n  if (!valor) return null;\n  const texto = String(valor).trim();\n  let a, m, d;\n  let r = texto.match(/^(\\d{4})-(\\d{2})-(\\d{2})/);\n  if (r) { a = Number(r[1]); m = Number(r[2]); d = Number(r[3]); }\n  else {\n    r = texto.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4})/);\n    if (!r) return null;\n    d = Number(r[1]); m = Number(r[2]); a = Number(r[3]);\n  }\n  if (a <= 1900) return null;\n  return Math.floor(Date.UTC(a, m - 1, d) / 86400000);\n}\n\nfunction formatarDataBr(valor) {\n  const t = String(valor);\n  const r = t.match(/^(\\d{4})-(\\d{2})-(\\d{2})/);\n  if (r) return r[3] + \"/\" + r[2] + \"/\" + r[1];\n  return t.substring(0, 10);\n}\n\nconst registros = coletarRegistros(items);\nif (registros.length === 0) {\n  throw new Error(\"O relatório do Data Lab não retornou clientes. Confira o ID do relatório no node Clientes 12 Meses.\");\n}\n\nconst hojeTexto = String($today);\nconst hojeDia = diaDaData(hojeTexto);\nconst ignorados = {};\nCONFIG.nomesIgnorados.forEach(function (n) { ignorados[n.toUpperCase()] = true; });\n\n// 1) Um registro por cliente: se o relatório trouxer várias linhas do mesmo cliente (ex.: uma por venda),\n//    vale a compra mais recente.\nconst maisRecente = {};\nfor (let i = 0; i < registros.length; i++) {\n  const reg = registros[i];\n  const cliente = decodificarEntidadesHtml(pegarCampo(reg, \"cliente\")).trim();\n  if (cliente === \"\") continue;\n  const chaveCliente = cliente.toUpperCase();\n  if (ignorados[chaveCliente]) continue;\n  const brutaData = pegarCampo(reg, \"ultimaCompra\");\n  const dia = diaDaData(brutaData);\n  if (dia === null) continue;\n  const atual = maisRecente[chaveCliente];\n  if (atual && atual.dia >= dia) continue;\n  maisRecente[chaveCliente] = { dia: dia, reg: reg, cliente: cliente, brutaData: brutaData };\n}\n\n// 2) Filtra os adormecidos e agrupa por vendedor\nconst grupos = {};\nlet total = 0;\nfor (const chave in maisRecente) {\n  const c = maisRecente[chave];\n  const dias = hojeDia - c.dia;\n  if (dias <= CONFIG.diasSemComprar || dias > CONFIG.janelaDiasCompra) continue;\n  let vendedor = decodificarEntidadesHtml(pegarCampo(c.reg, \"vendedor\")).trim();\n  if (vendedor === \"\") vendedor = CONFIG.nomeSemVendedor;\n  if (!grupos[vendedor]) grupos[vendedor] = [];\n  grupos[vendedor].push({\n    dias: dias,\n    linha: {\n      \"Cliente\": c.cliente,\n      \"Última compra\": formatarDataBr(c.brutaData),\n      \"Telefone\": String(pegarCampo(c.reg, \"telefone\")).trim(),\n      \"E-mail\": String(pegarCampo(c.reg, \"email\")).trim()\n    }\n  });\n  total++;\n}\n\nconst vendedores = Object.keys(grupos).map(function (nome) {\n  const lista = grupos[nome].sort(function (a, b) { return b.dias - a.dias; });\n  return {\n    nome: nome,\n    quantidade: lista.length,\n    clientes: lista.map(function (x) { return x.linha; })\n  };\n}).sort(function (a, b) {\n  if (b.quantidade !== a.quantidade) return b.quantidade - a.quantidade;\n  return a.nome < b.nome ? -1 : 1;\n});\nvendedores.forEach(function (v, i) { v.posicao = i + 1; });\n\nconsole.log(\"Registros lidos: \" + registros.length + \" | clientes distintos: \" + Object.keys(maisRecente).length + \" | adormecidos: \" + total + \" | vendedores: \" + vendedores.length);\n\nreturn [{ json: {\n  total: total,\n  totalVendedores: vendedores.length,\n  diasSemComprar: CONFIG.diasSemComprar,\n  data: formatarDataBr(hojeTexto),\n  dataTitulo: formatarDataBr(hojeTexto).replace(/\\//g, \"-\"),\n  aba: CONFIG.nomeAba,\n  vendedores: vendedores\n} }];\n"
+      }
+    },
+    {
+      "id": "n4",
+      "type": "if",
+      "name": "Tem Adormecidos?",
+      "position": {
+        "x": 1010,
+        "y": 144
+      },
+      "parameters": {
+        "combine": "and",
+        "conditions": [
+          {
+            "left": "{{ $json.total }}",
+            "right": "0",
+            "leftMode": "expression",
+            "operator": "number:gt",
+            "rightMode": "fixed"
+          }
+        ],
+        "caseInsensitive": true,
+        "typeValidation": "loose",
+        "nullAsEmpty": true
+      }
+    },
+    {
+      "id": "n5",
+      "type": "loop",
+      "name": "Cada Vendedor",
+      "position": {
+        "x": 1630,
+        "y": 144
+      },
+      "parameters": {
+        "arrayExpression": "{{ $node[\"Processar Adormecidos\"].json.vendedores }}",
+        "arrayExpressionMode": "expression",
+        "batchSize": 1,
+        "pauseBetweenBatchesSeconds": 0,
+        "continueOnItemError": true
+      }
+    },
+    {
+      "id": "n6",
+      "type": "google_sheets",
+      "name": "Criar Planilha do Vendedor",
+      "position": {
+        "x": 1940,
+        "y": 80
+      },
+      "parameters": {
+        "credentialId": "",
+        "operation": "create",
+        "spreadsheetSource": "list",
+        "spreadsheetId": "",
+        "spreadsheetIdMode": "expression",
+        "sheetSource": "name",
+        "sheetName": "",
+        "sheetNameMode": "expression",
+        "mappingMode": "manual",
+        "columnMappings": [],
+        "matchingColumn": "",
+        "autoMappingSource": "",
+        "autoMappingSourceMode": "expression",
+        "extraDataHandling": "insert_new_column",
+        "headerRow": 1,
+        "firstDataRow": 2,
+        "title": "Clientes Adormecidos - {{ $json.nome }} - {{ $node[\"Processar Adormecidos\"].json.dataTitulo }}",
+        "titleMode": "expression",
+        "sharing": "anyone_reader",
+        "filters": [],
+        "combineFilters": "and",
+        "returnFirstMatch": false,
+        "limit": 0,
+        "valueRenderOption": "FORMATTED_VALUE",
+        "range": "",
+        "rangeMode": "expression",
+        "values": "",
+        "valuesMode": "expression",
+        "valueInputOption": "USER_ENTERED",
+        "nameFilter": "",
+        "nameFilterMode": "expression",
+        "pageSize": 50,
+        "continueOnError": false
+      }
+    },
+    {
+      "id": "n7",
+      "type": "google_sheets",
+      "name": "Gravar Clientes na Planilha",
+      "position": {
+        "x": 2250,
+        "y": 80
+      },
+      "parameters": {
+        "credentialId": "",
+        "operation": "append",
+        "spreadsheetSource": "list",
+        "spreadsheetId": "{{ $node[\"Criar Planilha do Vendedor\"].json.spreadsheetId }}",
+        "spreadsheetIdMode": "expression",
+        "sheetSource": "name",
+        "sheetName": "{{ $node[\"Processar Adormecidos\"].json.aba }}",
+        "sheetNameMode": "expression",
+        "mappingMode": "auto",
+        "columnMappings": [],
+        "matchingColumn": "",
+        "autoMappingSource": "{{ $node[\"Cada Vendedor\"].json.clientes }}",
+        "autoMappingSourceMode": "expression",
+        "extraDataHandling": "insert_new_column",
+        "headerRow": 1,
+        "firstDataRow": 2,
+        "title": "",
+        "titleMode": "expression",
+        "sharing": "private",
+        "filters": [],
+        "combineFilters": "and",
+        "returnFirstMatch": false,
+        "limit": 0,
+        "valueRenderOption": "FORMATTED_VALUE",
+        "range": "",
+        "rangeMode": "expression",
+        "values": "",
+        "valuesMode": "expression",
+        "valueInputOption": "USER_ENTERED",
+        "nameFilter": "",
+        "nameFilterMode": "expression",
+        "pageSize": 50,
+        "continueOnError": false
+      }
+    },
+    {
+      "id": "n8",
+      "type": "code",
+      "name": "Montar E-mail Consolidado",
+      "position": {
+        "x": 2250,
+        "y": 208
+      },
+      "parameters": {
+        "mode": "all_items",
+        "jsCode": "// ============================================================\n// CONFIG - único bloco que deveria precisar de ajuste\n// ============================================================\nconst CONFIG = {\n  nomeEmpresa: \"NOME DA EMPRESA\",\n  nomeGestor: \"Nome do Gestor\",\n  titulo: \"Clientes adormecidos por vendedor\",\n  assunto: \"Clientes adormecidos por vendedor - NOME DA EMPRESA\",\n  dataRelatorio: \"\"\n};\n\nfunction escaparHtml(texto) {\n  if (texto === null || texto === undefined) return \"\";\n  return String(texto).replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\").replace(/'/g, \"&#39;\");\n}\n\nconst F = \"font-family:Arial, Helvetica, sans-serif;\";\n\nfunction montarPagina(titulo, preheader, miolo) {\n  let h = \"\";\n  h += \"<!DOCTYPE html><html lang='pt-BR'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'>\";\n  h += \"<meta name='color-scheme' content='light dark'><meta name='supported-color-schemes' content='light dark'>\";\n  h += \"<title>\" + escaparHtml(titulo) + \"</title>\";\n  h += \"<style>body{margin:0;padding:0;-webkit-text-size-adjust:100%;}a{color:#303030;}\";\n  h += \"@media only screen and (max-width:620px){.wrap{width:100% !important;}.px{padding-left:16px !important;padding-right:16px !important;}.kpi{display:block !important;width:100% !important;padding:0 0 8px 0 !important;}.h1{font-size:24px !important;line-height:30px !important;}}\";\n  h += \"@media (prefers-color-scheme: dark){.bg-page{background:#16181D !important;}.bg-card{background:#1F2229 !important;}.bg-soft{background:#272B33 !important;}.t-strong{color:#F3F4F6 !important;}.t-muted{color:#A8AEBB !important;}.bd{border-color:#323743 !important;}td[bgcolor='#303030']{background:#E5E7EB !important;}td[bgcolor='#303030'] a{color:#1F2229 !important;}.lnk{color:#E5E7EB !important;}.eyebrow{color:#D4B25A !important;}td[bgcolor='#F3F4F6']{background:#272B33 !important;color:#A8AEBB !important;}td[bgcolor='#F1F2EC']{background:#2A2E24 !important;}.kpi-ol{color:#C9CFB4 !important;}}\";\n  h += \"</style></head>\";\n  h += \"<body style='margin:0;padding:0;background:#F3F4F6;' class='bg-page'>\";\n  h += \"<span style='display:none;font-size:1px;color:#F3F4F6;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;'>\" + escaparHtml(preheader) + \"</span>\";\n  h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' bgcolor='#F3F4F6' class='bg-page' style='background:#F3F4F6;'><tr><td align='center' style='padding:32px 12px;'>\";\n  h += \"<!--[if mso]><table role='presentation' width='600' cellpadding='0' cellspacing='0' border='0'><tr><td><![endif]-->\";\n  h += \"<table role='presentation' width='600' cellpadding='0' cellspacing='0' border='0' class='wrap' style='width:600px;max-width:600px;'>\";\n  // Marca\n  h += \"<tr><td class='px' style='padding:0 8px 16px 8px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr>\";\n  h += \"<td class='t-strong' style='\" + F + \"font-size:22px;font-weight:bold;color:#303030;letter-spacing:-0.5px;mso-line-height-rule:exactly;line-height:28px;'>waipe</td>\";\n  h += \"<td align='right' class='t-muted' style='\" + F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:16px;'>\" + escaparHtml(CONFIG.nomeEmpresa) + \"<br>Relatório semanal &middot; \" + escaparHtml(CONFIG.dataRelatorio) + \"</td>\";\n  h += \"</tr></table></td></tr>\";\n  // Card\n  h += \"<tr><td bgcolor='#FEFEFE' class='bg-card bd' style='background:#FEFEFE;border:1px solid #E5E7EB;border-radius:12px;overflow:hidden;'>\";\n  h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td height='4' bgcolor='#303030' style='height:4px;font-size:0;line-height:0;background:#303030;border-radius:12px 12px 0 0;'>&nbsp;</td></tr></table>\";\n  h += miolo;\n  h += \"</td></tr>\";\n  // Rodapé\n  h += \"<tr><td class='px' align='center' style='padding:24px 24px 0 24px;'>\";\n  h += \"<p class='t-muted' style='margin:0 0 8px 0;\" + F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:18px;'>Você recebe este e-mail porque é gestor da empresa \" + escaparHtml(CONFIG.nomeEmpresa) + \" no Waipe.</p>\";\n  h += \"<p class='t-muted' style='margin:0;\" + F + \"font-size:12px;color:#8A90A0;mso-line-height-rule:exactly;line-height:18px;'>Londrisoft &middot; Londrina, PR &middot; Brasil</p>\";\n  h += \"</td></tr></table>\";\n  h += \"<!--[if mso]></td></tr></table><![endif]-->\";\n  h += \"</td></tr></table></body></html>\";\n  return h;\n}\n\nfunction cabecalho(texto) {\n  let h = \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td class='px' style='padding:32px 32px 8px 32px;'>\";\n  h += \"<p class='eyebrow' style='margin:0 0 8px 0;\" + F + \"font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#8E6A1F;mso-line-height-rule:exactly;line-height:16px;'>Carteira de clientes</p>\";\n  h += \"<h1 class='h1 t-strong' style='margin:0 0 12px 0;\" + F + \"font-size:28px;font-weight:bold;color:#303030;letter-spacing:-0.5px;mso-line-height-rule:exactly;line-height:34px;'>\" + escaparHtml(CONFIG.titulo) + \"</h1>\";\n  h += \"<p class='t-muted' style='margin:0;\" + F + \"font-size:15px;color:#5B6170;mso-line-height-rule:exactly;line-height:23px;'>\" + texto + \"</p>\";\n  h += \"</td></tr></table>\";\n  return h;\n}\n\nconst dados = $node[\"Processar Adormecidos\"].json;\nCONFIG.dataRelatorio = dados.data;\n\n// Link da planilha de cada vendedor: vem da planilha-índice (node Ler Índice), preenchida durante o loop\nconst links = {};\nconst valoresIndice = (items.length > 0 && items[0].json && Array.isArray(items[0].json.values)) ? items[0].json.values : [];\nif (valoresIndice.length > 1) {\n  const cab = valoresIndice[0].map(function (x) { return String(x).trim().toLowerCase(); });\n  const iNome = cab.indexOf(\"vendedor\");\n  const iLink = cab.indexOf(\"link\");\n  for (let r = 1; r < valoresIndice.length; r++) {\n    const linha = valoresIndice[r];\n    if (iNome >= 0 && iLink >= 0 && linha[iNome] && linha[iLink]) links[String(linha[iNome])] = String(linha[iLink]);\n  }\n}\nconsole.log(\"Links de planilha lidos do índice: \" + Object.keys(links).length + \" de \" + dados.vendedores.length);\n\nconst vendedores = dados.vendedores;\nconst maximo = vendedores.length > 0 ? vendedores[0].quantidade : 1;\n\nlet linhas = \"\";\nvendedores.forEach(function (v, i) {\n  const cheia = i < 3;\n  const pct = Math.max(4, Math.round(v.quantidade / maximo * 100));\n  const url = links[v.nome] || \"\";\n  linhas += \"<tr>\";\n  linhas += \"<td class='bd' width='36' valign='middle' style='border-top:1px solid #F3F4F6;padding:9px 0 9px 16px;'><table role='presentation' cellpadding='0' cellspacing='0' border='0'><tr><td width='24' height='24' align='center' valign='middle' bgcolor='\" + (cheia ? \"#5A6344\" : \"#F3F4F6\") + \"' style='width:24px;height:24px;background:\" + (cheia ? \"#5A6344\" : \"#F3F4F6\") + \";border-radius:12px;\" + F + \"font-size:12px;font-weight:bold;color:\" + (cheia ? \"#FFFFFF\" : \"#5B6170\") + \";mso-line-height-rule:exactly;line-height:24px;'>\" + v.posicao + \"</td></tr></table></td>\";\n  linhas += \"<td class='bd' valign='middle' style='border-top:1px solid #F3F4F6;padding:9px 8px;'>\";\n  linhas += \"<p class='t-strong' style='margin:0 0 6px 0;\" + F + \"font-size:14px;font-weight:bold;color:#303030;mso-line-height-rule:exactly;line-height:18px;'>\" + escaparHtml(v.nome) + \"</p>\";\n  linhas += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td width='\" + pct + \"%' height='6' bgcolor='\" + (cheia ? \"#5A6344\" : \"#BFC4AC\") + \"' style='height:6px;background:\" + (cheia ? \"#5A6344\" : \"#BFC4AC\") + \";border-radius:3px;font-size:0;line-height:0;'>&nbsp;</td>\";\n  if (pct < 100) linhas += \"<td width='\" + (100 - pct) + \"%' height='6' style='height:6px;font-size:0;line-height:0;'>&nbsp;</td>\";\n  linhas += \"</tr></table></td>\";\n  linhas += \"<td class='bd t-strong' width='64' align='right' valign='middle' style='border-top:1px solid #F3F4F6;padding:9px 8px;\" + F + \"font-size:20px;font-weight:bold;color:#303030;mso-line-height-rule:exactly;line-height:24px;'>\" + v.quantidade + \"</td>\";\n  linhas += \"<td class='bd' width='56' align='center' valign='middle' style='border-top:1px solid #F3F4F6;padding:9px 16px 9px 8px;'>\";\n  if (url) {\n    const titulo = \"Ver os \" + v.quantidade + \" clientes adormecidos de \" + v.nome;\n    linhas += \"<table role='presentation' cellpadding='0' cellspacing='0' border='0'><tr><td width='32' height='32' align='center' valign='middle' bgcolor='#303030' style='width:32px;height:32px;background:#303030;border-radius:8px;'><a href='\" + escaparHtml(url) + \"' target='_blank' title='\" + escaparHtml(titulo) + \"' aria-label='\" + escaparHtml(titulo) + \"' style='display:block;width:32px;\" + F + \"font-size:18px;font-weight:bold;color:#FFFFFF;text-decoration:none;mso-line-height-rule:exactly;line-height:32px;border-radius:6px;'>&rarr;</a></td></tr></table>\";\n  } else {\n    linhas += \"<span class='t-muted' style='\" + F + \"font-size:12px;color:#8A90A0;'>-</span>\";\n  }\n  linhas += \"</td></tr>\";\n});\n\nlet kpi = \"\";\nkpi += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td class='px' style='padding:24px 32px 8px 32px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr>\";\nkpi += \"<td class='kpi' width='50%' valign='top' style='padding-right:6px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td bgcolor='#F1F2EC' style='background:#F1F2EC;border-radius:8px;padding:16px;'><p class='kpi-ol' style='margin:0;\" + F + \"font-size:30px;font-weight:bold;color:#5A6344;mso-line-height-rule:exactly;line-height:34px;'>\" + dados.total + \"</p><p class='kpi-ol' style='margin:4px 0 0 0;\" + F + \"font-size:13px;color:#5A6344;mso-line-height-rule:exactly;line-height:18px;'>Clientes adormecidos</p></td></tr></table></td>\";\nkpi += \"<td class='kpi' width='50%' valign='top' style='padding-left:6px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td bgcolor='#F9FAFB' class='bg-soft' style='background:#F9FAFB;border-radius:8px;padding:16px;'><p class='t-strong' style='margin:0;\" + F + \"font-size:30px;font-weight:bold;color:#303030;mso-line-height-rule:exactly;line-height:34px;'>\" + dados.totalVendedores + \"</p><p class='t-muted' style='margin:4px 0 0 0;\" + F + \"font-size:13px;color:#5B6170;mso-line-height-rule:exactly;line-height:18px;'>Vendedores com adormecidos</p></td></tr></table></td>\";\nkpi += \"</tr></table></td></tr></table>\";\n\nlet lista = \"\";\nlista += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'>\";\nlista += \"<tr><td class='px' style='padding:24px 32px 0 32px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td class='t-strong' style='\" + F + \"font-size:16px;font-weight:bold;color:#303030;mso-line-height-rule:exactly;line-height:22px;'>Ranking por vendedor</td><td align='right' class='t-muted' style='\" + F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:16px;'>Do maior para o menor</td></tr></table></td></tr>\";\nlista += \"<tr><td class='px' style='padding:12px 32px 32px 32px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' class='bd' style='border:1px solid #E5E7EB;border-radius:8px;'>\";\nlista += \"<tr><td bgcolor='#F9FAFB' class='bg-soft t-muted' width='36' style='background:#F9FAFB;padding:10px 0 10px 16px;\" + F + \"font-size:11px;font-weight:bold;letter-spacing:0.8px;text-transform:uppercase;color:#6B7280;border-radius:8px 0 0 0;'>#</td>\";\nlista += \"<td bgcolor='#F9FAFB' class='bg-soft t-muted' style='background:#F9FAFB;padding:10px 8px;\" + F + \"font-size:11px;font-weight:bold;letter-spacing:0.8px;text-transform:uppercase;color:#6B7280;'>Vendedor</td>\";\nlista += \"<td bgcolor='#F9FAFB' class='bg-soft t-muted' width='64' align='right' style='background:#F9FAFB;padding:10px 8px;\" + F + \"font-size:11px;font-weight:bold;letter-spacing:0.8px;text-transform:uppercase;color:#6B7280;'>Clientes</td>\";\nlista += \"<td bgcolor='#F9FAFB' class='bg-soft t-muted' width='56' align='center' style='background:#F9FAFB;padding:10px 16px 10px 8px;\" + F + \"font-size:11px;font-weight:bold;letter-spacing:0.8px;text-transform:uppercase;color:#6B7280;border-radius:0 8px 0 0;'>Lista</td></tr>\";\nlista += linhas;\nlista += \"</table></td></tr></table>\";\n\nconst intro = \"Olá, \" + escaparHtml(CONFIG.nomeGestor) + \". Identificamos clientes que compraram nos últimos 12 meses, mas estão há mais de \" + dados.diasSemComprar + \" dias sem comprar. Veja quem tem mais clientes para reativar e clique no botão com seta (&rarr;) ao lado do vendedor para abrir a lista completa.\";\nconst preheader = CONFIG.nomeEmpresa.split(\" \")[0] + \": \" + dados.total + \" clientes estão sem comprar há mais de \" + dados.diasSemComprar + \" dias. Veja quais vendedores têm mais clientes para reativar.\";\n\nconst corpo = montarPagina(CONFIG.titulo + \" - Waipe\", preheader, cabecalho(intro) + kpi + lista);\nreturn [{ json: { assunto: CONFIG.assunto, corpo_html: corpo } }];\n"
+      }
+    },
+    {
+      "id": "n9",
+      "type": "code",
+      "name": "Montar E-mail Sem Adormecidos",
+      "position": {
+        "x": 1326,
+        "y": 341
+      },
+      "parameters": {
+        "mode": "all_items",
+        "jsCode": "// ============================================================\n// CONFIG - único bloco que deveria precisar de ajuste\n// ============================================================\nconst CONFIG = {\n  nomeEmpresa: \"NOME DA EMPRESA\",\n  nomeGestor: \"Nome do Gestor\",\n  titulo: \"Nenhum cliente adormecido\",\n  assunto: \"Nenhum cliente adormecido esta semana - NOME DA EMPRESA\",\n  dataRelatorio: \"\"\n};\n\nfunction escaparHtml(texto) {\n  if (texto === null || texto === undefined) return \"\";\n  return String(texto).replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\").replace(/'/g, \"&#39;\");\n}\n\nconst F = \"font-family:Arial, Helvetica, sans-serif;\";\n\nfunction montarPagina(titulo, preheader, miolo) {\n  let h = \"\";\n  h += \"<!DOCTYPE html><html lang='pt-BR'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'>\";\n  h += \"<meta name='color-scheme' content='light dark'><meta name='supported-color-schemes' content='light dark'>\";\n  h += \"<title>\" + escaparHtml(titulo) + \"</title>\";\n  h += \"<style>body{margin:0;padding:0;-webkit-text-size-adjust:100%;}a{color:#303030;}\";\n  h += \"@media only screen and (max-width:620px){.wrap{width:100% !important;}.px{padding-left:16px !important;padding-right:16px !important;}.kpi{display:block !important;width:100% !important;padding:0 0 8px 0 !important;}.h1{font-size:24px !important;line-height:30px !important;}}\";\n  h += \"@media (prefers-color-scheme: dark){.bg-page{background:#16181D !important;}.bg-card{background:#1F2229 !important;}.bg-soft{background:#272B33 !important;}.t-strong{color:#F3F4F6 !important;}.t-muted{color:#A8AEBB !important;}.bd{border-color:#323743 !important;}td[bgcolor='#303030']{background:#E5E7EB !important;}td[bgcolor='#303030'] a{color:#1F2229 !important;}.lnk{color:#E5E7EB !important;}.eyebrow{color:#D4B25A !important;}td[bgcolor='#F3F4F6']{background:#272B33 !important;color:#A8AEBB !important;}td[bgcolor='#F1F2EC']{background:#2A2E24 !important;}.kpi-ol{color:#C9CFB4 !important;}}\";\n  h += \"</style></head>\";\n  h += \"<body style='margin:0;padding:0;background:#F3F4F6;' class='bg-page'>\";\n  h += \"<span style='display:none;font-size:1px;color:#F3F4F6;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;'>\" + escaparHtml(preheader) + \"</span>\";\n  h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' bgcolor='#F3F4F6' class='bg-page' style='background:#F3F4F6;'><tr><td align='center' style='padding:32px 12px;'>\";\n  h += \"<!--[if mso]><table role='presentation' width='600' cellpadding='0' cellspacing='0' border='0'><tr><td><![endif]-->\";\n  h += \"<table role='presentation' width='600' cellpadding='0' cellspacing='0' border='0' class='wrap' style='width:600px;max-width:600px;'>\";\n  // Marca\n  h += \"<tr><td class='px' style='padding:0 8px 16px 8px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr>\";\n  h += \"<td class='t-strong' style='\" + F + \"font-size:22px;font-weight:bold;color:#303030;letter-spacing:-0.5px;mso-line-height-rule:exactly;line-height:28px;'>waipe</td>\";\n  h += \"<td align='right' class='t-muted' style='\" + F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:16px;'>\" + escaparHtml(CONFIG.nomeEmpresa) + \"<br>Relatório semanal &middot; \" + escaparHtml(CONFIG.dataRelatorio) + \"</td>\";\n  h += \"</tr></table></td></tr>\";\n  // Card\n  h += \"<tr><td bgcolor='#FEFEFE' class='bg-card bd' style='background:#FEFEFE;border:1px solid #E5E7EB;border-radius:12px;overflow:hidden;'>\";\n  h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td height='4' bgcolor='#303030' style='height:4px;font-size:0;line-height:0;background:#303030;border-radius:12px 12px 0 0;'>&nbsp;</td></tr></table>\";\n  h += miolo;\n  h += \"</td></tr>\";\n  // Rodapé\n  h += \"<tr><td class='px' align='center' style='padding:24px 24px 0 24px;'>\";\n  h += \"<p class='t-muted' style='margin:0 0 8px 0;\" + F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:18px;'>Você recebe este e-mail porque é gestor da empresa \" + escaparHtml(CONFIG.nomeEmpresa) + \" no Waipe.</p>\";\n  h += \"<p class='t-muted' style='margin:0;\" + F + \"font-size:12px;color:#8A90A0;mso-line-height-rule:exactly;line-height:18px;'>Londrisoft &middot; Londrina, PR &middot; Brasil</p>\";\n  h += \"</td></tr></table>\";\n  h += \"<!--[if mso]></td></tr></table><![endif]-->\";\n  h += \"</td></tr></table></body></html>\";\n  return h;\n}\n\nfunction cabecalho(texto) {\n  let h = \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td class='px' style='padding:32px 32px 8px 32px;'>\";\n  h += \"<p class='eyebrow' style='margin:0 0 8px 0;\" + F + \"font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#8E6A1F;mso-line-height-rule:exactly;line-height:16px;'>Carteira de clientes</p>\";\n  h += \"<h1 class='h1 t-strong' style='margin:0 0 12px 0;\" + F + \"font-size:28px;font-weight:bold;color:#303030;letter-spacing:-0.5px;mso-line-height-rule:exactly;line-height:34px;'>\" + escaparHtml(CONFIG.titulo) + \"</h1>\";\n  h += \"<p class='t-muted' style='margin:0;\" + F + \"font-size:15px;color:#5B6170;mso-line-height-rule:exactly;line-height:23px;'>\" + texto + \"</p>\";\n  h += \"</td></tr></table>\";\n  return h;\n}\n\nconst dados = $node[\"Processar Adormecidos\"].json;\nCONFIG.dataRelatorio = dados.data;\n\nconst intro = \"Olá, \" + escaparHtml(CONFIG.nomeGestor) + \". Nesta semana nenhum cliente que comprou nos últimos 12 meses está há mais de \" + dados.diasSemComprar + \" dias sem comprar.\";\nlet miolo = cabecalho(intro);\nmiolo += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td class='px' style='padding:24px 32px 32px 32px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td bgcolor='#F1F2EC' style='background:#F1F2EC;border-radius:8px;padding:16px;'><p class='kpi-ol' style='margin:0;\" + F + \"font-size:30px;font-weight:bold;color:#5A6344;mso-line-height-rule:exactly;line-height:34px;'>0</p><p class='kpi-ol' style='margin:4px 0 0 0;\" + F + \"font-size:13px;color:#5A6344;mso-line-height-rule:exactly;line-height:18px;'>Clientes adormecidos</p></td></tr></table></td></tr></table>\";\n\nconst preheader = CONFIG.nomeEmpresa.split(\" \")[0] + \": nenhum cliente está sem comprar há mais de \" + dados.diasSemComprar + \" dias.\";\nconst corpo = montarPagina(CONFIG.titulo + \" - Waipe\", preheader, miolo);\nreturn [{ json: { assunto: CONFIG.assunto, corpo_html: corpo } }];\n"
+      }
+    },
+    {
+      "id": "n10",
+      "type": "gmail_send",
+      "name": "Enviar E-mail ao Gestor",
+      "position": {
+        "x": 2562,
+        "y": 337
+      },
+      "parameters": {
+        "credentialId": "",
+        "to": "gestor@exemplo.com",
+        "toMode": "fixed",
+        "cc": "",
+        "ccMode": "expression",
+        "bcc": "",
+        "bccMode": "expression",
+        "subject": "{{ $json.assunto }}",
+        "subjectMode": "expression",
+        "bodyType": "html",
+        "body": "{{ $json.corpo_html }}",
+        "bodyMode": "expression",
+        "continueOnError": false
+      }
+    },
+    {
+      "id": "n11",
+      "type": "google_sheets",
+      "name": "Criar Planilha Índice",
+      "position": {
+        "x": 1322,
+        "y": 143
+      },
+      "parameters": {
+        "credentialId": "",
+        "operation": "create",
+        "spreadsheetSource": "list",
+        "spreadsheetId": "",
+        "spreadsheetIdMode": "expression",
+        "sheetSource": "name",
+        "sheetName": "",
+        "sheetNameMode": "expression",
+        "mappingMode": "manual",
+        "columnMappings": [],
+        "matchingColumn": "",
+        "autoMappingSource": "",
+        "autoMappingSourceMode": "expression",
+        "extraDataHandling": "insert_new_column",
+        "headerRow": 1,
+        "firstDataRow": 2,
+        "title": "Índice Clientes Adormecidos - {{ $node[\"Processar Adormecidos\"].json.dataTitulo }}",
+        "titleMode": "expression",
+        "sharing": "anyone_reader",
+        "filters": [],
+        "combineFilters": "and",
+        "returnFirstMatch": false,
+        "limit": 0,
+        "valueRenderOption": "FORMATTED_VALUE",
+        "range": "",
+        "rangeMode": "expression",
+        "values": "",
+        "valuesMode": "expression",
+        "valueInputOption": "USER_ENTERED",
+        "nameFilter": "",
+        "nameFilterMode": "expression",
+        "pageSize": 50,
+        "continueOnError": false
+      }
+    },
+    {
+      "id": "n12",
+      "type": "google_sheets",
+      "name": "Registrar no Índice",
+      "position": {
+        "x": 2878,
+        "y": 81
+      },
+      "parameters": {
+        "credentialId": "",
+        "operation": "append",
+        "spreadsheetSource": "list",
+        "spreadsheetId": "{{ $node[\"Criar Planilha Índice\"].json.spreadsheetId }}",
+        "spreadsheetIdMode": "expression",
+        "sheetSource": "name",
+        "sheetName": "{{ $node[\"Processar Adormecidos\"].json.aba }}",
+        "sheetNameMode": "expression",
+        "mappingMode": "auto",
+        "columnMappings": [],
+        "matchingColumn": "",
+        "autoMappingSource": "",
+        "autoMappingSourceMode": "expression",
+        "extraDataHandling": "insert_new_column",
+        "headerRow": 1,
+        "firstDataRow": 2,
+        "title": "",
+        "titleMode": "expression",
+        "sharing": "private",
+        "filters": [],
+        "combineFilters": "and",
+        "returnFirstMatch": false,
+        "limit": 0,
+        "valueRenderOption": "FORMATTED_VALUE",
+        "range": "",
+        "rangeMode": "expression",
+        "values": "",
+        "valuesMode": "expression",
+        "valueInputOption": "USER_ENTERED",
+        "nameFilter": "",
+        "nameFilterMode": "expression",
+        "pageSize": 50,
+        "continueOnError": false
+      }
+    },
+    {
+      "id": "n13",
+      "type": "google_sheets",
+      "name": "Ler Índice",
+      "position": {
+        "x": 1940,
+        "y": 208
+      },
+      "parameters": {
+        "credentialId": "",
+        "operation": "read",
+        "spreadsheetSource": "list",
+        "spreadsheetId": "{{ $node[\"Criar Planilha Índice\"].json.spreadsheetId }}",
+        "spreadsheetIdMode": "expression",
+        "sheetSource": "name",
+        "sheetName": "",
+        "sheetNameMode": "expression",
+        "mappingMode": "manual",
+        "columnMappings": [],
+        "matchingColumn": "",
+        "autoMappingSource": "",
+        "autoMappingSourceMode": "expression",
+        "extraDataHandling": "insert_new_column",
+        "headerRow": 1,
+        "firstDataRow": 2,
+        "title": "",
+        "titleMode": "expression",
+        "sharing": "private",
+        "filters": [],
+        "combineFilters": "and",
+        "returnFirstMatch": false,
+        "limit": 0,
+        "valueRenderOption": "FORMATTED_VALUE",
+        "range": "{{ $node[\"Processar Adormecidos\"].json.aba }}!A1:C",
+        "rangeMode": "expression",
+        "values": "",
+        "valuesMode": "expression",
+        "valueInputOption": "USER_ENTERED",
+        "nameFilter": "",
+        "nameFilterMode": "expression",
+        "pageSize": 50,
+        "continueOnError": false
+      }
+    },
+    {
+      "id": "n14",
+      "type": "code",
+      "name": "Montar Linha do Índice",
+      "position": {
+        "x": 2560,
+        "y": 80
+      },
+      "parameters": {
+        "mode": "all_items",
+        "jsCode": "// ================== CONFIG ==================\nvar COLUNA_VENDEDOR = \"Vendedor\";\nvar COLUNA_CLIENTES = \"Clientes\";\nvar COLUNA_LINK = \"Link\";\n// ============================================\n\nvar vendedor = $node[\"Cada Vendedor\"].json;\nvar planilha = $node[\"Criar Planilha do Vendedor\"].json;\n\nvar linha = {};\nlinha[COLUNA_VENDEDOR] = vendedor.nome;\nlinha[COLUNA_CLIENTES] = vendedor.quantidade;\nlinha[COLUNA_LINK] = planilha.spreadsheetUrl;\n\nreturn [{ json: linha }];\n"
+      }
+    },
+    {
+      "id": "9e603cae-bbfa-4928-98c1-144ab684aee9",
+      "type": "trigger_schedule",
+      "name": "Agendamento",
+      "position": {
+        "x": 23,
+        "y": 137
+      },
+      "parameters": {
+        "scheduleType": "monthly",
+        "interval": 1,
+        "hour": 7,
+        "minute": 0,
+        "weekdays": "1,2,3,4,5",
+        "monthDays": "4,15",
+        "cronExpression": "0 9 * * *",
+        "timezone": "America/Sao_Paulo"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e2",
+      "source": "n2",
+      "target": "n3"
+    },
+    {
+      "id": "e3",
+      "source": "n3",
+      "target": "n4"
+    },
+    {
+      "id": "e4",
+      "source": "n4",
+      "target": "n11",
+      "sourceHandle": "true"
+    },
+    {
+      "id": "e5",
+      "source": "n4",
+      "target": "n9",
+      "sourceHandle": "false"
+    },
+    {
+      "id": "e6",
+      "source": "n5",
+      "target": "n6",
+      "sourceHandle": "loop"
+    },
+    {
+      "id": "e7",
+      "source": "n6",
+      "target": "n7"
+    },
+    {
+      "id": "e8",
+      "source": "n5",
+      "target": "n13",
+      "sourceHandle": "done"
+    },
+    {
+      "id": "e9",
+      "source": "n8",
+      "target": "n10"
+    },
+    {
+      "id": "e10",
+      "source": "n9",
+      "target": "n10"
+    },
+    {
+      "id": "e11",
+      "source": "n11",
+      "target": "n5"
+    },
+    {
+      "id": "e12",
+      "source": "n7",
+      "target": "n14"
+    },
+    {
+      "id": "e13",
+      "source": "n13",
+      "target": "n8"
+    },
+    {
+      "id": "e14",
+      "source": "n14",
+      "target": "n12"
+    },
+    {
+      "id": "e-9e603cae-bbfa-4928-98c1-144ab684aee9-n2-1792171799206",
+      "source": "9e603cae-bbfa-4928-98c1-144ab684aee9",
+      "target": "n2"
+    }
+  ]
+}
