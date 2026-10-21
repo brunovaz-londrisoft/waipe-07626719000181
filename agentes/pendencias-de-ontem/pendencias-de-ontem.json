@@ -1,0 +1,204 @@
+{
+  "waipe_flow_version": "2",
+  "exportedAt": "2026-10-21T20:16:23.353Z",
+  "graphReflects": "current_canvas_including_unsaved",
+  "source": {
+    "flowId": "706ef791-7c40-4e0c-9745-4afed47b4814",
+    "flowName": "Pendências de Ontem"
+  },
+  "name": "Pendências de Ontem",
+  "description": "Todo dia às 08:00 consulta vendas, O.S., contas a pagar e a receber no Data Lab e envia por e-mail os totais do que ficou pendente até ontem e do que vence hoje, com a lista de cada grupo.",
+  "status": "active",
+  "triggerType": "schedule",
+  "scheduleConfig": {
+    "hour": 8,
+    "type": "daily",
+    "minute": 0,
+    "interval": 1,
+    "timezone": "America/Sao_Paulo",
+    "weekdays": "1,2,3,4,5",
+    "monthDays": "1",
+    "cronExpression": "0 9 * * *"
+  },
+  "nodes": [
+    {
+      "id": "4959d733-96b4-4308-9a98-dd670eeef8e7",
+      "type": "trigger_schedule",
+      "name": "Agendamento",
+      "position": {
+        "x": 80,
+        "y": 272
+      },
+      "parameters": {
+        "scheduleType": "daily",
+        "interval": 1,
+        "hour": 8,
+        "minute": 0,
+        "weekdays": "1,2,3,4,5",
+        "monthDays": "1",
+        "cronExpression": "0 9 * * *",
+        "timezone": "America/Sao_Paulo"
+      }
+    },
+    {
+      "id": "17ee28cd-d86a-4b72-874b-e3f7d73b8269",
+      "type": "waipe_data",
+      "name": "Vendas da Semana",
+      "position": {
+        "x": 390,
+        "y": 80
+      },
+      "parameters": {
+        "dataSource": "data_lab",
+        "companyIds": [],
+        "companyIdsMode": "fixed",
+        "companyIdsExpression": "",
+        "message": "",
+        "messageMode": "fixed",
+        "expertModelId": "",
+        "dataLabReportId": "cmvh26l57001uqi2n37tgybge"
+      }
+    },
+    {
+      "id": "cd772b48-4ed8-4a7e-b764-f2cfa5ea48a8",
+      "type": "waipe_data",
+      "name": "O.S. da Semana",
+      "position": {
+        "x": 390,
+        "y": 208
+      },
+      "parameters": {
+        "dataSource": "data_lab",
+        "companyIds": [],
+        "companyIdsMode": "fixed",
+        "companyIdsExpression": "",
+        "message": "",
+        "messageMode": "fixed",
+        "expertModelId": "",
+        "dataLabReportId": "cmvh37n64001wqi2nw1l5tfhp"
+      }
+    },
+    {
+      "id": "bf4b58ef-dc86-4442-a316-c0d275032e66",
+      "type": "waipe_data",
+      "name": "Contas a Pagar da Semana",
+      "position": {
+        "x": 390,
+        "y": 336
+      },
+      "parameters": {
+        "dataSource": "data_lab",
+        "companyIds": [],
+        "companyIdsMode": "fixed",
+        "companyIdsExpression": "",
+        "message": "",
+        "messageMode": "fixed",
+        "expertModelId": "",
+        "dataLabReportId": "cmvh3tvxs0020qi2nd9p8173r"
+      }
+    },
+    {
+      "id": "faa8a2ca-8133-4812-8d3d-397c6b03b745",
+      "type": "waipe_data",
+      "name": "Contas a Receber da Semana",
+      "position": {
+        "x": 390,
+        "y": 464
+      },
+      "parameters": {
+        "dataSource": "data_lab",
+        "companyIds": [],
+        "companyIdsMode": "fixed",
+        "companyIdsExpression": "",
+        "message": "",
+        "messageMode": "fixed",
+        "expertModelId": "",
+        "dataLabReportId": "cmvh3n3tn001yqi2nxc3r9efz"
+      }
+    },
+    {
+      "id": "4e20b92a-3fd8-4d3a-8f83-2f96ce5c3a7c",
+      "type": "code",
+      "name": "Montar E-mail de Pendências",
+      "position": {
+        "x": 700,
+        "y": 272
+      },
+      "parameters": {
+        "mode": "all_items",
+        "jsCode": "// ============================================================\n// CONFIG - único bloco que deveria precisar de ajuste\n// ============================================================\nconst CONFIG = {\n  nomeEmpresa: \"Manduca Piscinas\",\n  nomeDestinatario: \"Tais\",\n  email: \"SUBSTITUA_PELO_EMAIL_DESTINO\",\n  titulo: \"Pendências até ontem\",\n  assunto: \"Pendências até ontem - Manduca Piscinas\",\n  logoUrl: \"SUBSTITUA_PELA_URL_PUBLICA_DO_LOGO_PNG\",\n  fusoHoras: -3,\n  maxItensPorLista: 20,\n  nomesIgnorados: [\"CONSUMIDOR FINAL\"],\n  clientesNaoFaturados: [],\n  statusOrcamento: [\"ORCAMENTO\", \"ORÇAMENTO\"],\n  statusVenda: [\"VENDA\"],\n  statusOS: [\"OS\", \"O.S.\", \"ORDEM DE SERVICO\", \"ORDEM DE SERVIÇO\", \"VENDA\"],\n  nodes: {\n    vendas: \"Vendas da Semana\",\n    os: \"O.S. da Semana\",\n    pagar: \"Contas a Pagar da Semana\",\n    receber: \"Contas a Receber da Semana\"\n  },\n  aliases: {\n    numero: [\"numero\"],\n    data: [\"data\"],\n    status: [\"status\"],\n    cliente: [\"cliente\"],\n    vendedor: [\"vendedor\"],\n    valor: [\"valor\"],\n    temNf: [\"tem_nf\"],\n    nfNumero: [\"nf_numero\"],\n    documento: [\"lancamento\", \"documento\"],\n    parcela: [\"parcela\"],\n    vencimento: [\"datavencimento\", \"vencimento\"],\n    pagamento: [\"datapagamento\"],\n    nomePagar: [\"nomfornece\", \"nome\"],\n    saldoPagar: [\"remanescente\", \"saldo\", \"valor\"],\n    nomeReceber: [\"nomcliente\", \"nome\"],\n    saldoReceber: [\"saldo\", \"remanescente\", \"valor\"]\n  }\n};\n\n// ============================================================\n// Utilitários (sem toLocaleString: o sandbox não suporta)\n// ============================================================\nconst A = CONFIG.aliases;\nconst F = \"font-family:Inter, Arial, Helvetica, sans-serif;\";\n\nfunction txt(v) { return v === null || v === undefined ? \"\" : String(v).trim(); }\nfunction norm(v) { return txt(v).toUpperCase(); }\nfunction num(v) {\n  if (typeof v === \"number\") return isNaN(v) ? 0 : v;\n  let s = txt(v);\n  if (s.indexOf(\",\") >= 0) s = s.replace(/\\./g, \"\").replace(\",\", \".\");\n  const n = parseFloat(s);\n  return isNaN(n) ? 0 : n;\n}\nfunction dia(v) {\n  const s = txt(v).slice(0, 10);\n  return /^\\d{4}-\\d{2}-\\d{2}$/.test(s) && s !== \"1900-01-01\" ? s : \"\";\n}\nfunction br(d) { return d ? d.slice(8, 10) + \"/\" + d.slice(5, 7) + \"/\" + d.slice(0, 4) : \"-\"; }\nfunction moeda(v) {\n  const n = Math.round(num(v) * 100) / 100;\n  const p = Math.abs(n).toFixed(2).split(\".\");\n  return (n < 0 ? \"-\" : \"\") + \"R$ \" + p[0].replace(/\\B(?=(\\d{3})+(?!\\d))/g, \".\") + \",\" + p[1];\n}\nfunction escaparHtml(texto) {\n  return txt(texto).replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\").replace(/'/g, \"&#39;\");\n}\nfunction diasEntre(a, b) { return Math.round((Date.parse(b + \"T00:00:00Z\") - Date.parse(a + \"T00:00:00Z\")) / 86400000); }\nfunction pega(linha, nomes) {\n  for (let i = 0; i < nomes.length; i++) {\n    const v = linha[nomes[i]];\n    if (v !== undefined && v !== null && txt(v) !== \"\") return v;\n  }\n  return \"\";\n}\nfunction soma(lista) { return lista.reduce(function (s, r) { return s + r.valor; }, 0); }\n\n// ============================================================\n// Leitura dos quatro relatórios (o Data Lab devolve { dados: [ { dados: [linhas], erros } ] })\n// ============================================================\nconst avisos = [];\nfunction lerRelatorio(nome) {\n  let base = null;\n  try { base = $node[nome] ? $node[nome].json : null; } catch (e) { base = null; }\n  const linhas = [];\n  function abrir(o) {\n    if (Array.isArray(o)) { o.forEach(abrir); return; }\n    if (!o || typeof o !== \"object\") return;\n    if (Array.isArray(o.erros) && o.erros.length) avisos.push(nome + \": \" + o.erros.map(function (e) { return typeof e === \"string\" ? e : JSON.stringify(e); }).join(\"; \"));\n    if (Array.isArray(o.dados)) { o.dados.forEach(abrir); return; }\n    if (Object.keys(o).length) linhas.push(o);\n  }\n  if (base === null) avisos.push(nome + \": relatório não encontrado no flow.\");\n  abrir(base);\n  console.log(nome + \": \" + linhas.length + \" linhas\" + (linhas.length ? \" | colunas: \" + Object.keys(linhas[0]).join(\", \") : \"\"));\n  return linhas;\n}\n\nlet agora = Date.now();\ntry { if ($now && !isNaN(Date.parse($now))) agora = Date.parse($now); } catch (e) { }\nconst hoje = new Date(agora + CONFIG.fusoHoras * 3600000).toISOString().slice(0, 10);\n\nconst ignorados = CONFIG.nomesIgnorados.map(norm);\nconst naoFaturados = CONFIG.clientesNaoFaturados.map(norm).filter(function (s) { return s; });\nconst stOrc = CONFIG.statusOrcamento.map(norm);\nfunction ignorado(nome) { return ignorados.indexOf(norm(nome)) >= 0; }\nfunction contratoNaoFaturado(nome) { const n = norm(nome); return naoFaturados.some(function (s) { return n.indexOf(s) >= 0; }); }\nfunction temNota(l) {\n  const t = norm(pega(l, A.temNf));\n  if (t === \"SIM\" || t === \"S\") return true;\n  if (t === \"NÃO\" || t === \"NAO\" || t === \"N\") return false;\n  return txt(pega(l, A.nfNumero)) !== \"\";\n}\n\n// Vendas e O.S.: orçamento até ontem / documento não faturado até ontem\nfunction movimentos(linhas, statusDocumento) {\n  const stDoc = statusDocumento.map(norm);\n  const orc = [], naoFaturado = [];\n  linhas.forEach(function (l) {\n    const d = dia(pega(l, A.data));\n    if (!d || d >= hoje) return;\n    const cliente = txt(pega(l, A.cliente));\n    if (ignorado(cliente)) return;\n    const st = norm(pega(l, A.status));\n    const r = { numero: txt(pega(l, A.numero)), data: d, nome: cliente, vendedor: txt(pega(l, A.vendedor)), valor: num(pega(l, A.valor)), dias: diasEntre(d, hoje) };\n    if (stOrc.indexOf(st) >= 0) orc.push(r);\n    else if (stDoc.indexOf(st) >= 0 && !temNota(l) && !contratoNaoFaturado(cliente)) naoFaturado.push(r);\n  });\n  const ordem = function (a, b) { return a.data < b.data ? -1 : a.data > b.data ? 1 : (num(a.numero) - num(b.numero)); };\n  orc.sort(ordem);\n  naoFaturado.sort(ordem);\n  return { orc: orc, naoFaturado: naoFaturado };\n}\n\n// Contas: em aberto, vencidas até ontem / vencendo hoje\nfunction contas(linhas, aliasNome, aliasSaldo) {\n  const vencidas = [], deHoje = [];\n  linhas.forEach(function (l) {\n    const v = dia(pega(l, A.vencimento));\n    if (!v || v > hoje) return;\n    if (dia(pega(l, A.pagamento))) return;\n    const nome = txt(pega(l, aliasNome));\n    if (ignorado(nome)) return;\n    const saldo = num(pega(l, aliasSaldo));\n    if (saldo <= 0) return;\n    const parcela = txt(pega(l, A.parcela));\n    const r = { documento: txt(pega(l, A.documento)) + (parcela ? \" · \" + parcela : \"\"), nome: nome, vencimento: v, valor: saldo, dias: diasEntre(v, hoje) };\n    (v < hoje ? vencidas : deHoje).push(r);\n  });\n  vencidas.sort(function (a, b) { return a.vencimento < b.vencimento ? -1 : a.vencimento > b.vencimento ? 1 : b.valor - a.valor; });\n  deHoje.sort(function (a, b) { return b.valor - a.valor; });\n  return { vencidas: vencidas, hoje: deHoje };\n}\n\nconst vendas = movimentos(lerRelatorio(CONFIG.nodes.vendas), CONFIG.statusVenda);\nconst os = movimentos(lerRelatorio(CONFIG.nodes.os), CONFIG.statusOS);\nconst pagar = contas(lerRelatorio(CONFIG.nodes.pagar), A.nomePagar, A.saldoPagar);\nconst receber = contas(lerRelatorio(CONFIG.nodes.receber), A.nomeReceber, A.saldoReceber);\n\nconst COL_MOV = [\n  { t: \"Nº\", c: \"numero\", w: \"64\" },\n  { t: \"Data\", c: \"data\", w: \"78\", f: br },\n  { t: \"Cliente\", c: \"nome\", forte: true },\n  { t: \"Vendedor\", c: \"vendedor\", w: \"96\" },\n  { t: \"Valor\", c: \"valor\", w: \"92\", f: moeda, dir: true }\n];\nfunction colContas(rotulo, vencidas) {\n  const col = [\n    { t: rotulo, c: \"nome\", forte: true },\n    { t: \"Lançamento\", c: \"documento\", w: \"96\" }\n  ];\n  if (vencidas) col.push({ t: \"Venc.\", c: \"vencimento\", w: \"78\", f: br });\n  col.push({ t: \"Valor\", c: \"valor\", w: \"92\", f: moeda, dir: true });\n  return col;\n}\n\nconst grupos = [\n  { id: \"orcVenda\", sec: \"Vendas\", rotulo: \"Orçamentos de venda\", desc: \"lançados até ontem, não viraram venda\", itens: vendas.orc, col: COL_MOV, idade: \"lançado há\" },\n  { id: \"orcOS\", sec: \"O.S.\", rotulo: \"Orçamentos de O.S.\", desc: \"lançados até ontem, não aprovados\", itens: os.orc, col: COL_MOV, idade: \"lançado há\" },\n  { id: \"vendaNaoFaturada\", sec: \"Vendas\", rotulo: \"Vendas não faturadas\", desc: \"lançadas até ontem, não faturadas\", itens: vendas.naoFaturado, col: COL_MOV, idade: \"lançada há\" },\n  { id: \"osNaoFaturada\", sec: \"O.S.\", rotulo: \"O.S. não faturadas\", desc: \"lançadas até ontem, não faturadas\", itens: os.naoFaturado, col: COL_MOV, idade: \"lançada há\" },\n  { id: \"pagarVenc\", sec: \"A pagar\", rotulo: \"A pagar vencidas\", desc: \"em aberto, vencimento até ontem\", itens: pagar.vencidas, col: colContas(\"Fornecedor\", true), idade: \"venceu há\", alerta: true },\n  { id: \"receberVenc\", sec: \"A receber\", rotulo: \"A receber vencidas\", desc: \"em aberto, vencimento até ontem\", itens: receber.vencidas, col: colContas(\"Cliente\", true), idade: \"venceu há\", alerta: true },\n  { id: \"pagarHoje\", sec: \"A pagar\", rotulo: \"A pagar hoje\", desc: \"em aberto, vencem hoje\", itens: pagar.hoje, col: colContas(\"Fornecedor\", false) },\n  { id: \"receberHoje\", sec: \"A receber\", rotulo: \"A receber hoje\", desc: \"em aberto, vencem hoje\", itens: receber.hoje, col: colContas(\"Cliente\", false) }\n];\n\n// ============================================================\n// HTML (mesmo padrão visual dos e-mails Waipe)\n// ============================================================\nfunction montarPagina(titulo, preheader, miolo) {\n  let h = \"\";\n  h += \"<!DOCTYPE html><html lang='pt-BR'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'>\";\n  h += \"<meta name='color-scheme' content='light dark'><meta name='supported-color-schemes' content='light dark'>\";\n  h += \"<title>\" + escaparHtml(titulo) + \"</title>\";\n  h += \"<style>body{margin:0;padding:0;-webkit-text-size-adjust:100%;}a{color:#303030;}\";\n  h += \"@media only screen and (max-width:620px){.wrap{width:100% !important;}.px{padding-left:16px !important;padding-right:16px !important;}.kpi{display:block !important;width:100% !important;padding:0 0 8px 0 !important;}.h1{font-size:24px !important;line-height:30px !important;}.hide-sm{display:none !important;}}\";\n  h += \"@media (prefers-color-scheme: dark){.bg-page{background:#111827 !important;}.bg-card{background:#1F2937 !important;}.bg-soft{background:#27303F !important;}.t-strong{color:#F3F4F6 !important;}.t-muted{color:#9CA3AF !important;}.bd{border-color:#374151 !important;}.eyebrow{color:#D4B25A !important;}td[bgcolor='#F1F2EC']{background:#2A2E24 !important;}.kpi-ol{color:#C9CFB4 !important;}td[bgcolor='#FEF2F2']{background:#3A2422 !important;}.kpi-al{color:#FCA5A5 !important;}td[bgcolor='#FBF6EA']{background:#2F2A1E !important;}.logo{filter:invert(1) brightness(1.1) !important;}}\";\n  h += \"</style></head>\";\n  h += \"<body style='margin:0;padding:0;background:#F3F4F6;' class='bg-page'>\";\n  h += \"<span style='display:none;font-size:1px;color:#F3F4F6;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;'>\" + escaparHtml(preheader) + \"</span>\";\n  h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' bgcolor='#F3F4F6' class='bg-page' style='background:#F3F4F6;'><tr><td align='center' style='padding:32px 12px;'>\";\n  h += \"<!--[if mso]><table role='presentation' width='600' cellpadding='0' cellspacing='0' border='0'><tr><td><![endif]-->\";\n  h += \"<table role='presentation' width='600' cellpadding='0' cellspacing='0' border='0' class='wrap' style='width:600px;max-width:600px;'>\";\n  h += \"<tr><td class='px' style='padding:0 8px 16px 8px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr>\";\n  // Marca: ícone (imagem pública em CONFIG.logoUrl) + \"waipe\" em texto, como no modelo aprovado\n  h += \"<td valign='middle' style='padding:0;'><a href='https://waipe.com.br' style='text-decoration:none;'><table role='presentation' cellpadding='0' cellspacing='0' border='0'><tr>\";\n  if (CONFIG.logoUrl && CONFIG.logoUrl.indexOf(\"SUBSTITUA\") < 0) {\n    h += \"<td valign='middle' style='padding:0 8px 0 0;font-size:0;line-height:0;'><img src='\" + escaparHtml(CONFIG.logoUrl) + \"' width='28' height='28' alt='' class='logo' style='display:block;width:28px;height:28px;border:0;outline:none;text-decoration:none;'></td>\";\n  }\n  h += \"<td valign='middle' class='t-strong' style='\" + F + \"font-size:24px;font-weight:600;color:#303030;letter-spacing:-0.3px;mso-line-height-rule:exactly;line-height:28px;'>waipe</td>\";\n  h += \"</tr></table></a></td>\";\n  h += \"<td align='right' class='t-muted' style='\" + F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:16px;'>\" + escaparHtml(CONFIG.nomeEmpresa) + \"<br>Relatório diário &middot; \" + br(hoje) + \"</td>\";\n  h += \"</tr></table></td></tr>\";\n  h += \"<tr><td bgcolor='#FEFEFE' class='bg-card bd' style='background:#FEFEFE;border:1px solid #E5E7EB;border-radius:8px;overflow:hidden;'>\";\n  h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td height='4' bgcolor='#303030' style='height:4px;font-size:0;line-height:0;background:#303030;border-radius:8px 8px 0 0;'>&nbsp;</td></tr></table>\";\n  h += miolo;\n  h += \"</td></tr>\";\n  h += \"<tr><td class='px' align='center' style='padding:24px 24px 0 24px;'>\";\n  h += \"<p class='t-muted' style='margin:0 0 8px 0;\" + F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:18px;'>Enviado automaticamente pelo Waipe todos os dias às 08:00 para \" + escaparHtml(CONFIG.nomeEmpresa) + \".</p>\";\n  h += \"<p class='t-muted' style='margin:0;\" + F + \"font-size:12px;color:#9CA3AF;mso-line-height-rule:exactly;line-height:18px;'>Londrisoft &middot; Londrina, PR &middot; Brasil</p>\";\n  h += \"</td></tr></table>\";\n  h += \"<!--[if mso]></td></tr></table><![endif]-->\";\n  h += \"</td></tr></table></body></html>\";\n  return h;\n}\n\nfunction cabecalho(texto) {\n  let h = \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td class='px' style='padding:32px 32px 8px 32px;'>\";\n  h += \"<p class='eyebrow' style='margin:0 0 8px 0;\" + F + \"font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#8E6A1F;mso-line-height-rule:exactly;line-height:16px;'>Rotina da manhã</p>\";\n  h += \"<h1 class='h1 t-strong' style='margin:0 0 12px 0;\" + F + \"font-size:28px;font-weight:bold;color:#303030;letter-spacing:-0.5px;mso-line-height-rule:exactly;line-height:34px;'>\" + escaparHtml(CONFIG.titulo) + \"</h1>\";\n  h += \"<p class='t-muted' style='margin:0;\" + F + \"font-size:15px;color:#4B5563;mso-line-height-rule:exactly;line-height:23px;'>\" + texto + \"</p>\";\n  h += \"</td></tr></table>\";\n  return h;\n}\n\n// Cartão de totalizador: oliva quando há pendência, vermelho suave para vencidas, cinza quando zerado\nfunction cartao(g, lado) {\n  const qtd = g.itens.length;\n  let fundo = \"#F9FAFB\", cls = \"bg-soft\", corN = \"#303030\", clsN = \"t-strong\", corT = \"#4B5563\", clsT = \"t-muted\";\n  if (qtd > 0 && g.alerta) { fundo = \"#FEF2F2\"; cls = \"\"; corN = \"#B42828\"; clsN = \"kpi-al\"; corT = \"#B42828\"; clsT = \"kpi-al\"; }\n  else if (qtd > 0) { fundo = \"#F1F2EC\"; cls = \"\"; corN = \"#5A6344\"; clsN = \"kpi-ol\"; corT = \"#5A6344\"; clsT = \"kpi-ol\"; }\n  const pad = lado === \"e\" ? \"padding:0 6px 12px 0;\" : \"padding:0 0 12px 6px;\";\n  let h = \"<td class='kpi' width='50%' valign='top' style='\" + pad + \"'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td bgcolor='\" + fundo + \"' class='\" + cls + \"' style='background:\" + fundo + \";border-radius:8px;padding:16px;'>\";\n  h += \"<p class='\" + clsN + \"' style='margin:0;\" + F + \"font-size:30px;font-weight:bold;color:\" + corN + \";mso-line-height-rule:exactly;line-height:34px;'>\" + qtd + \"</p>\";\n  h += \"<p class='\" + clsT + \"' style='margin:4px 0 0 0;\" + F + \"font-size:13px;font-weight:bold;color:\" + corT + \";mso-line-height-rule:exactly;line-height:18px;'>\" + escaparHtml(g.rotulo) + \"</p>\";\n  h += \"<p class='\" + clsT + \"' style='margin:2px 0 0 0;\" + F + \"font-size:12px;color:\" + corT + \";mso-line-height-rule:exactly;line-height:16px;'>\" + (qtd > 0 ? moeda(soma(g.itens)) : \"Nada pendente\") + \"</p>\";\n  h += \"</td></tr></table></td>\";\n  return h;\n}\n\nfunction blocoKpi(titulo, gEsq, gDir) {\n  let h = \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td class='px' style='padding:16px 32px 0 32px;'>\";\n  h += \"<p class='t-muted' style='margin:0 0 8px 0;\" + F + \"font-size:11px;font-weight:bold;letter-spacing:0.8px;text-transform:uppercase;color:#6B7280;'>\" + titulo + \"</p>\";\n  h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr>\" + cartao(gEsq[0], \"e\") + cartao(gDir[0], \"d\") + \"</tr><tr>\" + cartao(gEsq[1], \"e\") + cartao(gDir[1], \"d\") + \"</tr></table>\";\n  h += \"</td></tr></table>\";\n  return h;\n}\n\nfunction th(c, primeira, ultima) {\n  const raio = primeira ? \"border-radius:8px 0 0 0;\" : ultima ? \"border-radius:0 8px 0 0;\" : \"\";\n  const pad = primeira ? \"padding:10px 8px 10px 16px;\" : ultima ? \"padding:10px 16px 10px 8px;\" : \"padding:10px 8px;\";\n  return \"<td bgcolor='#F9FAFB' class='bg-soft t-muted\" + (c.forte ? \"\" : \" hide-sm\") + \"'\" + (c.w ? \" width='\" + c.w + \"'\" : \"\") + (c.dir ? \" align='right'\" : \"\") + \" style='background:#F9FAFB;\" + pad + F + \"font-size:11px;font-weight:bold;letter-spacing:0.8px;text-transform:uppercase;color:#6B7280;\" + raio + \"'>\" + c.t + \"</td>\";\n}\n\nfunction tabela(g) {\n  const qtd = g.itens.length;\n  let h = \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'>\";\n  h += \"<tr><td class='px' style='padding:28px 32px 0 32px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr>\";\n  h += \"<td class='t-strong' style='\" + F + \"font-size:16px;font-weight:bold;color:#303030;mso-line-height-rule:exactly;line-height:22px;'>\" + escaparHtml(g.rotulo) + \" (\" + qtd + \")</td>\";\n  h += \"<td align='right' class='t-muted' style='\" + F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:16px;'>\" + escaparHtml(g.desc) + \"</td>\";\n  h += \"</tr></table></td></tr>\";\n  h += \"<tr><td class='px' style='padding:12px 32px 0 32px;'>\";\n  if (!qtd) {\n    h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' class='bd' style='border:1px solid #E5E7EB;border-radius:8px;'><tr><td class='t-muted' style='padding:14px 16px;\" + F + \"font-size:13px;color:#4B5563;'>&#10003; Nada pendente.</td></tr></table>\";\n    h += \"</td></tr></table>\";\n    return h;\n  }\n  h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' class='bd' style='border:1px solid #E5E7EB;border-radius:8px;'><tr>\";\n  g.col.forEach(function (c, i) { h += th(c, i === 0, i === g.col.length - 1); });\n  h += \"</tr>\";\n  g.itens.slice(0, CONFIG.maxItensPorLista).forEach(function (r) {\n    h += \"<tr>\";\n    g.col.forEach(function (c, i) {\n      const pad = i === 0 ? \"padding:9px 8px 9px 16px;\" : i === g.col.length - 1 ? \"padding:9px 16px 9px 8px;\" : \"padding:9px 8px;\";\n      const valor = c.f ? c.f(r[c.c]) : escaparHtml(r[c.c]);\n      let extra = \"\";\n      if (c.forte && g.idade) extra = \"<br><span class='t-muted' style='font-size:12px;font-weight:normal;color:#9CA3AF;'>\" + g.idade + \" \" + r.dias + (r.dias === 1 ? \" dia\" : \" dias\") + \"</span>\";\n      h += \"<td class='bd \" + (c.forte ? \"t-strong\" : \"t-muted hide-sm\") + \"' valign='top'\" + (c.dir ? \" align='right'\" : \"\") + \" style='border-top:1px solid #F3F4F6;\" + pad + F + \"font-size:13px;\" + (c.forte || c.dir ? \"font-weight:bold;color:#303030;\" : \"color:#4B5563;\") + \"mso-line-height-rule:exactly;line-height:18px;'>\" + (valor || \"-\") + extra + \"</td>\";\n    });\n    h += \"</tr>\";\n  });\n  if (qtd > CONFIG.maxItensPorLista) {\n    const resto = g.itens.slice(CONFIG.maxItensPorLista);\n    h += \"<tr><td colspan='\" + g.col.length + \"' bgcolor='#F9FAFB' class='bg-soft t-muted bd' style='background:#F9FAFB;border-top:1px solid #F3F4F6;padding:10px 16px;\" + F + \"font-size:12px;color:#6B7280;border-radius:0 0 8px 8px;'>e mais \" + resto.length + \" (\" + moeda(soma(resto)) + \")</td></tr>\";\n  }\n  h += \"</table></td></tr></table>\";\n  return h;\n}\n\nconst porId = {};\ngrupos.forEach(function (g) { porId[g.id] = g; });\nconst totalPendencias = grupos.reduce(function (s, g) { return s + g.itens.length; }, 0);\n\nlet miolo = cabecalho(\"Bom dia, \" + escaparHtml(CONFIG.nomeDestinatario) + \". \" + (totalPendencias ? \"Este é o resumo do que ficou em aberto até ontem e do que vence hoje. Os números de cima são os totais; logo abaixo vem a lista de cada um.\" : \"Nada ficou em aberto até ontem e nada vence hoje. Bom trabalho!\"));\nif (avisos.length) {\n  miolo += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td class='px' style='padding:16px 32px 0 32px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td bgcolor='#FBF6EA' style='background:#FBF6EA;border-radius:8px;padding:12px 16px;\" + F + \"font-size:12px;color:#8E6A1F;line-height:18px;'><b>Atenção:</b> \" + avisos.map(escaparHtml).join(\"<br>\") + \"</td></tr></table></td></tr></table>\";\n}\nmiolo += blocoKpi(\"Vendas e O.S. até ontem\", [porId.orcVenda, porId.vendaNaoFaturada], [porId.orcOS, porId.osNaoFaturada]);\nmiolo += blocoKpi(\"Financeiro em aberto\", [porId.pagarVenc, porId.pagarHoje], [porId.receberVenc, porId.receberHoje]);\ngrupos.forEach(function (g) { miolo += tabela(g); });\nmiolo += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td style='padding:0 0 32px 0;font-size:0;line-height:0;'>&nbsp;</td></tr></table>\";\n\nconst preheader = vendas.orc.length + \" orçamentos, \" + vendas.naoFaturado.length + \" vendas não faturadas, \" + os.naoFaturado.length + \" O.S. não faturadas, \" + (pagar.vencidas.length + pagar.hoje.length) + \" contas a pagar e \" + (receber.vencidas.length + receber.hoje.length) + \" a receber.\";\nconst html = montarPagina(CONFIG.titulo + \" - Waipe\", preheader, miolo);\n\nconst totais = {};\ngrupos.forEach(function (g) { totais[g.id] = { quantidade: g.itens.length, valor: Math.round(soma(g.itens) * 100) / 100 }; });\n\nreturn [{ json: { assunto: CONFIG.assunto + \" - \" + br(hoje), html: html, email: CONFIG.email, hoje: hoje, totais: totais, avisos: avisos } }];\n"
+      }
+    },
+    {
+      "id": "b7d4c1e2-5a3f-4e8b-9c6d-2f1a0e9b8c71",
+      "type": "gmail_send",
+      "name": "Enviar E-mail de Pendências",
+      "position": {
+        "x": 1010,
+        "y": 272
+      },
+      "parameters": {
+        "credentialId": "",
+        "to": "bruno.vaz@londrisoft.londrina.br",
+        "toMode": "fixed",
+        "cc": "",
+        "ccMode": "expression",
+        "bcc": "",
+        "bccMode": "expression",
+        "subject": "{{ $json.assunto }}",
+        "subjectMode": "expression",
+        "bodyType": "html",
+        "body": "{{ $json.html }}",
+        "bodyMode": "expression",
+        "continueOnError": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "4959d733-96b4-4308-9a98-dd670eeef8e7",
+      "target": "17ee28cd-d86a-4b72-874b-e3f7d73b8269"
+    },
+    {
+      "id": "e2",
+      "source": "4959d733-96b4-4308-9a98-dd670eeef8e7",
+      "target": "cd772b48-4ed8-4a7e-b764-f2cfa5ea48a8"
+    },
+    {
+      "id": "e3",
+      "source": "4959d733-96b4-4308-9a98-dd670eeef8e7",
+      "target": "bf4b58ef-dc86-4442-a316-c0d275032e66"
+    },
+    {
+      "id": "e4",
+      "source": "4959d733-96b4-4308-9a98-dd670eeef8e7",
+      "target": "faa8a2ca-8133-4812-8d3d-397c6b03b745"
+    },
+    {
+      "id": "e5",
+      "source": "17ee28cd-d86a-4b72-874b-e3f7d73b8269",
+      "target": "4e20b92a-3fd8-4d3a-8f83-2f96ce5c3a7c"
+    },
+    {
+      "id": "e6",
+      "source": "cd772b48-4ed8-4a7e-b764-f2cfa5ea48a8",
+      "target": "4e20b92a-3fd8-4d3a-8f83-2f96ce5c3a7c"
+    },
+    {
+      "id": "e7",
+      "source": "bf4b58ef-dc86-4442-a316-c0d275032e66",
+      "target": "4e20b92a-3fd8-4d3a-8f83-2f96ce5c3a7c"
+    },
+    {
+      "id": "e8",
+      "source": "faa8a2ca-8133-4812-8d3d-397c6b03b745",
+      "target": "4e20b92a-3fd8-4d3a-8f83-2f96ce5c3a7c"
+    },
+    {
+      "id": "e9",
+      "source": "4e20b92a-3fd8-4d3a-8f83-2f96ce5c3a7c",
+      "target": "b7d4c1e2-5a3f-4e8b-9c6d-2f1a0e9b8c71"
+    }
+  ]
+}
