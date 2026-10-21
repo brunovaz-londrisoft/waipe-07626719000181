@@ -1,10 +1,10 @@
 ---
 nome: Pendências de Ontem
 slug: pendencias-de-ontem
-versao: 0.0.0
+versao: 1.0.0
 modelo_base: nenhum
 gatilho: agendado (todos os dias, 08:00, America/Sao_Paulo)
-atualizado: 2026-10-20
+atualizado: 2026-10-21
 ---
 
 # Pendências de Ontem
@@ -197,7 +197,7 @@ Textos registrados exatamente como foram criados no Data Lab em 2026-10-20.
 
 ## Histórico
 
-### Não publicado
+### v1.0.0 (2026-10-21)
 - JSON atualizado com o export do Waipe Flow de 21/10/2026: envio de teste para o Bruno (`to` fixo) até a validação; depois troca para o e-mail da cliente.
 - Tirado o "l" sobrando em "até {hoje}l" nos textos dos relatórios Vendas da Semana e O.S. da Semana.
 - Primeira versão da documentação, a partir da passagem de bastão de 27/08/2026.
