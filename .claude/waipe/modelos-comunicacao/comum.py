@@ -201,7 +201,7 @@ def pagina_email(titulo, h1, eyebrow, descricao, chips, assunto, remetente, reme
 
 # ------------------------------------------------------------------ Planilha (estilo Google Sheets)
 def pagina_planilha(titulo, colunas, linhas, voltar, rotulo_aba='Página1', larguras=None):
-    letras = 'ABCDEFGH'
+    letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
     larguras = larguras or [260, 170, 240, 130, 130]
     cab = '<th class="rn"></th>' + ''.join('<th>%s</th>' % letras[i] for i in range(len(colunas)))
     h1 = '<tr><td class="rn">1</td>' + ''.join('<td class="h">%s</td>' % esc(c) for c in colunas) + '</tr>'
