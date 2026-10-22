@@ -25,7 +25,7 @@ Decisão do dono do framework (v2.0.0): **uma branch só, `main`**. Não existem
 |---|---|---|
 | Agente novo | `waipe.py novo-agente <slug>` | skill `waipe-criar-agente` |
 | Enviar alteração para teste | commit na `main` + `waipe.py salvar` | quem fez a mudança, sempre |
-| Fechar versão de um agente | `waipe.py release <slug> <nivel>` | skill `waipe-fechar-release`, só a pedido do usuário (cria antes os modelos de comunicação em `agentes/modelos/<slug>/`) |
+| Fechar versão de um agente | `waipe.py release <slug> <nivel>` | skill `waipe-fechar-release`, só a pedido do usuário (cria antes os modelos de comunicação em `agentes/<slug>/modelos/`) |
 | Atualizar o framework | `waipe.py atualizar [vX.Y.Z]` | skill `waipe-atualizar-framework` |
 | Sair do gitflow antigo | `waipe.py migrar` (uma vez) | skill `waipe-atualizar-framework` |
 

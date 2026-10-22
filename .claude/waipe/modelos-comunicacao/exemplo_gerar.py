@@ -1,53 +1,46 @@
 # -*- coding: utf-8 -*-
-"""Exemplo mínimo de gerador dos modelos de comunicação de um agente. COPIE para a pasta temporária (scratchpad), ADAPTE
-e rode de lá. Nunca rode o código dos nodes do flow: leia o código, entenda o texto/HTML que ele monta e reproduza aqui
-com dados fictícios.
+"""Exemplo mínimo de gerador dos modelos de comunicação de um agente (padrão v3). COPIE para a pasta temporária
+(scratchpad), ADAPTE e rode de lá:
 
     python3 exemplo_gerar.py <pasta do repositório>        (ex.: python3 exemplo_gerar.py .)
 
-Cria agentes/modelos/<SLUG>/ e acrescenta o cartão do fluxo em agentes/modelos/index.html (sem recriar o que já existe)."""
+Grava as peças em agentes/<SLUG>/modelos/ e o modelos.json. Os e-mails e o texto do WhatsApp saem do próprio node
+(rodar_node executa só o JavaScript do node code, com as entradas fictícias abaixo; nada é enviado)."""
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__))))
-from comum import (pagina_whatsapp, pagina_email, pagina_planilha, card, atualizar_indice)
+from comum import gravar, pagina_planilha, pagina_whatsapp, rodar_node, salvar_manifesto
 
 RAIZ = sys.argv[1] if len(sys.argv) > 1 else '.'
-SLUG = 'meu-agente'                        # slug do agente (nome da pasta em agentes/)
-NOME = 'Meu Agente'                        # nome legível
-MODELOS = os.path.join(RAIZ, 'agentes', 'modelos')
-SAIDA = os.path.join(MODELOS, SLUG)
+SLUG = 'meu-agente'                                    # slug do agente (nome da pasta em agentes/)
+FLOW = os.path.join(RAIZ, 'agentes', SLUG, SLUG + '.json')
+SAIDA = os.path.join(RAIZ, 'agentes', SLUG, 'modelos')
 
-def grava(rel, conteudo):
-    caminho = os.path.join(SAIDA, rel)
-    os.makedirs(os.path.dirname(caminho), exist_ok=True)
-    open(caminho, 'w', encoding='utf-8').write(conteudo)
+# 1) Entradas fictícias do node que monta as mensagens: leia o código dele e monte só os campos que ele usa.
+vendedor = {'nome': 'Maria Exemplo', 'email': 'maria.exemplo@empresa.exemplo.com.br', 'telefone': '5511900000001',
+            'clientes': [{'Cliente': 'Mercadinho Exemplo', 'Telefone': '(11) 90000-0001', 'Dias sem comprar': 45}]}
+saida = rodar_node(FLOW, 'Montar Mensagens do Vendedor', {
+    'node': {'Processar Dados': {'data': '19/10/2026', 'vendedores': [vendedor]}, 'Cada Vendedor': vendedor},
+    'hoje': '2026-10-19'})[0]
 
-# 1) WhatsApp (só se o flow envia WhatsApp). O texto é o MESMO que o node monta (*negrito*, _itálico_, quebras de linha).
-texto = 'Olá, Maria Exemplo! Tenha um ótimo dia.\nSegue o seu *resumo* de hoje:\n- Item fictício 1\n- Item fictício 2\n_Mensagem automática do sistema comercial EMPRESA EXEMPLO._'
-grava('whatsapp-vendedor.html', pagina_whatsapp(
-    NOME + ' · WhatsApp', 'WhatsApp enviado ao vendedor', NOME, 'O que o vendedor recebe no WhatsApp.',
-    [('🕖', 'Frequência', 'Toda segunda, 07:00'), ('📲', 'Canal', 'WhatsApp (Z-API oficial)')],
-    [dict(texto=texto)], '07:00', 'SEGUNDA-FEIRA', 'Empresa Exemplo · Comercial', '../index.html'))
-# Com documento anexado: [dict(texto=texto, doc=dict(nome='Relatorio.pdf', meta='PDF · 1 página(s) · 70 KB'))] e doc=dict(nome=..., href='documento/Relatorio.pdf')
-# Com link de planilha: [dict(texto=texto, link=dict(titulo='Planilha ...', host='docs.google.com', href='planilhas/maria-exemplo.html'))] e links={url_visivel: 'planilhas/maria-exemplo.html'}
+# 2) Peças. E-mail = o HTML do node, sem mexer.
+gravar(SAIDA, 'email-vendedor.html', saida['corpo_email'])
+url_planilha = 'https://docs.google.com/spreadsheets/d/exemplo-maria-exemplo'
+gravar(SAIDA, 'whatsapp-vendedor.html', pagina_whatsapp(
+    [dict(texto=saida['mensagem_whatsapp'], link=dict(titulo='Planilha - Maria Exemplo - 19-10-2026', host='docs.google.com',
+                                                       href='planilhas/maria-exemplo.html'))],
+    'Empresa Exemplo · Comercial', '07:00', 'SEGUNDA-FEIRA', {url_planilha: 'planilhas/maria-exemplo.html'}, 'WhatsApp do vendedor'))
+gravar(SAIDA, 'planilhas/maria-exemplo.html', pagina_planilha(
+    'Planilha - Maria Exemplo - 19-10-2026', ['Cliente', 'Telefone', 'Dias sem comprar'],
+    [['Mercadinho Exemplo', '(11) 90000-0001', 45]], 'Página1', [260, 170, 140]))
+# Documento (PDF): imprima o HTML do documento com o navegador sem janela (ver PADRAO.md) para documento/<nome>.pdf.
 
-# 2) E-mail (HTML fragmento IGUAL ao que o node monta, com dados fictícios). celular=True mostra o botão Computador/Celular.
-html_email = '<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial">Olá, <b>Maria Exemplo</b>. Conteúdo do e-mail aqui.</td></tr></table>'
-grava('email-vendedor.html', pagina_email(
-    NOME + ' · E-mail', 'E-mail enviado ao vendedor', NOME, 'O que o vendedor recebe por e-mail.',
-    [('🕖', 'Frequência', 'Toda segunda, 07:00'), ('✉️', 'Canal', 'E-mail do cadastro do vendedor')],
-    'Assunto do e-mail - EMPRESA EXEMPLO', 'Empresa Exemplo Comercial', 'relatorios@empresa.exemplo.com.br',
-    'Maria Exemplo <maria.exemplo@empresa.exemplo.com.br>', 'seg., 19 out. 07:00', html_email, '../index.html'))
-
-# 3) Consolidado do gestor (se o flow envia um): mesma ideia, destinatário = gestor fictício.
-# 4) Documento (PDF): imprima o HTML do documento com o navegador sem janela (ver PADRAO.md) para documento/<nome>.pdf.
-# 5) Planilhas (se o flow cria planilhas): uma página por vendedor.
-grava('planilhas/maria-exemplo.html', pagina_planilha(
-    'Planilha - Maria Exemplo - 19-10-2026', ['Cliente', 'Telefone', 'E-mail'],
-    [('Mercadinho Exemplo', '(11) 90000-0001', 'contato@mercadinho.exemplo.com.br')], '../whatsapp-vendedor.html', larguras=[260, 170, 280]))
-
-# 6) Índice: SÓ acrescenta (ou troca) o cartão deste fluxo; os outros fluxos não são tocados.
-atualizar_indice(MODELOS, card(
-    NOME, '🧩', 'Toda segunda, 07:00', 'Cada vendedor', 'Uma linha dizendo o que o fluxo envia.', SLUG,
-    [('📲', 'WhatsApp do vendedor', 'whatsapp-vendedor.html'), ('✉️', 'E-mail do vendedor', 'email-vendedor.html'),
-     ('📊', 'Planilha de um vendedor', 'planilhas/maria-exemplo.html')]), SLUG)
+# 3) modelos.json: a ordem é a do portal.
+salvar_manifesto(SAIDA, [
+    dict(arquivo='whatsapp-vendedor.html', tipo='whatsapp', rotulo='WhatsApp do vendedor', contato='Empresa Exemplo · Comercial',
+         data='SEGUNDA-FEIRA', quem='Cada vendedor'),
+    dict(arquivo='email-vendedor.html', tipo='email', rotulo='E-mail do vendedor', assunto=saida['assunto_email'],
+         de='Relatórios Waipe <relatorios@empresa.exemplo.com.br>', para='Maria Exemplo <maria.exemplo@empresa.exemplo.com.br>',
+         data='seg., 19 out. 07:00', quem='Cada vendedor com e-mail'),
+    dict(arquivo='planilhas/maria-exemplo.html', tipo='planilha', rotulo='Planilha de Maria Exemplo'),
+])
 print('Modelos de %s gerados em %s' % (SLUG, SAIDA))

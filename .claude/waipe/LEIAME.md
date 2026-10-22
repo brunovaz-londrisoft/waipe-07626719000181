@@ -53,7 +53,8 @@ agentes a partir de um catálogo de modelos e cuida das versões.
 |---|---|
 | `status` | versão do framework; versão em trabalho e publicada de cada agente; modelos do catálogo |
 | `validar [pasta]` | regras de importação do Waipe Flow (gatilho único, tipos, handles, DAG, blocklist, credenciais) + `.md` |
-| `novo-agente <slug>` | cria `agentes/<slug>/` com o `.md` do modelo |
+| `catalogo [termos]` | procura no catálogo um modelo parecido com o agente que será criado |
+| `novo-agente <slug> [--modelo <m>]` | cria `agentes/<slug>/` com o `.md` em branco, ou a partir de um modelo do catálogo |
 | `salvar` | valida e envia para a `main` o que já foi commitado |
 | `release <slug> <nivel>` | fecha a versão (`patch`, `minor`, `major` ou `X.Y.Z`): tag `<slug>/vX.Y.Z` e Release com os arquivos da pasta |
 | `atualizar [vX.Y.Z]` | framework do template para este cliente (padrão: última versão) |

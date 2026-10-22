@@ -1,0 +1,40 @@
+{
+  "versao": 1,
+  "aviso": "Dados fictícios. O layout, os textos e a ordem seguem o que o fluxo envia.",
+  "pecas": [
+    {
+      "arquivo": "whatsapp-vendedor.html",
+      "tipo": "whatsapp",
+      "rotulo": "WhatsApp do vendedor",
+      "contato": "Empresa Exemplo · Comercial",
+      "data": "SEGUNDA-FEIRA",
+      "quem": "Cada vendedor"
+    },
+    {
+      "arquivo": "email-vendedor.html",
+      "tipo": "email",
+      "rotulo": "E-mail do vendedor",
+      "assunto": "Seu resumo semanal - Coach de Vendas NOME DA EMPRESA",
+      "de": "Relatórios Waipe <relatorios@empresa.exemplo.com.br>",
+      "para": "Helena Prado <helena.prado@empresa.exemplo.com.br>",
+      "data": "seg., 19 out. 07:00",
+      "quem": "Cada vendedor com e-mail"
+    },
+    {
+      "arquivo": "consolidado-gestor.html",
+      "tipo": "email",
+      "rotulo": "Consolidado do gestor",
+      "assunto": "Relatório Consolidado Semanal - Coach de Vendas NOME DA EMPRESA",
+      "de": "Relatórios Waipe <relatorios@empresa.exemplo.com.br>",
+      "para": "Nome do Gestor <gestor@empresa.exemplo.com.br>",
+      "data": "seg., 19 out. 07:08",
+      "quem": "Gestor comercial"
+    },
+    {
+      "arquivo": "documento/Relatorio-Helena-Prado.pdf",
+      "tipo": "documento",
+      "rotulo": "Relatório em PDF do vendedor",
+      "quem": "Cada vendedor (anexo do WhatsApp)"
+    }
+  ]
+}

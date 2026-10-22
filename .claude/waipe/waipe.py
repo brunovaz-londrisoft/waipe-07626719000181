@@ -6,7 +6,9 @@ Uso: python3 .claude/waipe/waipe.py <comando> [argumentos]
 Comandos do repositório de cliente (branch única: main)
   status                       versão do framework e situação de cada agente
   validar [pasta ...]          valida agentes (padrão: agentes/ e o catálogo)
-  novo-agente <slug>           cria agentes/<slug>/ com o .md do modelo
+  catalogo [termos ...]        procura no catálogo de modelos um agente parecido com o que será criado
+  novo-agente <slug> [--modelo <modelo>]
+                               cria agentes/<slug>/ com o .md em branco, ou a partir de um modelo do catálogo
   salvar                       valida e envia para a main o que já foi commitado
   release <slug> <nivel>       fecha a versão do agente (patch|minor|major|X.Y.Z): tag <slug>/vX.Y.Z
                                e GitHub Release com os arquivos da pasta
@@ -68,8 +70,10 @@ SECOES_AGENTE = ["## Objetivo", "## Como funciona", "## Configuração após imp
 SECOES_MODELO = SECOES_AGENTE + ["## Quando usar", "## Perguntas para personalizar"]
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 SLUG = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
-# Pastas de agentes/ que não são agentes: `agentes/modelos/` guarda os modelos de comunicação (ver .claude/waipe/modelos/PADRAO.md).
+# Nome reservado em agentes/: até a v2 os modelos de comunicação ficavam em `agentes/modelos/`. Desde a v3 eles ficam
+# dentro de cada agente, em `agentes/<slug>/modelos/` (ver .claude/waipe/modelos-comunicacao/PADRAO.md).
 RESERVADAS = {"modelos"}
+TIPOS_PECA = {"email", "whatsapp", "planilha", "documento"}
 CNPJ = re.compile(r"\b\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}\b")
 EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")
 
@@ -327,6 +331,9 @@ def validar_pasta(pasta, exigir_par=True, modelo=False):
                 erros.append(f"{md.name}: falta a seção '{s}'")
     elif exigir_par:
         erros.append(f"falta {md.name}")
+    e, a = validar_modelos(pasta / "modelos", modelo)
+    erros += e
+    avisos += a
     if modelo:
         for arq in (js, md):
             if arq.exists():
@@ -339,6 +346,44 @@ def validar_pasta(pasta, exigir_par=True, modelo=False):
     return erros, avisos
 
 
+def validar_modelos(pasta, modelo=False):
+    """Modelos de comunicação do agente (<agente>/modelos/): modelos.json com as peças, todas existentes."""
+    erros, avisos = [], []
+    if not pasta.exists():
+        return erros, avisos
+    manifesto = pasta / "modelos.json"
+    if not manifesto.exists():
+        return [f"modelos/: falta modelos.json (lista das peças, ver PADRAO.md)"], avisos
+    try:
+        pecas = json.loads(manifesto.read_text(encoding="utf-8")).get("pecas")
+    except ValueError as e:
+        return [f"modelos/modelos.json inválido: {e}"], avisos
+    if not isinstance(pecas, list) or not pecas:
+        return ["modelos/modelos.json: 'pecas' precisa ser uma lista com ao menos uma peça"], avisos
+    listados = set()
+    for i, p in enumerate(pecas):
+        arq = (p or {}).get("arquivo", "")
+        listados.add(arq)
+        if p.get("tipo") not in TIPOS_PECA:
+            erros.append(f"modelos.json: peça {i + 1} com tipo '{p.get('tipo')}' (use {', '.join(sorted(TIPOS_PECA))})")
+        if not p.get("rotulo"):
+            erros.append(f"modelos.json: peça {i + 1} sem rotulo")
+        if not arq or not (pasta / arq).is_file():
+            erros.append(f"modelos.json: arquivo '{arq}' não existe em modelos/")
+        if p.get("tipo") == "email" and not p.get("assunto"):
+            avisos.append(f"modelos.json: e-mail '{arq}' sem assunto")
+    for f in sorted(pasta.rglob("*")):
+        rel = f.relative_to(pasta).as_posix()
+        if f.is_file() and rel != "modelos.json" and rel not in listados:
+            avisos.append(f"modelos/{rel} não está no modelos.json (o portal não mostra)")
+        if modelo and f.is_file() and f.suffix in (".html", ".json"):
+            conteudo = f.read_text(encoding="utf-8", errors="ignore")
+            for em in EMAIL.findall(conteudo):
+                if not em.endswith(("exemplo.com", "example.com", "exemplo.com.br")):
+                    erros.append(f"modelos/{rel}: tem e-mail real ({em}), modelo do catálogo usa dados fictícios")
+    return erros, avisos
+
+
 def pastas_agentes():
     return sorted(p for p in AGENTES.iterdir() if p.is_dir() and p.name not in RESERVADAS) if AGENTES.exists() else []
 
@@ -346,7 +391,7 @@ def pastas_agentes():
 def pastas_padrao():
     pastas = pastas_agentes()
     if CATALOGO.exists():
-        pastas += sorted(p for p in CATALOGO.iterdir() if p.is_dir())
+        pastas += sorted(p for p in CATALOGO.iterdir() if p.is_dir() and p.name not in RESERVADAS)
     return pastas
 
 
@@ -439,10 +484,10 @@ def envia_mensagens(pasta):
 
 
 def situacao_modelos(pasta):
-    """Sufixo da linha do status: modelos de comunicação do agente em agentes/modelos/<slug>/."""
+    """Sufixo da linha do status: modelos de comunicação do agente em agentes/<slug>/modelos/."""
     if modo_template() or not envia_mensagens(pasta):
         return ""
-    return "  modelos: ok" if (AGENTES / "modelos" / pasta.name).is_dir() else "  modelos: PENDENTE"
+    return "  modelos: ok" if (pasta / "modelos" / "modelos.json").is_file() else "  modelos: PENDENTE"
 
 
 def cmd_status(_args):
@@ -461,13 +506,74 @@ def cmd_status(_args):
         alterado = "com alterações desde a última release" if mudou_desde(tag, f"agentes/{p.name}") else "sem alterações"
         print(f"  {p.name:<32} última release: {publicada:<8} {alterado}{situacao_modelos(p)}")
     if CATALOGO.exists():
-        modelos = [p.name for p in sorted(CATALOGO.iterdir()) if p.is_dir()]
+        modelos = [p.name for p in sorted(CATALOGO.iterdir()) if p.is_dir() and p.name not in RESERVADAS]
         print(f"Catálogo:  {', '.join(modelos) or 'vazio'}")
 
 
+def _semacento(t):
+    t = t.lower()
+    for a, b in (("á", "a"), ("à", "a"), ("ã", "a"), ("â", "a"), ("é", "e"), ("ê", "e"), ("í", "i"), ("ó", "o"), ("ô", "o"), ("õ", "o"), ("ú", "u"), ("ç", "c")):
+        t = t.replace(a, b)
+    return t
+
+
+def modelos_do_catalogo():
+    """Linhas da tabela de catalogo/INDICE.md: [{slug, versao, gatilho, serve, palavras, pasta}]"""
+    indice = CATALOGO / "INDICE.md"
+    linhas = []
+    if not indice.exists():
+        return linhas
+    for ln in indice.read_text(encoding="utf-8").splitlines():
+        m = re.match(r"^\|\s*`([a-z0-9-]+)`(?:\s*\(v([0-9.]+)\))?\s*\|(.*)$", ln)
+        if not m:
+            continue
+        cols = [c.strip() for c in m.group(3).split("|")]
+        cols = [c for c in cols if c != ""] if len(cols) > 3 else cols
+        linhas.append({"slug": m.group(1), "versao": m.group(2) or "?", "gatilho": cols[0] if len(cols) > 0 else "",
+                       "serve": cols[1] if len(cols) > 1 else "", "palavras": cols[2] if len(cols) > 2 else "",
+                       "pasta": CATALOGO / m.group(1)})
+    return linhas
+
+
+def cmd_catalogo(args):
+    """Procura no catálogo um modelo parecido com o agente que vai ser criado (para a IA sugerir ao usuário)."""
+    termos = [_semacento(t) for t in args if t.strip()]
+    achados = []
+    for mdl in modelos_do_catalogo():
+        texto = _semacento(" ".join([mdl["slug"], mdl["gatilho"], mdl["serve"], mdl["palavras"]]))
+        pontos = sum(texto.count(t) for t in termos) if termos else 1
+        if pontos > 0:
+            achados.append((pontos, mdl))
+    achados.sort(key=lambda x: (-x[0], x[1]["slug"]))
+    if not achados:
+        print("Nenhum modelo parecido no catálogo: crie do zero.")
+        return
+    print("Modelos do catálogo" + (f" parecidos com: {' '.join(args)}" if termos else "") + "\n")
+    for pontos, mdl in achados:
+        print(f"* {mdl['slug']} (v{mdl['versao']})  [{mdl['gatilho']}]")
+        print(f"  {mdl['serve']}")
+        gal = mdl["pasta"] / "modelos"
+        print(f"  como usar de base: waipe.py novo-agente <slug-novo> --modelo {mdl['slug']}"
+              + (f"  |  modelos de comunicação: {gal.relative_to(RAIZ)}/" if gal.is_dir() else ""))
+    print("\nSugira o modelo mais parecido ao usuário; ele decide se usa de base ou cria do zero.")
+
+
+def _tira_secoes(texto, titulos):
+    for t in titulos:
+        texto = re.sub(rf"^## {re.escape(t)}\n.*?(?=^## )", "", texto, flags=re.S | re.M)
+    return texto
+
+
 def cmd_novo_agente(args):
+    modelo_base = None
+    if "--modelo" in args:
+        i = args.index("--modelo")
+        if i + 1 >= len(args):
+            erro("uso: novo-agente <slug> --modelo <modelo-do-catálogo>")
+        modelo_base = args[i + 1]
+        args = args[:i] + args[i + 2:]
     if len(args) != 1 or not SLUG.match(args[0]):
-        erro("uso: novo-agente <slug-em-kebab-case>")
+        erro("uso: novo-agente <slug-em-kebab-case> [--modelo <modelo-do-catálogo>]")
     if modo_template():
         erro("no template não há agentes; o trabalho é no framework.")
     slug = args[0]
@@ -476,9 +582,39 @@ def cmd_novo_agente(args):
     pasta = AGENTES / slug
     if pasta.exists():
         erro(f"{pasta.relative_to(RAIZ)}/ já existe: é só alterar os arquivos.")
+    hoje = datetime.date.today().isoformat()
+    if modelo_base:
+        origem = CATALOGO / modelo_base
+        if modelo_base in RESERVADAS or not (origem / f"{modelo_base}.json").exists() or not (origem / f"{modelo_base}.md").exists():
+            erro(f"modelo '{modelo_base}' não existe no catálogo (veja: waipe.py catalogo).")
+        mdl = next((m for m in modelos_do_catalogo() if m["slug"] == modelo_base), {"versao": "?"})
+        pasta.mkdir(parents=True)
+        for arq in sorted(origem.iterdir()):
+            if not arq.is_file() or arq.suffix not in (".json", ".md"):
+                continue
+            destino = pasta / (arq.name.replace(modelo_base, slug, 1) if arq.name in (f"{modelo_base}.json", f"{modelo_base}.md") else arq.name)
+            if arq.suffix == ".json":
+                shutil.copy2(arq, destino)
+                continue
+            texto = arq.read_text(encoding="utf-8").replace(f"{modelo_base}.md", f"{slug}.md")
+            if arq.name == f"{modelo_base}.md":
+                texto = _tira_secoes(texto, ["Quando usar", "Perguntas para personalizar"])
+                texto = re.sub(r"^slug: .*$", f"slug: {slug}", texto, count=1, flags=re.M)
+                texto = re.sub(r"^versao: .*$", "versao: 0.0.0", texto, count=1, flags=re.M)
+                texto = re.sub(r"^modelo_base: .*$", f"modelo_base: {modelo_base}", texto, count=1, flags=re.M)
+                texto = re.sub(r"^atualizado: .*$", f"atualizado: {hoje}", texto, count=1, flags=re.M)
+                texto = re.sub(r"^## Histórico\n.*\Z", f"## Histórico\n\n### Não publicado\n- Criado a partir do modelo `{modelo_base}` (v{mdl['versao']}) do catálogo.\n", texto, flags=re.S | re.M)
+            else:
+                texto = re.sub(rf"^faz_parte_de: {re.escape(modelo_base)}$", f"faz_parte_de: {slug}", texto, flags=re.M)
+            destino.write_text(texto, encoding="utf-8")
+        print(f"Novo agente a partir do modelo '{modelo_base}': {pasta.relative_to(RAIZ)}/")
+        print(f"Ajuste o nome do flow, o CONFIG dos nodes de código, os IDs do Data Lab e os destinos; revise o {slug}.md.")
+        gal = origem / "modelos"
+        if gal.is_dir():
+            print(f"Modelos de comunicação de referência: {gal.relative_to(RAIZ)}/")
+        return
     pasta.mkdir(parents=True)
     modelo = (WAIPE / "modelo-agente.md").read_text(encoding="utf-8")
-    hoje = datetime.date.today().isoformat()
     (pasta / f"{slug}.md").write_text(modelo.replace("{{slug}}", slug).replace("{{data}}", hoje), encoding="utf-8")
     print(f"Novo agente: {pasta.relative_to(RAIZ)}/ (preencha {slug}.md e crie {slug}.json)")
 
@@ -702,7 +838,7 @@ def cmd_novo_cliente(args):
 
 
 COMANDOS = {
-    "validar": cmd_validar, "hook": cmd_hook, "status": cmd_status, "novo-agente": cmd_novo_agente,
+    "validar": cmd_validar, "hook": cmd_hook, "status": cmd_status, "novo-agente": cmd_novo_agente, "catalogo": cmd_catalogo,
     "salvar": cmd_salvar, "release": cmd_release, "atualizar": cmd_atualizar, "migrar": cmd_migrar,
     "iniciar": cmd_iniciar, "release-framework": cmd_release_framework,
     "novo-cliente": cmd_novo_cliente, "clientes": cmd_clientes,

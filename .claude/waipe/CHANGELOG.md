@@ -3,6 +3,23 @@
 Cada versão do `waipe-agentes-template`. Versão maior = o repositório do cliente precisa de alguma ação, descrita na seção.
 A atualização nunca toca em `agentes/`, `CLAUDE.md`, `README.md` nem em `.claude/settings.local.json`.
 
+## v3.0.0 (2026-10-22)
+- **Ação no cliente (versão maior):** os modelos de comunicação saem de `agentes/modelos/` (galeria com `index.html`) e vão
+  para dentro de cada agente, em `agentes/<slug>/modelos/`, só com as peças enviadas (e-mail como é enviado, conversa de
+  WhatsApp, planilha, PDF) e a lista `modelos.json`. A moldura de apresentação e a galeria saem: quem mostra os modelos é o
+  portal de modelos. Para migrar, siga o passo 6 da skill `waipe-atualizar-framework`.
+- **Novo padrão de e-mail Waipe:** o kit `kit-email-waipe.js` passa ao desenho do consolidado do Guardião da Amostra Padrão
+  (claro, com modo escuro automático, eyebrow dourado, indicadores em verde-oliva). Mesma API (`wpPagina`, `wpKpis`, ...);
+  `wpPagina` agora devolve o documento completo e aceita `eyebrow` e `titulo`.
+- Catálogo: os 6 modelos com os e-mails no padrão novo (o Coach dos Representantes passou a usar o kit) e versões novas;
+  modelos de comunicação em `catalogo/<slug>/modelos/`, gerados rodando os nodes com dados fictícios. O cabeçalho dos `.md`
+  ganha `icone`, `resumo`, `frequencia`, `quem_recebe` e `nota`, usados pelo portal.
+- `modelos-comunicacao/rodar-node.mjs` e `comum.rodar_node`: rodam só o JavaScript de um node `code` com entradas fictícias
+  (nada é enviado), para o modelo ser exatamente o que o node monta. `comum.py` passa a ter só as peças
+  (`pagina_whatsapp`, `pagina_planilha`, `salvar_manifesto`); saem `kit_email.py`, `pagina_email`, `card` e `atualizar_indice`.
+- `waipe.py`: `validar` confere `<agente>/modelos/modelos.json` (arquivos existentes, tipos, e-mails fictícios no catálogo);
+  `status`, `catalogo` e `novo-agente` apontam para a pasta nova.
+
 ## v2.2.1 (2026-10-22)
 - `modelos-comunicacao/comum.py`: a página de planilha aceitava no máximo 8 colunas (`IndexError` com 9 ou mais); agora aceita até 26.
 
@@ -20,7 +37,7 @@ A atualização nunca toca em `agentes/`, `CLAUDE.md`, `README.md` nem em `.clau
 
 ## v2.0.0 (2026-10-09)
 - **Branch única (`main`), sem `develop`, `feature/` nem PR.** Toda alteração vai para a `main` com `waipe.py salvar` (valida e envia) e o usuário testa a partir dela.
-- **Release por agente, a pedido**: `waipe.py release <slug> <patch|minor|major|X.Y.Z>` troca `### Não publicado` do Histórico por `### vX.Y.Z (data)`, atualiza `versao`, cria a tag `<slug>/vX.Y.Z` e um GitHub Release com **todos os arquivos da pasta** do agente (inclui flows auxiliares). Skill `waipe-aprovar` virou `waipe-fechar-release`.
+- **Release por agente, a pedido**: `waipe.py release <slug> <patch|minor|major|X.Y.Z>` troca `### v2.3.0 (2026-10-22)` do Histórico por `### vX.Y.Z (data)`, atualiza `versao`, cria a tag `<slug>/vX.Y.Z` e um GitHub Release com **todos os arquivos da pasta** do agente (inclui flows auxiliares). Skill `waipe-aprovar` virou `waipe-fechar-release`.
 - Novos comandos `novo-agente <slug>` (substitui `feature`) e `migrar`. Saem `feature` e `entregar`. `atualizar` grava direto na `main`. `release-framework <nivel>` fecha o `## Não publicado` do CHANGELOG, sobe a `VERSION` e cria a tag.
 - Agente novo nasce com `versao: 0.0.0` e `### Não publicado` no Histórico.
 - **Ação no cliente (major):** depois de `atualizar`, rode `python3 .claude/waipe/waipe.py migrar` uma vez (apaga `develop` e deixa só a `main`).

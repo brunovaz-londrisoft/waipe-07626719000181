@@ -34,7 +34,12 @@ Na `main` (branch única):
    **ID de relatório do Data Lab** vira `SUBSTITUA_PELO_ID_DO_RELATORIO...`, mas o **texto (prompt) do relatório fica** no
    `.md`, na subseção "Relatórios do Data Lab (textos para criar)".
 2. Generalize: o que varia de cliente para cliente vai para o `CONFIG` e vira pergunta.
-3. Grave `.claude/waipe/catalogo/<slug>/<slug>.json` e `<slug>.md`. O `.md` segue o modelo de agente e tem também
+3. Grave `.claude/waipe/catalogo/<slug>/<slug>.json` e `<slug>.md`. Os e-mails do modelo devem usar o **padrão de e-mail Waipe**
+   (`.claude/waipe/modelos-comunicacao/kit-email-waipe.js`); se o agente do cliente usa outro desenho, adapte ao kit e
+   descaracterize os dados do cliente. Crie também os **modelos de comunicação** dele em `.claude/waipe/catalogo/<slug>/modelos/`
+   (peças e `modelos.json`, ver `.claude/waipe/modelos-comunicacao/PADRAO.md`), rodando os nodes do modelo com dados fictícios.
+   O cabeçalho do `.md` traz `icone`, `resumo`, `frequencia` e `quem_recebe` (e `nota`, se houver), que o portal de modelos
+   mostra no cartão. O `.md` segue o modelo de agente e tem também
    `## Quando usar` e `## Perguntas para personalizar` (as perguntas que a skill `waipe-criar-agente` fará).
    Melhoria de modelo existente: suba a `versao` e registre no Histórico.
 4. Atualize a tabela de `INDICE.md` e registre a revisão em `REVISOES.md` (data, tags vistas, decisão de cada uma).

@@ -11,9 +11,17 @@ Ferramenta: `python3 .claude/waipe/waipe.py` (abaixo, só `waipe`).
 ## 1. Entender e buscar parecidos
 
 1. Resuma o pedido numa frase e confirme se é agente **novo** ou **alteração** (veja `waipe status`).
-2. Leia `.claude/waipe/catalogo/INDICE.md` e o `.md` dos modelos que combinam (gatilho, fonte de dados, saída,
-   palavras-chave). Olhe também `agentes/` do cliente: um agente parecido daqui pode servir de base.
-3. Mostre ao usuário até 3 candidatos: o que cada um faz, o que teria que mudar. Recomende um (ou "do zero").
+2. **Consulte sempre o catálogo antes de desenhar qualquer coisa**: rode `waipe catalogo <palavras do pedido>` (ex.:
+   `waipe catalogo vendedor radar whatsapp`; sem palavras, lista tudo) e leia o `.md` dos modelos que combinam (gatilho,
+   fonte de dados, saída, palavras-chave). Olhe também `agentes/` do cliente: um agente parecido daqui pode servir de base.
+   Cada modelo tem os **modelos de comunicação** (WhatsApp, e-mail, documento, consolidado, planilhas) em
+   `.claude/waipe/catalogo/<modelo>/modelos/` (lista em `modelos.json`): abra as peças para mostrar ao usuário como fica.
+3. **Sugira o modelo mais parecido ao usuário** (até 3 candidatos: o que cada um faz e o que teria que mudar) e deixe
+   **ele decidir**: usar um modelo como base ou criar do zero (AskUserQuestion). Não escolha sozinho. Se nenhum
+   combina, diga que não há modelo parecido e siga do zero.
+4. Se o usuário aceitar um modelo, crie o agente a partir dele: `waipe novo-agente <slug> --modelo <modelo>`. O comando
+   copia o `.json` e o `.md` (e os flows auxiliares) para `agentes/<slug>/` com `versao: 0.0.0` e `modelo_base` preenchido; daí
+   em diante é personalizar (passos 2 a 5).
 
 ## 2. Perguntar só o necessário
 
@@ -36,8 +44,8 @@ Para alteração, mostre o que muda e a nova versão (patch, minor ou major, ver
 
 ## 4. Gerar
 
-1. Agente novo: `waipe novo-agente <slug>` (slug curto em kebab-case, ex.: `clientes-inativos`). Cria a pasta e o
-   `.md`. Alteração: trabalhe direto nos arquivos existentes. Sempre na `main`.
+1. Agente novo: `waipe novo-agente <slug>` (slug curto em kebab-case, ex.: `clientes-inativos`), ou
+   `waipe novo-agente <slug> --modelo <modelo>` se o usuário aceitou um modelo do catálogo. Cria a pasta e o `.md`. Alteração: trabalhe direto nos arquivos existentes. Sempre na `main`.
 2. Carregue a skill `waipe-flow` e gere o JSON completo em `agentes/<slug>/<slug>.json`. Flow grande: pode delegar
    ao subagente `waipe-flow` passando o desenho aprovado.
 3. Preencha o `.md`: cabeçalho (`nome`, `modelo_base` = slug do modelo ou `nenhum`, `gatilho`), Objetivo, Como

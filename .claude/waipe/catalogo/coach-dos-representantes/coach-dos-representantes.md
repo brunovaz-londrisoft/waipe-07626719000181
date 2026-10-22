@@ -1,10 +1,14 @@
 ---
 nome: Coach dos Representantes
 slug: coach-dos-representantes
-versao: 1.0.0
+versao: 1.1.0
 modelo_base: nenhum
 gatilho: agendado (segunda e quinta-feira, 07:00, America/Sao_Paulo)
-atualizado: 2026-10-16
+icone: 🎯
+resumo: Resumo de performance com PDF para cada vendedor (WhatsApp ou e-mail) e consolidado para o gestor.
+frequencia: Toda segunda e quinta, 07:00
+quem_recebe: Cada vendedor e o gestor comercial
+atualizado: 2026-10-22
 ---
 
 # Coach dos Representantes
@@ -15,6 +19,8 @@ Cliente com equipe de vendedores (representantes) no ERP Gestor que quer **acomp
 cada vendedor recebe o próprio resumo (vendas do mês contra a meta, carteira de clientes, pendências) e o gestor
 recebe um consolidado de todos. Serve para qualquer cliente que tenha vendas, carteira de clientes e cadastro de
 vendedores no Gestor (via Data Lab) e metas numa planilha do Google Sheets.
+
+Modelos de comunicação (WhatsApp, e-mail, PDF e consolidado): `.claude/waipe/catalogo/coach-dos-representantes/modelos/` (lista das peças em `modelos.json`). O desenho dos e-mails deste modelo é o **padrão de e-mail Waipe** (ver `.claude/waipe/modelos-comunicacao/PADRAO.md`).
 
 Palavras-chave: vendedores, representantes, metas, comissão, carteira de clientes, resumo semanal, WhatsApp, PDF.
 
@@ -183,6 +189,12 @@ meta `0` para quem tem `R$` na célula (limpe a formatação), vendedor que não
 se o telefone passa na validação).
 
 ## Histórico
+
+### v1.1.0 (2026-10-22)
+- E-mails no novo padrão de e-mail Waipe (claro, com modo escuro automático, desenho do Guardião da Amostra Padrão), com o kit `kit-email-waipe.js`. Modelos de comunicação em `modelos/`, dentro da pasta do modelo, só com as peças enviadas, gerados rodando os nodes com dados fictícios.
+
+### v1.0.1 (2026-10-22)
+- E-mail do vendedor com regras para tela pequena (largura de 600 px passa a 100% no celular e os indicadores empilham). Modelos de comunicação em `.claude/waipe/catalogo/coach-dos-representantes/modelos/` (lista das peças em `modelos.json`).
 
 ### v1.0.0 (2026-10-16)
 - Primeira versão do modelo no catálogo, anonimizada a partir do agente em produção em um cliente (Data Labs,

@@ -1,0 +1,602 @@
+{
+  "waipe_flow_version": "2",
+  "name": "Anjo do Primeiro Pedido",
+  "description": "Analisa as vendas de todo o histórico, identifica os clientes novos (apenas 1 compra) que estão há 20 dias ou mais sem recomprar e envia a cada vendedor, por WhatsApp (com o link da planilha completa) e e-mail, o radar com os seus clientes. Ao final, manda ao gestor um consolidado com a quantidade de cada vendedor e o link da planilha de cada um.",
+  "triggerType": "schedule",
+  "scheduleConfig": {
+    "type": "weekly",
+    "hour": 7,
+    "minute": 0,
+    "interval": 1,
+    "timezone": "America/Sao_Paulo",
+    "weekdays": [
+      2
+    ]
+  },
+  "webhookMethod": null,
+  "nodes": [
+    {
+      "id": "n1",
+      "type": "trigger_schedule",
+      "name": "Agendamento",
+      "position": {
+        "x": 100,
+        "y": 300
+      },
+      "parameters": {
+        "scheduleType": "weekly",
+        "interval": 1,
+        "hour": 7,
+        "minute": 0,
+        "weekdays": [
+          2
+        ],
+        "monthDays": "1",
+        "cronExpression": "0 9 * * *",
+        "timezone": "America/Sao_Paulo"
+      }
+    },
+    {
+      "id": "n2",
+      "type": "waipe_data",
+      "name": "Clientes",
+      "position": {
+        "x": 400,
+        "y": 300
+      },
+      "parameters": {
+        "dataSource": "data_lab",
+        "companyIds": [],
+        "message": "",
+        "messageMode": "fixed",
+        "expertModelId": "",
+        "dataLabReportId": "SUBSTITUA_PELO_ID_DO_RELATORIO_DE_CLIENTES"
+      }
+    },
+    {
+      "id": "n3",
+      "type": "waipe_data",
+      "name": "Vendedores",
+      "position": {
+        "x": 700,
+        "y": 300
+      },
+      "parameters": {
+        "dataSource": "data_lab",
+        "companyIds": [],
+        "message": "",
+        "messageMode": "fixed",
+        "expertModelId": "",
+        "dataLabReportId": "SUBSTITUA_PELO_ID_DO_RELATORIO_DE_VENDEDORES"
+      }
+    },
+    {
+      "id": "n4",
+      "type": "code",
+      "name": "Processar Radar",
+      "position": {
+        "x": 1000,
+        "y": 300
+      },
+      "parameters": {
+        "mode": "all_items",
+        "jsCode": "// ============================================================\n// CONFIG - único bloco que deveria precisar de ajuste\n// ============================================================\nconst CONFIG = {\n  diasRadar: 20,                 // entra no radar com X dias ou mais sem comprar\n  diasMaximoRadar: 40,           // sai do radar com mais de X dias (0 = sem limite)\n  qtdComprasNovo: 1,             // cliente novo = exatamente X compras em todo o histórico\n  nomesIgnorados: [\"CONSUMIDOR FINAL\"],\n  nomeSemVendedor: \"SEM VENDEDOR\",\n  nomeAba: \"Página1\",            // nome da primeira aba das planilhas novas (conta Google em português)\n  aliases: {                     // nomes aceitos das colunas do relatório (sem acento, sem símbolos, minúsculas)\n    codigo: [\"codigo\", \"codcliente\", \"codigocliente\"],\n    cliente: [\"nome\", \"nomcliente\", \"nomecliente\", \"cliente\", \"razaosocial\"],\n    qtd: [\"qtdcompras\", \"qtdvendas\", \"quantidadecompras\", \"quantidadevendas\", \"totalcompras\", \"numcompras\", \"qtde\"],\n    ultimaCompra: [\"dtultimacompra\", \"dataultimacompra\", \"ultimacompra\", \"dtultcompra\"],\n    fone: [\"fone\", \"telefone\"],\n    celular: [\"celular\", \"whatsapp\"],\n    email: [\"email\", \"emailcliente\"],\n    vendedorCodigo: [\"vendedorcodigo\", \"codvendedor\", \"codigovendedor\"],\n    vendedor: [\"vendedor\", \"nomvendedor\", \"nomevendedor\", \"representante\"]\n  }\n};\n\nfunction pegarRegistros(nodeJson) {\n  if (!nodeJson) return [];\n  if (!nodeJson.dados) return [];\n  if (!Array.isArray(nodeJson.dados) || nodeJson.dados.length === 0) return [];\n  const bloco = nodeJson.dados[0];\n  if (!bloco || !Array.isArray(bloco.dados)) return [];\n  return bloco.dados;\n}\n\nconst cacheChave = {};\nfunction normalizarChave(texto) {\n  const bruto = String(texto);\n  if (cacheChave[bruto] !== undefined) return cacheChave[bruto];\n  const r = bruto.toLowerCase()\n    .replace(/[àáâãä]/g, \"a\").replace(/[èéêë]/g, \"e\").replace(/[ìíîï]/g, \"i\")\n    .replace(/[òóôõö]/g, \"o\").replace(/[ùúûü]/g, \"u\").replace(/ç/g, \"c\")\n    .replace(/[^a-z0-9]/g, \"\");\n  cacheChave[bruto] = r;\n  return r;\n}\n\n// Descobre uma vez, por conjunto de colunas, qual coluna real corresponde a cada campo\nconst cacheColunas = {};\nfunction colunasDe(registro) {\n  const chaves = Object.keys(registro);\n  const assinatura = chaves.join(\"|\");\n  if (cacheColunas[assinatura]) return cacheColunas[assinatura];\n  const mapa = {};\n  chaves.forEach(function (k) { mapa[normalizarChave(k)] = k; });\n  const resolvido = {};\n  Object.keys(CONFIG.aliases).forEach(function (campo) {\n    resolvido[campo] = null;\n    const lista = CONFIG.aliases[campo];\n    for (let i = 0; i < lista.length; i++) {\n      if (mapa[lista[i]] !== undefined) { resolvido[campo] = mapa[lista[i]]; break; }\n    }\n  });\n  console.log(\"Colunas do relatório: \" + chaves.join(\", \") + \" | usadas: \" + JSON.stringify(resolvido));\n  cacheColunas[assinatura] = resolvido;\n  return resolvido;\n}\n\nfunction pegarCampo(registro, campo) {\n  const col = colunasDe(registro)[campo];\n  if (col === null || col === undefined) return \"\";\n  const v = registro[col];\n  return (v === undefined || v === null) ? \"\" : v;\n}\n\nfunction decodificarEntidadesHtml(texto) {\n  if (texto === null || texto === undefined) return \"\";\n  const t = String(texto);\n  if (t.indexOf(\"&\") < 0) return t;\n  return t.replace(/&amp;/g, \"&\").replace(/&lt;/g, \"<\").replace(/&gt;/g, \">\")\n    .replace(/&quot;/g, \"\\\"\").replace(/&#39;/g, \"'\").replace(/&apos;/g, \"'\");\n}\n\nfunction escaparHtml(texto) {\n  if (texto === null || texto === undefined) return \"\";\n  return String(texto).replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\").replace(/'/g, \"&#39;\");\n}\n\n// Retorna dias desde 1970 (UTC) ou null. Aceita AAAA-MM-DD (com ou sem hora) e DD/MM/AAAA. 1900-01-01 = nulo do ERP.\nfunction diaDaData(valor) {\n  if (!valor) return null;\n  const texto = String(valor).trim();\n  let a, m, d;\n  let r = texto.match(/^(\\d{4})-(\\d{2})-(\\d{2})/);\n  if (r) { a = Number(r[1]); m = Number(r[2]); d = Number(r[3]); }\n  else {\n    r = texto.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4})/);\n    if (!r) return null;\n    d = Number(r[1]); m = Number(r[2]); a = Number(r[3]);\n  }\n  if (a <= 1900) return null;\n  return Math.floor(Date.UTC(a, m - 1, d) / 86400000);\n}\n\nfunction formatarDataBr(valor) {\n  const r = String(valor).match(/^(\\d{4})-(\\d{2})-(\\d{2})/);\n  if (r) return r[3] + \"/\" + r[2] + \"/\" + r[1];\n  return String(valor).substring(0, 10);\n}\n\n// Compara códigos sem diferenciar \"12\", \" 12 \" e \"12.0\"\nfunction chaveCodigo(valor) {\n  if (valor === null || valor === undefined) return \"\";\n  const texto = String(valor).trim();\n  if (texto === \"\") return \"\";\n  if (/^-?\\d+(\\.\\d+)?$/.test(texto)) {\n    const numero = Number(texto);\n    if (!isNaN(numero)) return String(numero);\n  }\n  return texto.toUpperCase();\n}\n\n// Telefone válido para WhatsApp: 55 + DDD (1 a 9) + 8 dígitos (fixo) ou 9 dígitos começando com 9 (celular)\nfunction normalizarTelefone(bruto) {\n  if (!bruto) return \"\";\n  const digitos = String(bruto).replace(/\\D/g, \"\");\n  if (digitos === \"\") return \"\";\n  if (digitos.indexOf(\"55\") === 0) return digitos;\n  if (digitos.length === 10 || digitos.length === 11) return \"55\" + digitos;\n  return digitos;\n}\nfunction telefoneValido(normalizado) {\n  if (!/^55[1-9][1-9]\\d{8,9}$/.test(normalizado)) return false;\n  return normalizado.length === 12 || normalizado.charAt(4) === \"9\";\n}\nfunction emailValido(email) {\n  return /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email);\n}\n\nfunction primeiroNome(nome) {\n  const partes = String(nome).trim().split(/\\s+/);\n  const p = partes[0] || \"\";\n  return p.charAt(0).toUpperCase() + p.substring(1).toLowerCase();\n}\n\n// ---------- 1) Vendedores do cadastro (contato) ----------\nconst cadastro = {};\nconst cadastroPorNome = {};\npegarRegistros($node[\"Vendedores\"].json).forEach(function (v) {\n  const chave = chaveCodigo(v.codigo);\n  if (chave === \"\") return;\n  let telefone = \"\";\n  const candidatos = [v.celular, v.telefone, v.fone, v.whatsapp, v.phone];\n  for (let i = 0; i < candidatos.length && telefone === \"\"; i++) {\n    const n = normalizarTelefone(candidatos[i]);\n    if (telefoneValido(n)) telefone = n;\n  }\n  const email = String(v.email || \"\").trim();\n  let telefoneBruto = \"\";\n  for (let i = 0; i < candidatos.length && telefoneBruto === \"\"; i++) {\n    if (candidatos[i] !== undefined && candidatos[i] !== null && String(candidatos[i]).trim() !== \"\") telefoneBruto = String(candidatos[i]).trim();\n  }\n  cadastro[chave] = {\n    nome: decodificarEntidadesHtml(v.nome),\n    telefone: telefone,\n    email: emailValido(email) ? email : \"\",\n    telefoneBruto: telefoneBruto,\n    emailBruto: email\n  };\n  const nomeNorm = normalizarChave(decodificarEntidadesHtml(v.nome));\n  if (nomeNorm !== \"\") cadastroPorNome[nomeNorm] = cadastro[chave];\n});\n\n// ---------- 2) Um registro por cliente (soma compras, vale a data mais recente) ----------\nconst registros = pegarRegistros($node[\"Clientes\"].json);\nif (registros.length === 0) {\n  throw new Error(\"O relatório do Data Lab não retornou clientes. Confira o ID do relatório no node Clientes.\");\n}\nconst ignorados = {};\nCONFIG.nomesIgnorados.forEach(function (n) { ignorados[n.toUpperCase()] = true; });\n\nconst clientes = {};\nfor (let i = 0; i < registros.length; i++) {\n  const reg = registros[i];\n  const nome = decodificarEntidadesHtml(pegarCampo(reg, \"cliente\")).trim();\n  if (nome === \"\" || ignorados[nome.toUpperCase()]) continue;\n  const dia = diaDaData(pegarCampo(reg, \"ultimaCompra\"));\n  if (dia === null) continue;\n  const chave = chaveCodigo(pegarCampo(reg, \"codigo\")) || nome.toUpperCase();\n  const qtdBruta = pegarCampo(reg, \"qtd\");\n  const qtd = (qtdBruta === \"\") ? 1 : (Number(qtdBruta) || 0);\n  const atual = clientes[chave];\n  if (!atual) {\n    clientes[chave] = { nome: nome, dia: dia, qtd: qtd, reg: reg };\n  } else {\n    atual.qtd += qtd;\n    if (dia > atual.dia) { atual.dia = dia; atual.reg = reg; }\n  }\n}\n\n// ---------- 3) Radar: cliente novo (1 compra) com X dias ou mais sem comprar, por vendedor ----------\nconst hojeTexto = String($today);\nconst hojeDia = diaDaData(hojeTexto);\nconst grupos = {};\nlet totalClientes = 0;\nObject.keys(clientes).forEach(function (chave) {\n  const c = clientes[chave];\n  const dias = hojeDia - c.dia;\n  if (c.qtd !== CONFIG.qtdComprasNovo) return;\n  if (dias < CONFIG.diasRadar) return;\n  if (CONFIG.diasMaximoRadar > 0 && dias > CONFIG.diasMaximoRadar) return;\n  const nomeVendRel = decodificarEntidadesHtml(pegarCampo(c.reg, \"vendedor\")).trim();\n  const chaveVend = chaveCodigo(pegarCampo(c.reg, \"vendedorCodigo\")) || (nomeVendRel !== \"\" ? \"NOME:\" + nomeVendRel.toUpperCase() : \"SEM_VENDEDOR\");\n  if (!grupos[chaveVend]) grupos[chaveVend] = { nomeRelatorio: nomeVendRel, lista: [] };\n  const fone = String(pegarCampo(c.reg, \"fone\")).trim();\n  const celular = String(pegarCampo(c.reg, \"celular\")).trim();\n  const telefones = [];\n  [celular, fone].forEach(function (t) { if (t !== \"\" && telefones.indexOf(t) < 0) telefones.push(t); });\n  grupos[chaveVend].lista.push({\n    nome: c.nome,\n    dias: dias,\n    ultimaCompra: formatarDataBr(pegarCampo(c.reg, \"ultimaCompra\")),\n    telefone: telefones.join(\" / \"),\n    email: String(pegarCampo(c.reg, \"email\")).trim()\n  });\n  totalClientes++;\n});\n\n// ---------- 4) Uma lista por vendedor (do cliente mais recente no radar para o mais antigo) ----------\nconst vendedores = [];\nconst semContato = [];\nObject.keys(grupos).forEach(function (chaveVend) {\n  const g = grupos[chaveVend];\n  const cad = cadastro[chaveVend] || cadastroPorNome[normalizarChave(g.nomeRelatorio)];\n  const nome = (cad && cad.nome) ? cad.nome : (g.nomeRelatorio || CONFIG.nomeSemVendedor);\n  const telefone = cad ? cad.telefone : \"\";\n  const email = cad ? cad.email : \"\";\n  if (telefone === \"\" && email === \"\") {\n    let motivo = \"\";\n    if (chaveVend === \"SEM_VENDEDOR\") {\n      motivo = \"clientes sem vendedor definido no cadastro do cliente\";\n    } else if (!cad) {\n      motivo = \"vendedor não encontrado no cadastro\";\n    } else {\n      const motivoTel = cad.telefoneBruto === \"\" ? \"sem telefone cadastrado\" : \"telefone inválido: \" + cad.telefoneBruto;\n      const motivoMail = cad.emailBruto === \"\" ? \"sem e-mail cadastrado\" : \"e-mail inválido: \" + cad.emailBruto;\n      motivo = motivoTel + \"; \" + motivoMail;\n    }\n    semContato.push({\n      nome: nome,\n      codigo: chaveVend,\n      quantidade: g.lista.length,\n      motivo: motivo,\n      clientes: g.lista.slice().sort(function (a, b) { return a.dias - b.dias; }).map(function (c) {\n        return { \"Cliente\": c.nome, \"Telefone\": c.telefone, \"E-mail\": c.email, \"Primeira compra\": c.ultimaCompra, \"Dias sem comprar\": c.dias };\n      })\n    });\n  }\n  const lista = g.lista.sort(function (a, b) { return a.dias - b.dias; });\n  vendedores.push({\n    codigo: chaveVend,\n    nome: nome,\n    telefone: telefone,\n    email: email,\n    quantidade: lista.length,\n    clientes: lista.map(function (c) {\n      return { \"Cliente\": c.nome, \"Telefone\": c.telefone, \"E-mail\": c.email, \"Primeira compra\": c.ultimaCompra, \"Dias sem comprar\": c.dias };\n    })\n  });\n});\nvendedores.sort(function (a, b) {\n  if (b.quantidade !== a.quantidade) return b.quantidade - a.quantidade;\n  return a.nome < b.nome ? -1 : 1;\n});\nvendedores.forEach(function (v, i) { v.posicao = i + 1; });\n\nconsole.log(\"Clientes lidos: \" + registros.length + \" | clientes distintos: \" + Object.keys(clientes).length + \" | no radar: \" + totalClientes + \" | vendedores: \" + vendedores.length);\nconsole.log(\"Grupos de vendedor: \" + vendedores.map(function (v) { return v.nome + \" [\" + v.codigo + \"] = \" + v.quantidade + (v.telefone || v.email ? \"\" : \" (sem contato)\"); }).join(\" | \"));\nif (semContato.length > 0) console.log(\"Vendedores sem telefone nem e-mail válido (não recebem): \" + semContato.map(function (s) { return s.nome + \" (\" + s.motivo + \")\"; }).join(\", \"));\n\nreturn [{ json: {\n  total: totalClientes,\n  totalVendedores: vendedores.length,\n  diasRadar: CONFIG.diasRadar,\n  diasMaximoRadar: CONFIG.diasMaximoRadar,\n  data: formatarDataBr(hojeTexto),\n  dataTitulo: formatarDataBr(hojeTexto).replace(/\\//g, \"-\"),\n  aba: CONFIG.nomeAba,\n  semContato: semContato,\n  vendedores: vendedores\n} }];\n"
+      }
+    },
+    {
+      "id": "n5",
+      "type": "if",
+      "name": "Tem Vendedor no Radar?",
+      "position": {
+        "x": 1300,
+        "y": 300
+      },
+      "parameters": {
+        "combine": "and",
+        "conditions": [
+          {
+            "left": "{{ $json.totalVendedores }}",
+            "leftMode": "expression",
+            "operator": "number:gt",
+            "right": "0",
+            "rightMode": "fixed"
+          }
+        ],
+        "caseInsensitive": true,
+        "typeValidation": "loose",
+        "nullAsEmpty": true
+      }
+    },
+    {
+      "id": "n6",
+      "type": "google_sheets",
+      "name": "Criar Planilha Índice",
+      "position": {
+        "x": 1600,
+        "y": 300
+      },
+      "parameters": {
+        "credentialId": "",
+        "operation": "create",
+        "spreadsheetSource": "list",
+        "spreadsheetId": "",
+        "spreadsheetIdMode": "expression",
+        "sheetSource": "name",
+        "sheetName": "",
+        "sheetNameMode": "expression",
+        "mappingMode": "manual",
+        "columnMappings": [],
+        "matchingColumn": "",
+        "autoMappingSource": "",
+        "autoMappingSourceMode": "expression",
+        "extraDataHandling": "insert_new_column",
+        "headerRow": 1,
+        "firstDataRow": 2,
+        "title": "Índice Radar do Primeiro Pedido - {{ $node[\"Processar Radar\"].json.dataTitulo }}",
+        "titleMode": "expression",
+        "sharing": "private",
+        "filters": [],
+        "combineFilters": "and",
+        "returnFirstMatch": false,
+        "limit": 0,
+        "valueRenderOption": "FORMATTED_VALUE",
+        "range": "",
+        "rangeMode": "expression",
+        "values": "",
+        "valuesMode": "expression",
+        "valueInputOption": "USER_ENTERED",
+        "nameFilter": "",
+        "nameFilterMode": "expression",
+        "pageSize": 50,
+        "continueOnError": false
+      }
+    },
+    {
+      "id": "n7",
+      "type": "loop",
+      "name": "Cada Vendedor",
+      "position": {
+        "x": 1900,
+        "y": 300
+      },
+      "parameters": {
+        "arrayExpression": "{{ $node[\"Processar Radar\"].json.vendedores }}",
+        "arrayExpressionMode": "expression",
+        "batchSize": 1,
+        "pauseBetweenBatchesSeconds": 0,
+        "continueOnItemError": true
+      }
+    },
+    {
+      "id": "n8",
+      "type": "google_sheets",
+      "name": "Criar Planilha do Vendedor",
+      "position": {
+        "x": 2200,
+        "y": 100
+      },
+      "parameters": {
+        "credentialId": "",
+        "operation": "create",
+        "spreadsheetSource": "list",
+        "spreadsheetId": "",
+        "spreadsheetIdMode": "expression",
+        "sheetSource": "name",
+        "sheetName": "",
+        "sheetNameMode": "expression",
+        "mappingMode": "manual",
+        "columnMappings": [],
+        "matchingColumn": "",
+        "autoMappingSource": "",
+        "autoMappingSourceMode": "expression",
+        "extraDataHandling": "insert_new_column",
+        "headerRow": 1,
+        "firstDataRow": 2,
+        "title": "Radar do Primeiro Pedido - {{ $json.nome }} - {{ $node[\"Processar Radar\"].json.dataTitulo }}",
+        "titleMode": "expression",
+        "sharing": "anyone_reader",
+        "filters": [],
+        "combineFilters": "and",
+        "returnFirstMatch": false,
+        "limit": 0,
+        "valueRenderOption": "FORMATTED_VALUE",
+        "range": "",
+        "rangeMode": "expression",
+        "values": "",
+        "valuesMode": "expression",
+        "valueInputOption": "USER_ENTERED",
+        "nameFilter": "",
+        "nameFilterMode": "expression",
+        "pageSize": 50,
+        "continueOnError": false
+      }
+    },
+    {
+      "id": "n9",
+      "type": "google_sheets",
+      "name": "Gravar Clientes na Planilha",
+      "position": {
+        "x": 2500,
+        "y": 100
+      },
+      "parameters": {
+        "credentialId": "",
+        "operation": "append",
+        "spreadsheetSource": "list",
+        "spreadsheetId": "{{ $node[\"Criar Planilha do Vendedor\"].json.spreadsheetId }}",
+        "spreadsheetIdMode": "expression",
+        "sheetSource": "name",
+        "sheetName": "{{ $node[\"Processar Radar\"].json.aba }}",
+        "sheetNameMode": "expression",
+        "mappingMode": "auto",
+        "columnMappings": [],
+        "matchingColumn": "",
+        "autoMappingSource": "{{ $node[\"Cada Vendedor\"].json.clientes }}",
+        "autoMappingSourceMode": "expression",
+        "extraDataHandling": "insert_new_column",
+        "headerRow": 1,
+        "firstDataRow": 2,
+        "title": "",
+        "titleMode": "expression",
+        "sharing": "private",
+        "filters": [],
+        "combineFilters": "and",
+        "returnFirstMatch": false,
+        "limit": 0,
+        "valueRenderOption": "FORMATTED_VALUE",
+        "range": "",
+        "rangeMode": "expression",
+        "values": "",
+        "valuesMode": "expression",
+        "valueInputOption": "USER_ENTERED",
+        "nameFilter": "",
+        "nameFilterMode": "expression",
+        "pageSize": 50,
+        "continueOnError": false
+      }
+    },
+    {
+      "id": "n10",
+      "type": "code",
+      "name": "Montar Linha do Índice",
+      "position": {
+        "x": 2800,
+        "y": 100
+      },
+      "parameters": {
+        "mode": "all_items",
+        "jsCode": "// ================== CONFIG ==================\nvar COLUNA_VENDEDOR = \"Vendedor\";\nvar COLUNA_CLIENTES = \"Clientes\";\nvar COLUNA_LINK = \"Link\";\n// ============================================\n\nvar vendedor = $node[\"Cada Vendedor\"].json;\nvar planilha = $node[\"Criar Planilha do Vendedor\"].json;\n\nvar linha = {};\nlinha[COLUNA_VENDEDOR] = vendedor.nome;\nlinha[COLUNA_CLIENTES] = vendedor.quantidade;\nlinha[COLUNA_LINK] = planilha.spreadsheetUrl;\n\nreturn [{ json: linha }];\n"
+      }
+    },
+    {
+      "id": "n11",
+      "type": "google_sheets",
+      "name": "Registrar no Índice",
+      "position": {
+        "x": 3100,
+        "y": 100
+      },
+      "parameters": {
+        "credentialId": "",
+        "operation": "append",
+        "spreadsheetSource": "list",
+        "spreadsheetId": "{{ $node[\"Criar Planilha Índice\"].json.spreadsheetId }}",
+        "spreadsheetIdMode": "expression",
+        "sheetSource": "name",
+        "sheetName": "{{ $node[\"Processar Radar\"].json.aba }}",
+        "sheetNameMode": "expression",
+        "mappingMode": "auto",
+        "columnMappings": [],
+        "matchingColumn": "",
+        "autoMappingSource": "",
+        "autoMappingSourceMode": "expression",
+        "extraDataHandling": "insert_new_column",
+        "headerRow": 1,
+        "firstDataRow": 2,
+        "title": "",
+        "titleMode": "expression",
+        "sharing": "private",
+        "filters": [],
+        "combineFilters": "and",
+        "returnFirstMatch": false,
+        "limit": 0,
+        "valueRenderOption": "FORMATTED_VALUE",
+        "range": "",
+        "rangeMode": "expression",
+        "values": "",
+        "valuesMode": "expression",
+        "valueInputOption": "USER_ENTERED",
+        "nameFilter": "",
+        "nameFilterMode": "expression",
+        "pageSize": 50,
+        "continueOnError": false
+      }
+    },
+    {
+      "id": "n13",
+      "type": "code",
+      "name": "Montar Mensagens do Vendedor",
+      "position": {
+        "x": 3400,
+        "y": 100
+      },
+      "parameters": {
+        "mode": "all_items",
+        "jsCode": "// ============================================================\n// CONFIG - único bloco que deveria precisar de ajuste\n// ============================================================\nconst CONFIG = {\n  limiteClientesWhatsapp: 10,    // quantos clientes aparecem no texto do WhatsApp (a planilha tem todos)\n  limiteClientesEmail: 500,      // teto de linhas da tabela do e-mail\n  tamanhoMaximoNome: 32,         // corta nomes longos no WhatsApp\n  nomeEmpresa: \"NOME DA EMPRESA\",\n  contatoDuvidasNome: \"Nome do Responsável\",\n  contatoDuvidasWhatsapp: \"(00) 00000-0000\"\n};\n\n// ============================================================\n// PADRÃO DE E-MAIL WAIPE - copie este bloco para o node `code` que monta o e-mail.\n// Desenho de referência: o consolidado do gestor do Guardião da Amostra Padrão (claro, com modo escuro automático).\n// Marca \"waipe\" e empresa no topo, cartão branco com faixa escura, título com eyebrow dourado, indicadores\n// em verde-oliva, tabelas claras e rodapé Londrisoft. Todo e-mail de agente do Waipe usa este kit.\n// As funções devolvem linhas de tabela (<tr>) para dentro do cartão, exceto wpBadge/wpBarra/wpSeta, que devolvem\n// HTML para colocar dentro de uma célula. wpPagina devolve o documento HTML completo.\n// Compatível com o sandbox do Waipe Flow (sem toLocaleString, sem Intl).\n// ============================================================\nconst WP_F = \"font-family:Arial,Helvetica,sans-serif;\";\n\nfunction wpEsc(t) {\n  if (t === null || t === undefined) return \"\";\n  return String(t).replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\").replace(/'/g, \"&#39;\");\n}\nfunction wpNum(n) { return String(Math.round(Number(n) || 0)).replace(/\\B(?=(\\d{3})+(?!\\d))/g, \".\"); }\nfunction wpMoeda(v) {\n  const n = Math.round((Number(v) || 0) * 100) / 100;\n  const p = Math.abs(n).toFixed(2).split(\".\");\n  return (n < 0 ? \"-R$ \" : \"R$ \") + p[0].replace(/\\B(?=(\\d{3})+(?!\\d))/g, \".\") + \",\" + p[1];\n}\n\n// Estilos de destaque (badge, KPI e aviso): fundo, texto e borda. As cores do modo escuro ficam no <style> de wpPagina.\nconst WP_ESTILOS = {\n  neutro: { bg: \"#F9FAFB\", cor: \"#303030\", borda: \"#E5E7EB\" },\n  medio: { bg: \"#F1F2EC\", cor: \"#5A6344\", borda: \"#E3E6D8\" },\n  forte: { bg: \"#5A6344\", cor: \"#FFFFFF\", borda: \"#5A6344\" },\n  alerta: { bg: \"#FEF3F2\", cor: \"#B42318\", borda: \"#FAD7D3\" },\n  ok: { bg: \"#EEF8F1\", cor: \"#1E7A45\", borda: \"#CDEBD7\" }\n};\n\n// Documento completo: marca e empresa, cartão (eyebrow, título, saudação, destaque), miolo (linhas) e rodapé.\n// o: { preheader, empresa, rotuloDireita, eyebrow, titulo, heroEyebrow, heroValor, heroTam, heroSub, heroBarra,\n//      heroNota, saudacao, subSaudacao, miolo, rodape: [linhas] }\n// eyebrow/titulo são opcionais: sem eles, heroEyebrow vira o eyebrow do cartão.\nfunction wpPagina(o) {\n  const eyebrow = o.eyebrow || o.heroEyebrow || \"\";\n  let h = \"\";\n  h += \"<!DOCTYPE html><html lang='pt-BR'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'>\";\n  h += \"<meta name='color-scheme' content='light dark'><meta name='supported-color-schemes' content='light dark'>\";\n  h += \"<title>\" + wpEsc(o.titulo || eyebrow || o.empresa || \"Waipe\") + \"</title>\";\n  h += \"<style>body{margin:0;padding:0;-webkit-text-size-adjust:100%;}a{color:#303030;}\";\n  h += \"@media only screen and (max-width:620px){.wp-wrap{width:100%!important;max-width:100%!important;}.wp-pad{padding-left:16px!important;padding-right:16px!important;}.wp-kpi{display:block!important;width:100%!important;padding:0 0 8px 0!important;}.wp-hide{display:none!important;}.wp-h1{font-size:24px!important;line-height:30px!important;}.wp-hero{font-size:40px!important;line-height:44px!important;}}\";\n  h += \"@media (prefers-color-scheme: dark){.wp-bg{background:#16181D!important;}.wp-card{background:#1F2229!important;border-color:#323743!important;}.wp-soft{background:#272B33!important;}.wp-t{color:#F3F4F6!important;}.wp-m{color:#A8AEBB!important;}.wp-bd{border-color:#323743!important;}.wp-eb{color:#D4B25A!important;}\";\n  h += \"td[bgcolor='#303030']{background:#E5E7EB!important;}td[bgcolor='#303030'] a{color:#1F2229!important;}\";\n  h += \"td[bgcolor='#F9FAFB']{background:#272B33!important;}td[bgcolor='#F1F2EC']{background:#2A2E24!important;}td[bgcolor='#E3E6D8']{background:#3A4030!important;}\";\n  h += \"td[bgcolor='#FEF3F2']{background:#3A2422!important;}td[bgcolor='#EEF8F1']{background:#1F3A2C!important;}td[bgcolor='#F3F4F6']{background:#272B33!important;}\";\n  h += \".wp-c-medio{color:#C9CFB4!important;}.wp-c-neutro{color:#F3F4F6!important;}.wp-c-alerta{color:#FCA5A5!important;}.wp-c-ok{color:#86EFAC!important;}}\";\n  h += \"</style></head>\";\n  h += \"<body class='wp-bg' style='margin:0;padding:0;background:#F3F4F6;'>\";\n  h += \"<span style='display:none;font-size:1px;color:#F3F4F6;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;'>\" + wpEsc(o.preheader || \"\") + \"</span>\";\n  h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' bgcolor='#F3F4F6' class='wp-bg' style='background:#F3F4F6;'><tr><td align='center' style='padding:32px 12px;'>\";\n  h += \"<!--[if mso]><table role='presentation' width='600' cellpadding='0' cellspacing='0' border='0'><tr><td><![endif]-->\";\n  h += \"<table role='presentation' width='600' cellpadding='0' cellspacing='0' border='0' class='wp-wrap' style='width:600px;max-width:600px;'>\";\n  // Marca\n  h += \"<tr><td class='wp-pad' style='padding:0 8px 16px 8px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr>\";\n  h += \"<td class='wp-t' style='\" + WP_F + \"font-size:22px;font-weight:bold;color:#303030;letter-spacing:-0.5px;mso-line-height-rule:exactly;line-height:28px;'>waipe</td>\";\n  h += \"<td align='right' class='wp-m' style='\" + WP_F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(o.empresa || \"\") + (o.rotuloDireita ? \"<br>\" + o.rotuloDireita : \"\") + \"</td>\";\n  h += \"</tr></table></td></tr>\";\n  // Cartão\n  h += \"<tr><td bgcolor='#FEFEFE' class='wp-card' style='background:#FEFEFE;border:1px solid #E5E7EB;border-radius:12px;overflow:hidden;'>\";\n  h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'>\";\n  h += \"<tr><td height='4' bgcolor='#303030' style='height:4px;font-size:0;line-height:0;background:#303030;border-radius:12px 12px 0 0;'>&nbsp;</td></tr>\";\n  if (eyebrow || o.titulo || o.saudacao) {\n    h += \"<tr><td class='wp-pad' style='padding:32px 32px 8px 32px;'>\";\n    if (eyebrow) h += \"<p class='wp-eb' style='margin:0 0 8px 0;\" + WP_F + \"font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#8E6A1F;mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(eyebrow) + \"</p>\";\n    if (o.titulo) h += \"<h1 class='wp-h1 wp-t' style='margin:0 0 12px 0;\" + WP_F + \"font-size:28px;font-weight:bold;color:#303030;letter-spacing:-0.5px;mso-line-height-rule:exactly;line-height:34px;'>\" + wpEsc(o.titulo) + \"</h1>\";\n    if (o.saudacao) h += \"<p class='wp-t' style='margin:0;\" + WP_F + \"font-size:15px;color:#303030;mso-line-height-rule:exactly;line-height:23px;'>\" + o.saudacao + \"</p>\";\n    if (o.subSaudacao) h += \"<p class='wp-m' style='margin:6px 0 0 0;\" + WP_F + \"font-size:15px;color:#5B6170;mso-line-height-rule:exactly;line-height:23px;'>\" + o.subSaudacao + \"</p>\";\n    h += \"</td></tr>\";\n  }\n  if (o.heroValor !== undefined && o.heroValor !== null) {\n    const tam = Math.min(o.heroTam || 44, 48);\n    h += \"<tr><td class='wp-pad' style='padding:20px 32px 8px 32px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td bgcolor='#F1F2EC' style='background:#F1F2EC;border-radius:8px;padding:20px;'>\";\n    if (o.heroEyebrow && o.eyebrow && o.eyebrow !== o.heroEyebrow) h += \"<p class='wp-c-medio' style='margin:0 0 6px 0;\" + WP_F + \"font-size:11px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#5A6344;mso-line-height-rule:exactly;line-height:15px;'>\" + wpEsc(o.heroEyebrow) + \"</p>\";\n    h += \"<p class='wp-hero wp-c-medio' style='margin:0;\" + WP_F + \"font-size:\" + tam + \"px;font-weight:bold;color:#5A6344;letter-spacing:-1px;mso-line-height-rule:exactly;line-height:\" + (tam + 4) + \"px;'>\" + wpEsc(o.heroValor) + \"</p>\";\n    if (o.heroSub) h += \"<p class='wp-c-medio' style='margin:6px 0 0 0;\" + WP_F + \"font-size:14px;color:#5A6344;mso-line-height-rule:exactly;line-height:20px;'>\" + o.heroSub + \"</p>\";\n    if (o.heroBarra !== undefined && o.heroBarra !== null) {\n      const w = Math.max(0, Math.min(100, Math.round(o.heroBarra)));\n      h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='margin-top:14px;'><tr><td bgcolor='#E3E6D8' style='background:#E3E6D8;border-radius:5px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr>\" +\n        \"<td width='\" + w + \"%' height='10' bgcolor='#5A6344' style='height:10px;background:#5A6344;border-radius:5px;font-size:0;line-height:0;'>&nbsp;</td>\" +\n        (w < 100 ? \"<td height='10' style='height:10px;font-size:0;line-height:0;'>&nbsp;</td>\" : \"\") + \"</tr></table></td></tr></table>\";\n    }\n    if (o.heroNota) h += \"<p class='wp-c-medio' style='margin:10px 0 0 0;\" + WP_F + \"font-size:12px;color:#5A6344;mso-line-height-rule:exactly;line-height:18px;'>\" + o.heroNota + \"</p>\";\n    h += \"</td></tr></table></td></tr>\";\n  }\n  h += o.miolo || \"\";\n  h += \"<tr><td style='height:24px;font-size:0;line-height:0;'>&nbsp;</td></tr>\";\n  h += \"</table></td></tr>\";\n  // Rodapé\n  const linhasRodape = o.rodape || [];\n  h += \"<tr><td class='wp-pad' align='center' style='padding:24px 24px 0 24px;'>\";\n  for (let i = 0; i < linhasRodape.length; i++) {\n    h += \"<p class='wp-m' style='margin:\" + (i > 0 ? \"6px\" : \"0\") + \" 0 0 0;\" + WP_F + \"font-size:12px;color:\" + (i === linhasRodape.length - 1 ? \"#8A90A0\" : \"#6B7280\") + \";mso-line-height-rule:exactly;line-height:18px;'>\" + linhasRodape[i] + \"</p>\";\n  }\n  h += \"</td></tr></table>\";\n  h += \"<!--[if mso]></td></tr></table><![endif]-->\";\n  h += \"</td></tr></table></body></html>\";\n  return h;\n}\n\n// Parágrafo livre (HTML já escapado pelo chamador)\nfunction wpTexto(html) {\n  return \"<tr><td class='wp-pad' style='padding:8px 32px;'><p class='wp-m' style='margin:0;\" + WP_F + \"font-size:15px;color:#5B6170;mso-line-height-rule:exactly;line-height:23px;'>\" + html + \"</p></td></tr>\";\n}\n\n// Título de seção com subtítulo\nfunction wpSecao(titulo, sub) {\n  return \"<tr><td class='wp-pad' style='padding:24px 32px 12px 32px;'>\" +\n    \"<p class='wp-t' style='margin:0;\" + WP_F + \"font-size:16px;font-weight:bold;color:#303030;mso-line-height-rule:exactly;line-height:22px;'>\" + wpEsc(titulo) + \"</p>\" +\n    (sub ? \"<p class='wp-m' style='margin:4px 0 0 0;\" + WP_F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:18px;'>\" + sub + \"</p>\" : \"\") + \"</td></tr>\";\n}\n\n// Cartões de indicador lado a lado. lista: [{rotulo, valor, estilo, sub}], titulo (opcional) vira um rótulo pequeno acima.\n// Sem estilo, o primeiro é \"medio\" (verde-oliva) e os outros \"neutro\", como no Guardião.\nfunction wpKpis(lista, titulo) {\n  const n = lista.length;\n  const larg = (100 / n).toFixed(2);\n  let h = \"<tr><td class='wp-pad' style='padding:20px 32px 8px 32px;'>\";\n  if (titulo) h += \"<p class='wp-m' style='margin:0 0 8px 0;\" + WP_F + \"font-size:11px;font-weight:bold;letter-spacing:0.8px;text-transform:uppercase;color:#6B7280;mso-line-height-rule:exactly;line-height:15px;'>\" + wpEsc(titulo) + \"</p>\";\n  h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr>\";\n  for (let i = 0; i < n; i++) {\n    const k = lista[i];\n    const nome = WP_ESTILOS[k.estilo] ? k.estilo : (i === 0 ? \"medio\" : \"neutro\");\n    const e = nome === \"forte\" ? WP_ESTILOS.medio : WP_ESTILOS[nome];\n    const cls = nome === \"forte\" ? \"medio\" : nome;\n    const pad = n === 1 ? \"\" : (i === 0 ? \"padding-right:6px;\" : (i === n - 1 ? \"padding-left:6px;\" : \"padding:0 3px;\"));\n    h += \"<td class='wp-kpi' width='\" + larg + \"%' valign='top' style='width:\" + larg + \"%;\" + pad + \"'>\" +\n      \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td bgcolor='\" + e.bg + \"' style='background:\" + e.bg + \";border-radius:8px;padding:16px;'>\" +\n      \"<p class='wp-c-\" + cls + \"' style='margin:0;\" + WP_F + \"font-size:26px;font-weight:bold;color:\" + e.cor + \";mso-line-height-rule:exactly;line-height:32px;'>\" + wpEsc(k.valor) + \"</p>\" +\n      \"<p class='wp-c-\" + cls + \"' style='margin:4px 0 0 0;\" + WP_F + \"font-size:13px;color:\" + (nome === \"neutro\" ? \"#5B6170\" : e.cor) + \";mso-line-height-rule:exactly;line-height:18px;'>\" + wpEsc(k.rotulo) + \"</p>\" +\n      (k.sub ? \"<p class='wp-m' style='margin:2px 0 0 0;\" + WP_F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(k.sub) + \"</p>\" : \"\") +\n      \"</td></tr></table></td>\";\n  }\n  return h + \"</tr></table></td></tr>\";\n}\n\n// Tabela. colunas: [{t, a: \"left\"|\"right\"|\"center\", w, oculta}], linhas: [[html da célula, ...], ...]\n// oculta = some em tela pequena. nota (opcional): texto abaixo da tabela.\nfunction wpTabela(colunas, linhas, nota) {\n  let h = \"<tr><td class='wp-pad' style='padding:4px 32px 8px 32px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' class='wp-bd' style='border:1px solid #E5E7EB;border-radius:8px;border-collapse:separate;'><tr>\";\n  for (let c = 0; c < colunas.length; c++) {\n    const col = colunas[c];\n    const canto = c === 0 ? \"border-radius:8px 0 0 0;\" : (c === colunas.length - 1 ? \"border-radius:0 8px 0 0;\" : \"\");\n    h += \"<td bgcolor='#F9FAFB' align='\" + (col.a || \"left\") + \"'\" + (col.w ? \" width='\" + col.w + \"'\" : \"\") + \" class='wp-soft wp-m\" + (col.oculta ? \" wp-hide\" : \"\") + \"'\" +\n      \" style='background:#F9FAFB;padding:10px 12px;\" + WP_F + \"font-size:11px;font-weight:bold;letter-spacing:0.8px;text-transform:uppercase;color:#6B7280;mso-line-height-rule:exactly;line-height:15px;\" + canto + \"'>\" + wpEsc(col.t) + \"</td>\";\n  }\n  h += \"</tr>\";\n  if (linhas.length === 0) {\n    h += \"<tr><td colspan='\" + colunas.length + \"' class='wp-bd wp-m' style='border-top:1px solid #F3F4F6;padding:14px 12px;\" + WP_F + \"font-size:13px;color:#6B7280;'>Nada para mostrar.</td></tr>\";\n  }\n  for (let i = 0; i < linhas.length; i++) {\n    h += \"<tr>\";\n    for (let c = 0; c < colunas.length; c++) {\n      const col = colunas[c];\n      h += \"<td\" + (col.a ? \" align='\" + col.a + \"'\" : \"\") + \" valign='middle' class='wp-bd wp-t\" + (col.oculta ? \" wp-hide\" : \"\") + \"'\" +\n        \" style='border-top:1px solid #F3F4F6;padding:10px 12px;\" + WP_F + \"font-size:13px;color:#303030;mso-line-height-rule:exactly;line-height:18px;'>\" + (linhas[i][c] === undefined ? \"\" : linhas[i][c]) + \"</td>\";\n    }\n    h += \"</tr>\";\n  }\n  h += \"</table>\" + (nota ? \"<p class='wp-m' style='margin:8px 2px 0 2px;\" + WP_F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:17px;'>\" + nota + \"</p>\" : \"\") + \"</td></tr>\";\n  return h;\n}\n\n// Pílula de destaque (para dentro de uma célula). a: \"left\" | \"right\". Texto curto (até 3 caracteres) vira círculo,\n// como a posição do ranking do Guardião.\nfunction wpBadge(texto, estilo, a) {\n  const nome = WP_ESTILOS[estilo] ? estilo : \"neutro\";\n  const e = nome === \"neutro\" ? { bg: \"#F3F4F6\", cor: \"#5B6170\" } : WP_ESTILOS[nome];\n  const t = String(texto === null || texto === undefined ? \"\" : texto);\n  const alinhar = a === \"right\" ? \" align='right'\" : \"\";\n  if (t.length <= 3) {\n    return \"<table role='presentation' cellpadding='0' cellspacing='0' border='0'\" + alinhar + \"><tr><td width='24' height='24' align='center' valign='middle' bgcolor='\" + e.bg + \"' style='width:24px;height:24px;background:\" + e.bg + \";border-radius:12px;\" + WP_F + \"font-size:12px;font-weight:bold;color:\" + e.cor + \";mso-line-height-rule:exactly;line-height:24px;'>\" + wpEsc(t) + \"</td></tr></table>\";\n  }\n  return \"<table role='presentation' cellpadding='0' cellspacing='0' border='0'\" + alinhar + \"><tr><td bgcolor='\" + e.bg + \"' style='background:\" + e.bg + \";border-radius:20px;padding:3px 10px;\" + WP_F + \"font-size:11px;font-weight:bold;color:\" + e.cor + \";white-space:nowrap;mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(t) + \"</td></tr></table>\";\n}\n\n// Barra proporcional (para dentro de uma célula). pct 0-100; forte = verde-oliva cheio, senão oliva claro\nfunction wpBarra(pct, forte) {\n  const w = Math.max(4, Math.min(100, Math.round(pct)));\n  const cor = forte ? \"#5A6344\" : \"#BFC4AC\";\n  return \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='margin-top:6px;'><tr>\" +\n    \"<td width='\" + w + \"%' height='6' bgcolor='\" + cor + \"' style='height:6px;background:\" + cor + \";border-radius:3px;font-size:0;line-height:0;'>&nbsp;</td>\" +\n    (w < 100 ? \"<td width='\" + (100 - w) + \"%' height='6' style='height:6px;font-size:0;line-height:0;'>&nbsp;</td>\" : \"\") + \"</tr></table>\";\n}\n\n// Botão quadrado com seta (para dentro de uma célula): abre a planilha ou lista da linha\nfunction wpSeta(url, titulo) {\n  return \"<table role='presentation' cellpadding='0' cellspacing='0' border='0' align='right'><tr><td width='32' height='32' align='center' valign='middle' bgcolor='#303030' style='width:32px;height:32px;background:#303030;border-radius:8px;'>\" +\n    \"<a href='\" + wpEsc(url) + \"' target='_blank' title='\" + wpEsc(titulo) + \"' aria-label='\" + wpEsc(titulo) + \"' style='display:block;width:32px;\" + WP_F + \"font-size:18px;font-weight:bold;color:#FFFFFF;text-decoration:none;mso-line-height-rule:exactly;line-height:32px;border-radius:8px;'>&rarr;</a></td></tr></table>\";\n}\n\n// Botão de chamada (linha própria)\nfunction wpBotao(url, rotulo) {\n  return \"<tr><td class='wp-pad' align='left' style='padding:16px 32px 8px 32px;'><table role='presentation' cellpadding='0' cellspacing='0' border='0'><tr><td align='center' bgcolor='#303030' style='background:#303030;border-radius:8px;'>\" +\n    \"<a href='\" + wpEsc(url) + \"' target='_blank' style='display:block;padding:12px 24px;\" + WP_F + \"font-size:14px;font-weight:bold;color:#FFFFFF;text-decoration:none;mso-line-height-rule:exactly;line-height:20px;border-radius:8px;'>\" + wpEsc(rotulo) + \"</a></td></tr></table></td></tr>\";\n}\n\n// Caixa de aviso (linha própria): titulo + corpo em HTML\nfunction wpAviso(titulo, corpoHtml, estilo) {\n  const nome = WP_ESTILOS[estilo] ? estilo : \"medio\";\n  const e = nome === \"forte\" ? WP_ESTILOS.medio : WP_ESTILOS[nome];\n  const cls = nome === \"forte\" ? \"medio\" : nome;\n  return \"<tr><td class='wp-pad' style='padding:16px 32px 8px 32px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td bgcolor='\" + e.bg + \"' style='background:\" + e.bg + \";border:1px solid \" + e.borda + \";border-radius:8px;padding:16px 18px;'>\" +\n    \"<p class='wp-c-\" + cls + \"' style='margin:0;\" + WP_F + \"font-size:11px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:\" + e.cor + \";mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(titulo) + \"</p>\" +\n    \"<p class='wp-t' style='margin:8px 0 0 0;\" + WP_F + \"font-size:13px;color:#303030;mso-line-height-rule:exactly;line-height:20px;'>\" + corpoHtml + \"</p></td></tr></table></td></tr>\";\n}\n// ============================================================\n// FIM DO PADRÃO DE E-MAIL WAIPE\n// ============================================================\n\n\nfunction escaparHtml(texto) {\n  if (texto === null || texto === undefined) return \"\";\n  return String(texto).replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\").replace(/'/g, \"&#39;\");\n}\nfunction primeiroNome(nome) {\n  const partes = String(nome).trim().split(/\\s+/);\n  const p = partes[0] || \"\";\n  return p.charAt(0).toUpperCase() + p.substring(1).toLowerCase();\n}\nfunction cortar(texto, max) {\n  const t = String(texto);\n  return t.length > max ? t.substring(0, max - 1) + \"…\" : t;\n}\n\nconst dados = $node[\"Processar Radar\"].json;\nconst v = $node[\"Cada Vendedor\"].json;\nconst urlPlanilha = String($node[\"Criar Planilha do Vendedor\"].json.spreadsheetUrl || \"\");\nconst clientes = Array.isArray(v.clientes) ? v.clientes : [];\nconst qtd = clientes.length;\nconst DIVISOR = \"━━━━━━━━━━━━━━\";\nconst RODAPE1 = \"Esta é uma mensagem automática do sistema comercial \" + CONFIG.nomeEmpresa + \". Não é preciso respondê-la.\";\nconst RODAPE2 = \"Se tiver alguma dúvida, fale com o \" + CONFIG.contatoDuvidasNome + \" pelo WhatsApp \" + CONFIG.contatoDuvidasWhatsapp + \".\";\nconst F = \"font-family:Arial, Helvetica, sans-serif;\";\nconst exibidos = Math.min(qtd, CONFIG.limiteClientesWhatsapp);\nconst faixaCurta = dados.diasMaximoRadar > 0 ? (\"de \" + dados.diasRadar + \" a \" + dados.diasMaximoRadar + \" dias sem comprar\") : (dados.diasRadar + \" dias ou mais sem comprar\");\nconst faixaTexto = dados.diasMaximoRadar > 0 ? (\"entre \" + dados.diasRadar + \" e \" + dados.diasMaximoRadar + \" dias\") : (dados.diasRadar + \" dias ou mais\");\n\n// ---------- WhatsApp: os mais recentes no radar primeiro (20 dias, 21, 22...), e o link da planilha completa ----------\nlet zap = \"Olá, \" + primeiroNome(v.nome) + \"! Tenha um ótimo dia.\\n\";\nzap += \"Aqui está o seu *Radar do Primeiro Pedido* de hoje:\\n\";\nzap += DIVISOR + \"\\n\";\nzap += \"🆕 \" + (qtd === 1 ? \"Cliente novo sem recomprar: \" : \"Clientes novos sem recomprar: \") + qtd + \"\\n\";\nzap += \"⏰ No radar: \" + faixaCurta + \"\\n\";\nzap += DIVISOR + \"\\n\";\nzap += (exibidos === 1) ? \"🔔 O cliente no radar:\\n\" : \"🔔 Os \" + exibidos + \" mais recentes (do mais perto dos \" + dados.diasRadar + \" dias ao mais antigo):\\n\";\nclientes.slice(0, exibidos).forEach(function (c, i) {\n  zap += (i + 1) + \". *\" + cortar(c[\"Cliente\"], CONFIG.tamanhoMaximoNome) + \"*\\n\";\n  zap += \"⏳ \" + c[\"Dias sem comprar\"] + \" dias (1ª compra em \" + c[\"Primeira compra\"] + \")\\n\";\n  if (c[\"Telefone\"]) zap += \"📞 \" + c[\"Telefone\"] + \"\\n\";\n});\nif (qtd > exibidos) zap += \"➕ ...e mais \" + (qtd - exibidos) + ((qtd - exibidos) === 1 ? \" cliente.\\n\" : \" clientes.\\n\");\nif (urlPlanilha !== \"\") zap += \"📊 Planilha completa com todos os clientes:\\n\" + urlPlanilha + \"\\n\";\nzap += DIVISOR + \"\\n_\" + RODAPE1 + \"_\\n_\" + RODAPE2 + \"_\";\n\n// ---------- E-mail: padrão Waipe (tabela completa + botão para a planilha) ----------\nconst plural = qtd === 1 ? \"cliente novo está\" : \"clientes novos estão\";\nconst linhasEmail = clientes.slice(0, CONFIG.limiteClientesEmail).map(function (c) {\n  return [\n    \"<b>\" + wpEsc(c[\"Cliente\"]) + \"</b>\",\n    \"<span style=\\\"white-space:nowrap;\\\">\" + wpEsc(c[\"Telefone\"]).split(\" / \").join(\"</span><br><span style=\\\"white-space:nowrap;\\\">\") + \"</span>\",\n    wpEsc(c[\"E-mail\"]),\n    wpEsc(c[\"Primeira compra\"]),\n    \"<b>\" + wpNum(c[\"Dias sem comprar\"]) + \"</b>\"\n  ];\n});\nconst corpoEmail = wpPagina({\n  preheader: qtd + \" \" + (qtd === 1 ? \"cliente novo está\" : \"clientes novos estão\") + \" sem recomprar. Um contato agora ajuda a transformar o primeiro pedido em cliente recorrente.\",\n  empresa: CONFIG.nomeEmpresa,\n  rotuloDireita: \"Radar do primeiro pedido\",\n  heroEyebrow: \"Radar do primeiro pedido\",\n  heroValor: String(qtd),\n  heroSub: (qtd === 1 ? \"cliente novo\" : \"clientes novos\") + \" sem recomprar, \" + faixaTexto + \" sem comprar\",\n  saudacao: \"Olá, <strong>\" + wpEsc(primeiroNome(v.nome)) + \"</strong>!\",\n  subSaudacao: (qtd === 1 ? \"Este cliente fez só uma compra e está parado. \" : \"Estes clientes fizeram só uma compra e estão parados, dos mais recentes no radar para os mais antigos. \") + \"Um contato agora ajuda a transformar o primeiro pedido em cliente recorrente.\",\n  miolo: (urlPlanilha !== \"\" ? wpBotao(urlPlanilha, \"Abrir planilha completa\") : \"\") +\n    wpSecao(\"Clientes no radar\", qtd > CONFIG.limiteClientesEmail ? \"Mostrando \" + CONFIG.limiteClientesEmail + \" de \" + qtd + \". A lista completa está na planilha.\" : \"\") +\n    wpTabela([{ t: \"Cliente\" }, { t: \"Telefone\" }, { t: \"E-mail\", oculta: true }, { t: \"1ª compra\", oculta: true }, { t: \"Dias\", a: \"right\", w: \"50\" }], linhasEmail),\n  rodape: [wpEsc(RODAPE1), wpEsc(RODAPE2), \"Londrisoft &mdash; Londrina, PR\"]\n});\n\nreturn [{ json: {\n  codigo: v.codigo,\n  nome: v.nome,\n  telefone: v.telefone || \"\",\n  email: v.email || \"\",\n  quantidade: qtd,\n  url_planilha: urlPlanilha,\n  mensagem_whatsapp: zap,\n  assunto_email: \"Radar do Primeiro Pedido: \" + qtd + \" \" + plural + \" sem recomprar\",\n  corpo_email: corpoEmail\n} }];\n"
+      }
+    },
+    {
+      "id": "n14",
+      "type": "switch",
+      "name": "Rotear por Contato",
+      "position": {
+        "x": 3700,
+        "y": 100
+      },
+      "parameters": {
+        "fieldExpression": "{{ ($node[\"Montar Mensagens do Vendedor\"].json.telefone ? \"T\" : \"\") + ($node[\"Montar Mensagens do Vendedor\"].json.email ? \"E\" : \"\") }}",
+        "fieldExpressionMode": "expression",
+        "dataType": "string",
+        "rules": [
+          {
+            "value": "T",
+            "operator": "contains",
+            "outputLabel": "com_telefone"
+          },
+          {
+            "value": "E",
+            "operator": "contains",
+            "outputLabel": "com_email"
+          }
+        ],
+        "fallbackEnabled": true,
+        "fallbackLabel": "sem_contato",
+        "matchMode": "all"
+      }
+    },
+    {
+      "id": "n16",
+      "type": "gmail_send",
+      "name": "Enviar E-mail ao Vendedor",
+      "position": {
+        "x": 4000,
+        "y": 100
+      },
+      "parameters": {
+        "credentialId": "",
+        "to": "{{ $node[\"Montar Mensagens do Vendedor\"].json.email }}",
+        "toMode": "expression",
+        "cc": "",
+        "ccMode": "expression",
+        "bcc": "",
+        "bccMode": "expression",
+        "subject": "{{ $node[\"Montar Mensagens do Vendedor\"].json.assunto_email }}",
+        "subjectMode": "expression",
+        "bodyType": "html",
+        "body": "{{ $node[\"Montar Mensagens do Vendedor\"].json.corpo_email }}",
+        "bodyMode": "expression",
+        "continueOnError": false
+      }
+    },
+    {
+      "id": "n17",
+      "type": "edit_fields",
+      "name": "Vendedor sem Contato",
+      "position": {
+        "x": 4000,
+        "y": 200
+      },
+      "parameters": {
+        "mode": "merge",
+        "fields": [
+          {
+            "name": "envio",
+            "value": "nenhum: sem telefone nem e-mail válidos (listado no e-mail do gestor)",
+            "valueMode": "fixed",
+            "valueType": "string"
+          }
+        ],
+        "includeOtherFields": false
+      }
+    },
+    {
+      "id": "n18",
+      "type": "google_sheets",
+      "name": "Ler Índice",
+      "position": {
+        "x": 2200,
+        "y": 500
+      },
+      "parameters": {
+        "credentialId": "",
+        "operation": "read",
+        "spreadsheetSource": "list",
+        "spreadsheetId": "{{ $node[\"Criar Planilha Índice\"].json.spreadsheetId }}",
+        "spreadsheetIdMode": "expression",
+        "sheetSource": "name",
+        "sheetName": "",
+        "sheetNameMode": "expression",
+        "mappingMode": "manual",
+        "columnMappings": [],
+        "matchingColumn": "",
+        "autoMappingSource": "",
+        "autoMappingSourceMode": "expression",
+        "extraDataHandling": "insert_new_column",
+        "headerRow": 1,
+        "firstDataRow": 2,
+        "title": "",
+        "titleMode": "expression",
+        "sharing": "private",
+        "filters": [],
+        "combineFilters": "and",
+        "returnFirstMatch": false,
+        "limit": 0,
+        "valueRenderOption": "FORMATTED_VALUE",
+        "range": "{{ $node[\"Processar Radar\"].json.aba }}!A1:C",
+        "rangeMode": "expression",
+        "values": "",
+        "valuesMode": "expression",
+        "valueInputOption": "USER_ENTERED",
+        "nameFilter": "",
+        "nameFilterMode": "expression",
+        "pageSize": 50,
+        "continueOnError": false
+      }
+    },
+    {
+      "id": "n19",
+      "type": "code",
+      "name": "Montar E-mail do Gestor",
+      "position": {
+        "x": 2500,
+        "y": 500
+      },
+      "parameters": {
+        "mode": "all_items",
+        "jsCode": "// ============================================================\n// CONFIG - único bloco que deveria precisar de ajuste\n// ============================================================\nconst CONFIG = {\n  nomeEmpresa: \"NOME DA EMPRESA\",\n  nomeGestor: \"Nome do Gestor\",\n  titulo: \"Radar do primeiro pedido por vendedor\",\n  assunto: \"Radar do Primeiro Pedido por vendedor - NOME DA EMPRESA\",\n  rodape: \"Mensagem automática do sistema comercial NOME DA EMPRESA.\",\n  maxClientesPorPendencia: 100\n};\n\n// ============================================================\n// PADRÃO DE E-MAIL WAIPE - copie este bloco para o node `code` que monta o e-mail.\n// Desenho de referência: o consolidado do gestor do Guardião da Amostra Padrão (claro, com modo escuro automático).\n// Marca \"waipe\" e empresa no topo, cartão branco com faixa escura, título com eyebrow dourado, indicadores\n// em verde-oliva, tabelas claras e rodapé Londrisoft. Todo e-mail de agente do Waipe usa este kit.\n// As funções devolvem linhas de tabela (<tr>) para dentro do cartão, exceto wpBadge/wpBarra/wpSeta, que devolvem\n// HTML para colocar dentro de uma célula. wpPagina devolve o documento HTML completo.\n// Compatível com o sandbox do Waipe Flow (sem toLocaleString, sem Intl).\n// ============================================================\nconst WP_F = \"font-family:Arial,Helvetica,sans-serif;\";\n\nfunction wpEsc(t) {\n  if (t === null || t === undefined) return \"\";\n  return String(t).replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\").replace(/'/g, \"&#39;\");\n}\nfunction wpNum(n) { return String(Math.round(Number(n) || 0)).replace(/\\B(?=(\\d{3})+(?!\\d))/g, \".\"); }\nfunction wpMoeda(v) {\n  const n = Math.round((Number(v) || 0) * 100) / 100;\n  const p = Math.abs(n).toFixed(2).split(\".\");\n  return (n < 0 ? \"-R$ \" : \"R$ \") + p[0].replace(/\\B(?=(\\d{3})+(?!\\d))/g, \".\") + \",\" + p[1];\n}\n\n// Estilos de destaque (badge, KPI e aviso): fundo, texto e borda. As cores do modo escuro ficam no <style> de wpPagina.\nconst WP_ESTILOS = {\n  neutro: { bg: \"#F9FAFB\", cor: \"#303030\", borda: \"#E5E7EB\" },\n  medio: { bg: \"#F1F2EC\", cor: \"#5A6344\", borda: \"#E3E6D8\" },\n  forte: { bg: \"#5A6344\", cor: \"#FFFFFF\", borda: \"#5A6344\" },\n  alerta: { bg: \"#FEF3F2\", cor: \"#B42318\", borda: \"#FAD7D3\" },\n  ok: { bg: \"#EEF8F1\", cor: \"#1E7A45\", borda: \"#CDEBD7\" }\n};\n\n// Documento completo: marca e empresa, cartão (eyebrow, título, saudação, destaque), miolo (linhas) e rodapé.\n// o: { preheader, empresa, rotuloDireita, eyebrow, titulo, heroEyebrow, heroValor, heroTam, heroSub, heroBarra,\n//      heroNota, saudacao, subSaudacao, miolo, rodape: [linhas] }\n// eyebrow/titulo são opcionais: sem eles, heroEyebrow vira o eyebrow do cartão.\nfunction wpPagina(o) {\n  const eyebrow = o.eyebrow || o.heroEyebrow || \"\";\n  let h = \"\";\n  h += \"<!DOCTYPE html><html lang='pt-BR'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'>\";\n  h += \"<meta name='color-scheme' content='light dark'><meta name='supported-color-schemes' content='light dark'>\";\n  h += \"<title>\" + wpEsc(o.titulo || eyebrow || o.empresa || \"Waipe\") + \"</title>\";\n  h += \"<style>body{margin:0;padding:0;-webkit-text-size-adjust:100%;}a{color:#303030;}\";\n  h += \"@media only screen and (max-width:620px){.wp-wrap{width:100%!important;max-width:100%!important;}.wp-pad{padding-left:16px!important;padding-right:16px!important;}.wp-kpi{display:block!important;width:100%!important;padding:0 0 8px 0!important;}.wp-hide{display:none!important;}.wp-h1{font-size:24px!important;line-height:30px!important;}.wp-hero{font-size:40px!important;line-height:44px!important;}}\";\n  h += \"@media (prefers-color-scheme: dark){.wp-bg{background:#16181D!important;}.wp-card{background:#1F2229!important;border-color:#323743!important;}.wp-soft{background:#272B33!important;}.wp-t{color:#F3F4F6!important;}.wp-m{color:#A8AEBB!important;}.wp-bd{border-color:#323743!important;}.wp-eb{color:#D4B25A!important;}\";\n  h += \"td[bgcolor='#303030']{background:#E5E7EB!important;}td[bgcolor='#303030'] a{color:#1F2229!important;}\";\n  h += \"td[bgcolor='#F9FAFB']{background:#272B33!important;}td[bgcolor='#F1F2EC']{background:#2A2E24!important;}td[bgcolor='#E3E6D8']{background:#3A4030!important;}\";\n  h += \"td[bgcolor='#FEF3F2']{background:#3A2422!important;}td[bgcolor='#EEF8F1']{background:#1F3A2C!important;}td[bgcolor='#F3F4F6']{background:#272B33!important;}\";\n  h += \".wp-c-medio{color:#C9CFB4!important;}.wp-c-neutro{color:#F3F4F6!important;}.wp-c-alerta{color:#FCA5A5!important;}.wp-c-ok{color:#86EFAC!important;}}\";\n  h += \"</style></head>\";\n  h += \"<body class='wp-bg' style='margin:0;padding:0;background:#F3F4F6;'>\";\n  h += \"<span style='display:none;font-size:1px;color:#F3F4F6;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;'>\" + wpEsc(o.preheader || \"\") + \"</span>\";\n  h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' bgcolor='#F3F4F6' class='wp-bg' style='background:#F3F4F6;'><tr><td align='center' style='padding:32px 12px;'>\";\n  h += \"<!--[if mso]><table role='presentation' width='600' cellpadding='0' cellspacing='0' border='0'><tr><td><![endif]-->\";\n  h += \"<table role='presentation' width='600' cellpadding='0' cellspacing='0' border='0' class='wp-wrap' style='width:600px;max-width:600px;'>\";\n  // Marca\n  h += \"<tr><td class='wp-pad' style='padding:0 8px 16px 8px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr>\";\n  h += \"<td class='wp-t' style='\" + WP_F + \"font-size:22px;font-weight:bold;color:#303030;letter-spacing:-0.5px;mso-line-height-rule:exactly;line-height:28px;'>waipe</td>\";\n  h += \"<td align='right' class='wp-m' style='\" + WP_F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(o.empresa || \"\") + (o.rotuloDireita ? \"<br>\" + o.rotuloDireita : \"\") + \"</td>\";\n  h += \"</tr></table></td></tr>\";\n  // Cartão\n  h += \"<tr><td bgcolor='#FEFEFE' class='wp-card' style='background:#FEFEFE;border:1px solid #E5E7EB;border-radius:12px;overflow:hidden;'>\";\n  h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'>\";\n  h += \"<tr><td height='4' bgcolor='#303030' style='height:4px;font-size:0;line-height:0;background:#303030;border-radius:12px 12px 0 0;'>&nbsp;</td></tr>\";\n  if (eyebrow || o.titulo || o.saudacao) {\n    h += \"<tr><td class='wp-pad' style='padding:32px 32px 8px 32px;'>\";\n    if (eyebrow) h += \"<p class='wp-eb' style='margin:0 0 8px 0;\" + WP_F + \"font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#8E6A1F;mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(eyebrow) + \"</p>\";\n    if (o.titulo) h += \"<h1 class='wp-h1 wp-t' style='margin:0 0 12px 0;\" + WP_F + \"font-size:28px;font-weight:bold;color:#303030;letter-spacing:-0.5px;mso-line-height-rule:exactly;line-height:34px;'>\" + wpEsc(o.titulo) + \"</h1>\";\n    if (o.saudacao) h += \"<p class='wp-t' style='margin:0;\" + WP_F + \"font-size:15px;color:#303030;mso-line-height-rule:exactly;line-height:23px;'>\" + o.saudacao + \"</p>\";\n    if (o.subSaudacao) h += \"<p class='wp-m' style='margin:6px 0 0 0;\" + WP_F + \"font-size:15px;color:#5B6170;mso-line-height-rule:exactly;line-height:23px;'>\" + o.subSaudacao + \"</p>\";\n    h += \"</td></tr>\";\n  }\n  if (o.heroValor !== undefined && o.heroValor !== null) {\n    const tam = Math.min(o.heroTam || 44, 48);\n    h += \"<tr><td class='wp-pad' style='padding:20px 32px 8px 32px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td bgcolor='#F1F2EC' style='background:#F1F2EC;border-radius:8px;padding:20px;'>\";\n    if (o.heroEyebrow && o.eyebrow && o.eyebrow !== o.heroEyebrow) h += \"<p class='wp-c-medio' style='margin:0 0 6px 0;\" + WP_F + \"font-size:11px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#5A6344;mso-line-height-rule:exactly;line-height:15px;'>\" + wpEsc(o.heroEyebrow) + \"</p>\";\n    h += \"<p class='wp-hero wp-c-medio' style='margin:0;\" + WP_F + \"font-size:\" + tam + \"px;font-weight:bold;color:#5A6344;letter-spacing:-1px;mso-line-height-rule:exactly;line-height:\" + (tam + 4) + \"px;'>\" + wpEsc(o.heroValor) + \"</p>\";\n    if (o.heroSub) h += \"<p class='wp-c-medio' style='margin:6px 0 0 0;\" + WP_F + \"font-size:14px;color:#5A6344;mso-line-height-rule:exactly;line-height:20px;'>\" + o.heroSub + \"</p>\";\n    if (o.heroBarra !== undefined && o.heroBarra !== null) {\n      const w = Math.max(0, Math.min(100, Math.round(o.heroBarra)));\n      h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='margin-top:14px;'><tr><td bgcolor='#E3E6D8' style='background:#E3E6D8;border-radius:5px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr>\" +\n        \"<td width='\" + w + \"%' height='10' bgcolor='#5A6344' style='height:10px;background:#5A6344;border-radius:5px;font-size:0;line-height:0;'>&nbsp;</td>\" +\n        (w < 100 ? \"<td height='10' style='height:10px;font-size:0;line-height:0;'>&nbsp;</td>\" : \"\") + \"</tr></table></td></tr></table>\";\n    }\n    if (o.heroNota) h += \"<p class='wp-c-medio' style='margin:10px 0 0 0;\" + WP_F + \"font-size:12px;color:#5A6344;mso-line-height-rule:exactly;line-height:18px;'>\" + o.heroNota + \"</p>\";\n    h += \"</td></tr></table></td></tr>\";\n  }\n  h += o.miolo || \"\";\n  h += \"<tr><td style='height:24px;font-size:0;line-height:0;'>&nbsp;</td></tr>\";\n  h += \"</table></td></tr>\";\n  // Rodapé\n  const linhasRodape = o.rodape || [];\n  h += \"<tr><td class='wp-pad' align='center' style='padding:24px 24px 0 24px;'>\";\n  for (let i = 0; i < linhasRodape.length; i++) {\n    h += \"<p class='wp-m' style='margin:\" + (i > 0 ? \"6px\" : \"0\") + \" 0 0 0;\" + WP_F + \"font-size:12px;color:\" + (i === linhasRodape.length - 1 ? \"#8A90A0\" : \"#6B7280\") + \";mso-line-height-rule:exactly;line-height:18px;'>\" + linhasRodape[i] + \"</p>\";\n  }\n  h += \"</td></tr></table>\";\n  h += \"<!--[if mso]></td></tr></table><![endif]-->\";\n  h += \"</td></tr></table></body></html>\";\n  return h;\n}\n\n// Parágrafo livre (HTML já escapado pelo chamador)\nfunction wpTexto(html) {\n  return \"<tr><td class='wp-pad' style='padding:8px 32px;'><p class='wp-m' style='margin:0;\" + WP_F + \"font-size:15px;color:#5B6170;mso-line-height-rule:exactly;line-height:23px;'>\" + html + \"</p></td></tr>\";\n}\n\n// Título de seção com subtítulo\nfunction wpSecao(titulo, sub) {\n  return \"<tr><td class='wp-pad' style='padding:24px 32px 12px 32px;'>\" +\n    \"<p class='wp-t' style='margin:0;\" + WP_F + \"font-size:16px;font-weight:bold;color:#303030;mso-line-height-rule:exactly;line-height:22px;'>\" + wpEsc(titulo) + \"</p>\" +\n    (sub ? \"<p class='wp-m' style='margin:4px 0 0 0;\" + WP_F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:18px;'>\" + sub + \"</p>\" : \"\") + \"</td></tr>\";\n}\n\n// Cartões de indicador lado a lado. lista: [{rotulo, valor, estilo, sub}], titulo (opcional) vira um rótulo pequeno acima.\n// Sem estilo, o primeiro é \"medio\" (verde-oliva) e os outros \"neutro\", como no Guardião.\nfunction wpKpis(lista, titulo) {\n  const n = lista.length;\n  const larg = (100 / n).toFixed(2);\n  let h = \"<tr><td class='wp-pad' style='padding:20px 32px 8px 32px;'>\";\n  if (titulo) h += \"<p class='wp-m' style='margin:0 0 8px 0;\" + WP_F + \"font-size:11px;font-weight:bold;letter-spacing:0.8px;text-transform:uppercase;color:#6B7280;mso-line-height-rule:exactly;line-height:15px;'>\" + wpEsc(titulo) + \"</p>\";\n  h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr>\";\n  for (let i = 0; i < n; i++) {\n    const k = lista[i];\n    const nome = WP_ESTILOS[k.estilo] ? k.estilo : (i === 0 ? \"medio\" : \"neutro\");\n    const e = nome === \"forte\" ? WP_ESTILOS.medio : WP_ESTILOS[nome];\n    const cls = nome === \"forte\" ? \"medio\" : nome;\n    const pad = n === 1 ? \"\" : (i === 0 ? \"padding-right:6px;\" : (i === n - 1 ? \"padding-left:6px;\" : \"padding:0 3px;\"));\n    h += \"<td class='wp-kpi' width='\" + larg + \"%' valign='top' style='width:\" + larg + \"%;\" + pad + \"'>\" +\n      \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td bgcolor='\" + e.bg + \"' style='background:\" + e.bg + \";border-radius:8px;padding:16px;'>\" +\n      \"<p class='wp-c-\" + cls + \"' style='margin:0;\" + WP_F + \"font-size:26px;font-weight:bold;color:\" + e.cor + \";mso-line-height-rule:exactly;line-height:32px;'>\" + wpEsc(k.valor) + \"</p>\" +\n      \"<p class='wp-c-\" + cls + \"' style='margin:4px 0 0 0;\" + WP_F + \"font-size:13px;color:\" + (nome === \"neutro\" ? \"#5B6170\" : e.cor) + \";mso-line-height-rule:exactly;line-height:18px;'>\" + wpEsc(k.rotulo) + \"</p>\" +\n      (k.sub ? \"<p class='wp-m' style='margin:2px 0 0 0;\" + WP_F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(k.sub) + \"</p>\" : \"\") +\n      \"</td></tr></table></td>\";\n  }\n  return h + \"</tr></table></td></tr>\";\n}\n\n// Tabela. colunas: [{t, a: \"left\"|\"right\"|\"center\", w, oculta}], linhas: [[html da célula, ...], ...]\n// oculta = some em tela pequena. nota (opcional): texto abaixo da tabela.\nfunction wpTabela(colunas, linhas, nota) {\n  let h = \"<tr><td class='wp-pad' style='padding:4px 32px 8px 32px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' class='wp-bd' style='border:1px solid #E5E7EB;border-radius:8px;border-collapse:separate;'><tr>\";\n  for (let c = 0; c < colunas.length; c++) {\n    const col = colunas[c];\n    const canto = c === 0 ? \"border-radius:8px 0 0 0;\" : (c === colunas.length - 1 ? \"border-radius:0 8px 0 0;\" : \"\");\n    h += \"<td bgcolor='#F9FAFB' align='\" + (col.a || \"left\") + \"'\" + (col.w ? \" width='\" + col.w + \"'\" : \"\") + \" class='wp-soft wp-m\" + (col.oculta ? \" wp-hide\" : \"\") + \"'\" +\n      \" style='background:#F9FAFB;padding:10px 12px;\" + WP_F + \"font-size:11px;font-weight:bold;letter-spacing:0.8px;text-transform:uppercase;color:#6B7280;mso-line-height-rule:exactly;line-height:15px;\" + canto + \"'>\" + wpEsc(col.t) + \"</td>\";\n  }\n  h += \"</tr>\";\n  if (linhas.length === 0) {\n    h += \"<tr><td colspan='\" + colunas.length + \"' class='wp-bd wp-m' style='border-top:1px solid #F3F4F6;padding:14px 12px;\" + WP_F + \"font-size:13px;color:#6B7280;'>Nada para mostrar.</td></tr>\";\n  }\n  for (let i = 0; i < linhas.length; i++) {\n    h += \"<tr>\";\n    for (let c = 0; c < colunas.length; c++) {\n      const col = colunas[c];\n      h += \"<td\" + (col.a ? \" align='\" + col.a + \"'\" : \"\") + \" valign='middle' class='wp-bd wp-t\" + (col.oculta ? \" wp-hide\" : \"\") + \"'\" +\n        \" style='border-top:1px solid #F3F4F6;padding:10px 12px;\" + WP_F + \"font-size:13px;color:#303030;mso-line-height-rule:exactly;line-height:18px;'>\" + (linhas[i][c] === undefined ? \"\" : linhas[i][c]) + \"</td>\";\n    }\n    h += \"</tr>\";\n  }\n  h += \"</table>\" + (nota ? \"<p class='wp-m' style='margin:8px 2px 0 2px;\" + WP_F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:17px;'>\" + nota + \"</p>\" : \"\") + \"</td></tr>\";\n  return h;\n}\n\n// Pílula de destaque (para dentro de uma célula). a: \"left\" | \"right\". Texto curto (até 3 caracteres) vira círculo,\n// como a posição do ranking do Guardião.\nfunction wpBadge(texto, estilo, a) {\n  const nome = WP_ESTILOS[estilo] ? estilo : \"neutro\";\n  const e = nome === \"neutro\" ? { bg: \"#F3F4F6\", cor: \"#5B6170\" } : WP_ESTILOS[nome];\n  const t = String(texto === null || texto === undefined ? \"\" : texto);\n  const alinhar = a === \"right\" ? \" align='right'\" : \"\";\n  if (t.length <= 3) {\n    return \"<table role='presentation' cellpadding='0' cellspacing='0' border='0'\" + alinhar + \"><tr><td width='24' height='24' align='center' valign='middle' bgcolor='\" + e.bg + \"' style='width:24px;height:24px;background:\" + e.bg + \";border-radius:12px;\" + WP_F + \"font-size:12px;font-weight:bold;color:\" + e.cor + \";mso-line-height-rule:exactly;line-height:24px;'>\" + wpEsc(t) + \"</td></tr></table>\";\n  }\n  return \"<table role='presentation' cellpadding='0' cellspacing='0' border='0'\" + alinhar + \"><tr><td bgcolor='\" + e.bg + \"' style='background:\" + e.bg + \";border-radius:20px;padding:3px 10px;\" + WP_F + \"font-size:11px;font-weight:bold;color:\" + e.cor + \";white-space:nowrap;mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(t) + \"</td></tr></table>\";\n}\n\n// Barra proporcional (para dentro de uma célula). pct 0-100; forte = verde-oliva cheio, senão oliva claro\nfunction wpBarra(pct, forte) {\n  const w = Math.max(4, Math.min(100, Math.round(pct)));\n  const cor = forte ? \"#5A6344\" : \"#BFC4AC\";\n  return \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='margin-top:6px;'><tr>\" +\n    \"<td width='\" + w + \"%' height='6' bgcolor='\" + cor + \"' style='height:6px;background:\" + cor + \";border-radius:3px;font-size:0;line-height:0;'>&nbsp;</td>\" +\n    (w < 100 ? \"<td width='\" + (100 - w) + \"%' height='6' style='height:6px;font-size:0;line-height:0;'>&nbsp;</td>\" : \"\") + \"</tr></table>\";\n}\n\n// Botão quadrado com seta (para dentro de uma célula): abre a planilha ou lista da linha\nfunction wpSeta(url, titulo) {\n  return \"<table role='presentation' cellpadding='0' cellspacing='0' border='0' align='right'><tr><td width='32' height='32' align='center' valign='middle' bgcolor='#303030' style='width:32px;height:32px;background:#303030;border-radius:8px;'>\" +\n    \"<a href='\" + wpEsc(url) + \"' target='_blank' title='\" + wpEsc(titulo) + \"' aria-label='\" + wpEsc(titulo) + \"' style='display:block;width:32px;\" + WP_F + \"font-size:18px;font-weight:bold;color:#FFFFFF;text-decoration:none;mso-line-height-rule:exactly;line-height:32px;border-radius:8px;'>&rarr;</a></td></tr></table>\";\n}\n\n// Botão de chamada (linha própria)\nfunction wpBotao(url, rotulo) {\n  return \"<tr><td class='wp-pad' align='left' style='padding:16px 32px 8px 32px;'><table role='presentation' cellpadding='0' cellspacing='0' border='0'><tr><td align='center' bgcolor='#303030' style='background:#303030;border-radius:8px;'>\" +\n    \"<a href='\" + wpEsc(url) + \"' target='_blank' style='display:block;padding:12px 24px;\" + WP_F + \"font-size:14px;font-weight:bold;color:#FFFFFF;text-decoration:none;mso-line-height-rule:exactly;line-height:20px;border-radius:8px;'>\" + wpEsc(rotulo) + \"</a></td></tr></table></td></tr>\";\n}\n\n// Caixa de aviso (linha própria): titulo + corpo em HTML\nfunction wpAviso(titulo, corpoHtml, estilo) {\n  const nome = WP_ESTILOS[estilo] ? estilo : \"medio\";\n  const e = nome === \"forte\" ? WP_ESTILOS.medio : WP_ESTILOS[nome];\n  const cls = nome === \"forte\" ? \"medio\" : nome;\n  return \"<tr><td class='wp-pad' style='padding:16px 32px 8px 32px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td bgcolor='\" + e.bg + \"' style='background:\" + e.bg + \";border:1px solid \" + e.borda + \";border-radius:8px;padding:16px 18px;'>\" +\n    \"<p class='wp-c-\" + cls + \"' style='margin:0;\" + WP_F + \"font-size:11px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:\" + e.cor + \";mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(titulo) + \"</p>\" +\n    \"<p class='wp-t' style='margin:8px 0 0 0;\" + WP_F + \"font-size:13px;color:#303030;mso-line-height-rule:exactly;line-height:20px;'>\" + corpoHtml + \"</p></td></tr></table></td></tr>\";\n}\n// ============================================================\n// FIM DO PADRÃO DE E-MAIL WAIPE\n// ============================================================\n\n\nconst dados = $node[\"Processar Radar\"].json;\n\n// Link da planilha de cada vendedor: vem da planilha-índice (node Ler Índice), preenchida durante o loop\nconst links = {};\nconst valoresIndice = (items.length > 0 && items[0].json && Array.isArray(items[0].json.values)) ? items[0].json.values : [];\nif (valoresIndice.length > 1) {\n  const cab = valoresIndice[0].map(function (x) { return String(x).trim().toLowerCase(); });\n  const iNome = cab.indexOf(\"vendedor\");\n  const iLink = cab.indexOf(\"link\");\n  for (let r = 1; r < valoresIndice.length; r++) {\n    const linha = valoresIndice[r];\n    if (iNome >= 0 && iLink >= 0 && linha[iNome] && linha[iLink]) links[String(linha[iNome])] = String(linha[iLink]);\n  }\n}\nconsole.log(\"Links de planilha lidos do índice: \" + Object.keys(links).length + \" de \" + dados.vendedores.length);\n\nconst vendedores = dados.vendedores;\nconst maximo = vendedores.length > 0 ? vendedores[0].quantidade : 1;\nconst faixa = dados.diasMaximoRadar > 0 ? \"entre \" + dados.diasRadar + \" e \" + dados.diasMaximoRadar + \" dias\" : dados.diasRadar + \" dias ou mais\";\nconst linhas = vendedores.map(function (v, i) {\n  const url = links[v.nome] || \"\";\n  return [\n    wpBadge(String(v.posicao), i < 3 ? \"forte\" : \"neutro\"),\n    \"<b>\" + wpEsc(v.nome) + \"</b>\" + wpBarra(v.quantidade / maximo * 100, i < 3),\n    \"<b>\" + wpNum(v.quantidade) + \"</b>\",\n    url ? wpSeta(url, \"Abrir a planilha de \" + v.nome) : \"-\"\n  ];\n});\n\n// Vendedores que não receberam o radar (sem telefone nem e-mail válido), com os clientes de cada um\nlet pendencias = \"\";\nconst semContato = Array.isArray(dados.semContato) ? dados.semContato : [];\nif (semContato.length > 0) {\n  let corpo = \"Sem telefone nem e-mail válido no cadastro. Corrija o cadastro para o próximo envio chegar. A planilha deles foi criada normalmente.\";\n  semContato.forEach(function (s) {\n    corpo += '<span style=\"display:block;padding-top:12px;\"><strong style=\"color:#303030;\">' + wpEsc(s.nome) + ' (' + wpNum(s.quantidade) + ')</strong> <span style=\"color:#6B7280;\">' + wpEsc(s.motivo) + '</span></span>';\n    (Array.isArray(s.clientes) ? s.clientes : []).slice(0, CONFIG.maxClientesPorPendencia).forEach(function (c) {\n      corpo += '<span style=\"display:block;padding-left:10px;color:#5B6170;\">&bull; ' + wpEsc(c[\"Cliente\"]) + ' &middot; ' + wpNum(c[\"Dias sem comprar\"]) + ' dias' + (c[\"Telefone\"] ? ' &middot; ' + wpEsc(c[\"Telefone\"]) : '') + '</span>';\n    });\n  });\n  pendencias = wpAviso(\"Vendedores que não receberam o radar\", corpo, \"medio\");\n}\n\nconst miolo =\n  wpKpis([\n    { rotulo: \"Vendedores com radar\", valor: wpNum(vendedores.length) },\n    { rotulo: \"Maior radar\", valor: vendedores.length > 0 ? wpNum(vendedores[0].quantidade) : \"0\", sub: vendedores.length > 0 ? vendedores[0].nome : \"\" }\n  ]) +\n  wpSecao(\"Ranking por vendedor\", \"Do maior para o menor. Clique na seta para abrir a planilha completa.\") +\n  wpTabela([{ t: \"#\", w: \"44\" }, { t: \"Vendedor\" }, { t: \"Clientes\", a: \"right\", w: \"70\" }, { t: \"Lista\", a: \"right\", w: \"60\" }], linhas) +\n  pendencias;\n\nconst html = wpPagina({\n  titulo: CONFIG.titulo,\n  preheader: wpNum(dados.total) + (dados.total === 1 ? \" cliente novo está\" : \" clientes novos estão\") + \" no radar do primeiro pedido. Veja o radar de cada vendedor.\",\n  empresa: CONFIG.nomeEmpresa,\n  rotuloDireita: wpEsc(dados.data),\n  heroEyebrow: \"Radar do primeiro pedido\",\n  heroValor: wpNum(dados.total),\n  heroSub: (dados.total === 1 ? \"cliente novo\" : \"clientes novos\") + \" sem recomprar, \" + faixa + \" sem comprar\",\n  saudacao: \"Olá, <strong>\" + wpEsc(CONFIG.nomeGestor) + \"</strong>!\",\n  subSaudacao: \"Estes são os clientes novos (uma compra só) que estão sem comprar de novo. Veja quanto cada vendedor tem no radar.\",\n  miolo: miolo,\n  rodape: [wpEsc(CONFIG.rodape), \"Londrisoft &mdash; Londrina, PR\"]\n});\nreturn [{ json: { assunto: CONFIG.assunto, corpo_html: html } }];\n"
+      }
+    },
+    {
+      "id": "n20",
+      "type": "gmail_send",
+      "name": "Enviar E-mail ao Gestor",
+      "position": {
+        "x": 2800,
+        "y": 500
+      },
+      "parameters": {
+        "credentialId": "",
+        "to": "gestor@exemplo.com",
+        "toMode": "fixed",
+        "cc": "",
+        "ccMode": "expression",
+        "bcc": "",
+        "bccMode": "expression",
+        "subject": "{{ $json.assunto }}",
+        "subjectMode": "expression",
+        "bodyType": "html",
+        "body": "{{ $json.corpo_html }}",
+        "bodyMode": "expression",
+        "continueOnError": false
+      }
+    },
+    {
+      "id": "n15",
+      "type": "zapi_send",
+      "name": "Enviar WhatsApp",
+      "position": {
+        "x": 4000,
+        "y": 0
+      },
+      "parameters": {
+        "credentialId": "",
+        "operation": "send_text",
+        "phone": "{{ $node[\"Montar Mensagens do Vendedor\"].json.telefone }}",
+        "phoneMode": "expression",
+        "message": "{{ $node[\"Montar Mensagens do Vendedor\"].json.mensagem_whatsapp }}",
+        "messageMode": "expression",
+        "delayMessage": 0,
+        "delayTyping": 0,
+        "continueOnError": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "n1",
+      "target": "n2"
+    },
+    {
+      "id": "e2",
+      "source": "n2",
+      "target": "n3"
+    },
+    {
+      "id": "e3",
+      "source": "n3",
+      "target": "n4"
+    },
+    {
+      "id": "e4",
+      "source": "n4",
+      "target": "n5"
+    },
+    {
+      "id": "e5",
+      "source": "n5",
+      "target": "n6",
+      "sourceHandle": "true"
+    },
+    {
+      "id": "e6",
+      "source": "n6",
+      "target": "n7"
+    },
+    {
+      "id": "e7",
+      "source": "n7",
+      "target": "n8",
+      "sourceHandle": "loop"
+    },
+    {
+      "id": "e8",
+      "source": "n8",
+      "target": "n9"
+    },
+    {
+      "id": "e9",
+      "source": "n9",
+      "target": "n10"
+    },
+    {
+      "id": "e10",
+      "source": "n10",
+      "target": "n11"
+    },
+    {
+      "id": "e13",
+      "source": "n13",
+      "target": "n14"
+    },
+    {
+      "id": "e14",
+      "source": "n14",
+      "target": "n15",
+      "sourceHandle": "com_telefone"
+    },
+    {
+      "id": "e15",
+      "source": "n14",
+      "target": "n16",
+      "sourceHandle": "com_email"
+    },
+    {
+      "id": "e16",
+      "source": "n14",
+      "target": "n17",
+      "sourceHandle": "sem_contato"
+    },
+    {
+      "id": "e17",
+      "source": "n7",
+      "target": "n18",
+      "sourceHandle": "done"
+    },
+    {
+      "id": "e18",
+      "source": "n18",
+      "target": "n19"
+    },
+    {
+      "id": "e19",
+      "source": "n19",
+      "target": "n20"
+    },
+    {
+      "id": "e20",
+      "source": "n11",
+      "target": "n13"
+    }
+  ]
+}

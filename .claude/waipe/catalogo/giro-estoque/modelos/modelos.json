@@ -1,0 +1,46 @@
+{
+  "versao": 1,
+  "aviso": "Dados fictícios. O layout, os textos e a ordem seguem o que o fluxo envia.",
+  "pecas": [
+    {
+      "arquivo": "consolidado-gestor.html",
+      "tipo": "email",
+      "rotulo": "Consolidado do gestor",
+      "assunto": "Giro de estoque por fabricante - NOME DA EMPRESA - 19/10/2026",
+      "de": "Relatórios Waipe <relatorios@empresa.exemplo.com.br>",
+      "para": "Nome do Gestor <gestor@empresa.exemplo.com.br>",
+      "data": "seg., 19 out. 07:34",
+      "quem": "Gestor"
+    },
+    {
+      "arquivo": "planilhas/brilho-forte-iluminacao.html",
+      "tipo": "planilha",
+      "rotulo": "Planilha de Brilho Forte Iluminação"
+    },
+    {
+      "arquivo": "planilhas/disjuntores-alfa.html",
+      "tipo": "planilha",
+      "rotulo": "Planilha de Disjuntores Alfa"
+    },
+    {
+      "arquivo": "planilhas/ferramentas-solida.html",
+      "tipo": "planilha",
+      "rotulo": "Planilha de Ferramentas Sólida"
+    },
+    {
+      "arquivo": "planilhas/fio-certo-cabos.html",
+      "tipo": "planilha",
+      "rotulo": "Planilha de Fio Certo Cabos"
+    },
+    {
+      "arquivo": "planilhas/tintas-colorama.html",
+      "tipo": "planilha",
+      "rotulo": "Planilha de Tintas Colorama"
+    },
+    {
+      "arquivo": "planilhas/tomada-plus.html",
+      "tipo": "planilha",
+      "rotulo": "Planilha de Tomada Plus"
+    }
+  ]
+}

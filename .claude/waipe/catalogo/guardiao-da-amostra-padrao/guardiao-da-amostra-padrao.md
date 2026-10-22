@@ -1,10 +1,15 @@
 ---
 nome: Guardião da Amostra Padrão
 slug: guardiao-da-amostra-padrao
-versao: 1.0.0
+versao: 1.2.0
 modelo_base: nenhum
 gatilho: agendado (dias 4 e 15 de cada mês, 07:00, America/Sao_Paulo)
-atualizado: 2026-10-16
+icone: 🛡️
+resumo: Ranking de clientes adormecidos (mais de 40 dias sem comprar) com a planilha de cada vendedor.
+frequencia: Dias 4 e 15 de cada mês, 07:00
+quem_recebe: Gestor comercial
+nota: Este fluxo não envia mensagem aos vendedores: só o consolidado ao gestor.
+atualizado: 2026-10-22
 ---
 
 # Guardião da Amostra Padrão
@@ -15,6 +20,8 @@ Cliente que quer **reativar clientes adormecidos**: os que compraram nos último
 sem comprar (padrão: 40). O flow separa por vendedor (representante), cria uma planilha do Google Sheets para cada
 um com a lista de clientes (nome, data da última compra, telefone e e-mail) e manda ao gestor um e-mail consolidado
 com o ranking de vendedores e o botão de cada lista. Se não houver nenhum cliente adormecido, avisa por e-mail.
+
+Modelos de comunicação (consolidado e planilha): `.claude/waipe/catalogo/guardiao-da-amostra-padrao/modelos/` (lista das peças em `modelos.json`).
 
 Palavras-chave: clientes adormecidos, inativos, reativação, última compra, carteira, vendedor, planilha por vendedor.
 
@@ -151,6 +158,12 @@ a compra deve contar. O nome do vendedor (`vendedor`) precisa vir preenchido. O 
 5. Volte o destino para o do gestor e **ative o flow**.
 
 ## Histórico
+
+### v1.2.0 (2026-10-22)
+- E-mails no novo padrão de e-mail Waipe (claro, com modo escuro automático, desenho do Guardião da Amostra Padrão), com o kit `kit-email-waipe.js`. Modelos de comunicação em `modelos/`, dentro da pasta do modelo, só com as peças enviadas, gerados rodando os nodes com dados fictícios.
+
+### v1.1.0 (2026-10-22)
+- E-mails do consolidado e do aviso de "nenhum adormecido" no padrão de e-mail Waipe (tema escuro, destaque com o total, ranking com botão), com o kit `kit-email-waipe.js`. Modelos de comunicação em `.claude/waipe/catalogo/guardiao-da-amostra-padrao/modelos/` (lista das peças em `modelos.json`).
 
 ### v1.0.0 (2026-10-16)
 - Primeira versão do modelo no catálogo, anonimizada a partir do agente em produção em um cliente (Data Lab, e-mails,

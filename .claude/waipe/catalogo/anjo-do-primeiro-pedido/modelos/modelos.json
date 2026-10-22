@@ -1,0 +1,64 @@
+{
+  "versao": 1,
+  "aviso": "Dados fictícios. O layout, os textos e a ordem seguem o que o fluxo envia.",
+  "pecas": [
+    {
+      "arquivo": "whatsapp-vendedor.html",
+      "tipo": "whatsapp",
+      "rotulo": "WhatsApp do vendedor",
+      "contato": "Empresa Exemplo · Comercial",
+      "data": "TERÇA-FEIRA",
+      "quem": "Cada vendedor"
+    },
+    {
+      "arquivo": "email-vendedor.html",
+      "tipo": "email",
+      "rotulo": "E-mail do vendedor",
+      "assunto": "Radar do Primeiro Pedido: 14 clientes novos estão sem recomprar",
+      "de": "Empresa Exemplo Comercial <relatorios@empresa.exemplo.com.br>",
+      "para": "Helena Prado <helena.prado@empresa.exemplo.com.br>",
+      "data": "ter., 20 out. 07:02",
+      "quem": "Cada vendedor com e-mail"
+    },
+    {
+      "arquivo": "consolidado-gestor.html",
+      "tipo": "email",
+      "rotulo": "Consolidado do gestor",
+      "assunto": "Radar do Primeiro Pedido por vendedor - NOME DA EMPRESA",
+      "de": "Relatórios Waipe <relatorios@empresa.exemplo.com.br>",
+      "para": "Nome do Gestor <gestor@empresa.exemplo.com.br>",
+      "data": "ter., 20 out. 07:09",
+      "quem": "Gestor comercial"
+    },
+    {
+      "arquivo": "planilhas/caio-ferraz.html",
+      "tipo": "planilha",
+      "rotulo": "Planilha de Caio Ferraz"
+    },
+    {
+      "arquivo": "planilhas/davi-calheiros.html",
+      "tipo": "planilha",
+      "rotulo": "Planilha de Davi Calheiros"
+    },
+    {
+      "arquivo": "planilhas/helena-prado.html",
+      "tipo": "planilha",
+      "rotulo": "Planilha de Helena Prado"
+    },
+    {
+      "arquivo": "planilhas/larissa-nunes.html",
+      "tipo": "planilha",
+      "rotulo": "Planilha de Larissa Nunes"
+    },
+    {
+      "arquivo": "planilhas/otavio-brandao.html",
+      "tipo": "planilha",
+      "rotulo": "Planilha de Otávio Brandão"
+    },
+    {
+      "arquivo": "planilhas/sabrina-teles.html",
+      "tipo": "planilha",
+      "rotulo": "Planilha de Sabrina Teles"
+    }
+  ]
+}

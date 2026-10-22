@@ -16,11 +16,11 @@ GitHub Release, para o usuário baixar essa versão quando precisar.
 4. Confira que a seção `### Não publicado` descreve o que mudou desde a última release (`git diff
    <slug>/vX.Y.Z -- agentes/<slug>`); complete, commit e `salvar` se faltar algo.
 5. **Modelos de comunicação** (antes de fechar): se o agente envia WhatsApp, e-mail, documento ou planilha
-   (`waipe.py status` mostra `modelos: PENDENTE`), gere os modelos em `agentes/modelos/<slug>/` seguindo
-   `.claude/waipe/modelos-comunicacao/PADRAO.md`: leia o código dos nodes (**sem rodar o flow**), escreva as peças com dados
-   fictícios e use `comum.py` / `exemplo_gerar.py`. Se `agentes/modelos/` já existe, **apenas acrescente** a pasta do
-   agente e o cartão dele no `index.html`; não recrie o resto. Agente que já tem modelos: só refaça se esta release mudou
-   textos, layout ou peças enviadas. Depois `git add agentes/modelos`, commit `docs(<slug>): modelos de comunicação` e `salvar`.
+   (`waipe.py status` mostra `modelos: PENDENTE`), gere os modelos em `agentes/<slug>/modelos/` seguindo
+   `.claude/waipe/modelos-comunicacao/PADRAO.md`: monte entradas fictícias lendo o código dos nodes e rode **só o node
+   `code`** que monta a mensagem (`comum.rodar_node`; Gmail, Z-API, Data Lab e Sheets não rodam), grave as peças e o
+   `modelos.json` (`comum.py` / `exemplo_gerar.py`). Agente que já tem modelos: só refaça se esta release mudou textos,
+   layout ou peças enviadas. Depois `git add agentes/<slug>/modelos`, commit `docs(<slug>): modelos de comunicação` e `salvar`.
 6. `python3 .claude/waipe/waipe.py release <slug> <patch|minor|major|X.Y.Z>`.
 7. Responda com a tag, o link do Release, os anexos, o que entrou e se os modelos foram criados ou atualizados.
 
