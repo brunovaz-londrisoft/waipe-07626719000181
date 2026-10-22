@@ -4,6 +4,11 @@ slug: pendencias-de-ontem
 versao: 1.0.0
 modelo_base: nenhum
 gatilho: agendado (todos os dias, 08:00, America/Sao_Paulo)
+icone: 🗂️
+resumo: E-mail com o que ficou pendente até ontem (orçamentos, vendas e O.S. não faturadas, contas vencidas) e o que vence hoje.
+frequencia: Todos os dias, 08:00
+quem_recebe: Responsável pela rotina da manhã
+nota: Este fluxo envia um único e-mail por dia, sem mensagens a vendedores.
 atualizado: 2026-10-21
 ---
 
@@ -196,6 +201,9 @@ Textos registrados exatamente como foram criados no Data Lab em 2026-10-20.
 6. Preencher o destinatário de produção e ativar.
 
 ## Histórico
+
+### Não publicado
+- Modelos de comunicação no formato do framework v3: `agentes/pendencias-de-ontem/modelos/` (só as peças enviadas e `modelos.json`).
 
 ### v1.0.0 (2026-10-21)
 - JSON atualizado com o export do Waipe Flow de 21/10/2026: envio de teste para o Bruno (`to` fixo) até a validação; depois troca para o e-mail da cliente.

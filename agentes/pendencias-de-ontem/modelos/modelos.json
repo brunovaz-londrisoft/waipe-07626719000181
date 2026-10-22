@@ -1,0 +1,15 @@
+{
+  "versao": 1,
+  "aviso": "Dados fictícios. O layout, os textos e a ordem seguem o que o fluxo envia.",
+  "pecas": [
+    {
+      "arquivo": "consolidado-gestor.html",
+      "tipo": "email",
+      "rotulo": "E-mail diário",
+      "assunto": "Pendências até ontem - Aqua Azul Piscinas - 21/10/2026",
+      "de": "Waipe Relatórios <relatorios@aquaazul.exemplo.com.br>",
+      "para": "Marta <marta@aquaazul.exemplo.com.br>",
+      "data": "qua., 21 out. 08:00"
+    }
+  ]
+}
