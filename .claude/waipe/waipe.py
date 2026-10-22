@@ -68,6 +68,8 @@ SECOES_AGENTE = ["## Objetivo", "## Como funciona", "## Configuração após imp
 SECOES_MODELO = SECOES_AGENTE + ["## Quando usar", "## Perguntas para personalizar"]
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 SLUG = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+# Pastas de agentes/ que não são agentes: `agentes/modelos/` guarda os modelos de comunicação (ver .claude/waipe/modelos/PADRAO.md).
+RESERVADAS = {"modelos"}
 CNPJ = re.compile(r"\b\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}\b")
 EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")
 
@@ -337,11 +339,14 @@ def validar_pasta(pasta, exigir_par=True, modelo=False):
     return erros, avisos
 
 
+def pastas_agentes():
+    return sorted(p for p in AGENTES.iterdir() if p.is_dir() and p.name not in RESERVADAS) if AGENTES.exists() else []
+
+
 def pastas_padrao():
-    pastas = []
-    for base in (AGENTES, CATALOGO):
-        if base.exists():
-            pastas += sorted(p for p in base.iterdir() if p.is_dir())
+    pastas = pastas_agentes()
+    if CATALOGO.exists():
+        pastas += sorted(p for p in CATALOGO.iterdir() if p.is_dir())
     return pastas
 
 
@@ -372,7 +377,7 @@ def cmd_hook(_args):
     if caminho.suffix not in (".json", ".md"):
         return
     for base in (AGENTES, CATALOGO):
-        if base in caminho.parents and caminho.parent.parent == base:
+        if base in caminho.parents and caminho.parent.parent == base and caminho.parent.name not in RESERVADAS:
             erros, _ = validar_pasta(caminho.parent, exigir_par=False, modelo=base == CATALOGO)
             if erros:
                 print(f"Validação de {caminho.parent.name} falhou:\n- " + "\n- ".join(erros), file=sys.stderr)
@@ -415,6 +420,31 @@ def puxar_main():
     git("pull", "--rebase", "-q", "origin", "main")
 
 
+def envia_mensagens(pasta):
+    """True se o flow do agente envia e-mail, WhatsApp (zapi_send ou Z-API por http_request) ou cria documento/planilha."""
+    js = pasta / f"{pasta.name}.json"
+    if not js.exists():
+        return False
+    try:
+        nodes = json.loads(js.read_text(encoding="utf-8")).get("nodes", [])
+    except ValueError:
+        return False
+    for n in nodes:
+        t = n.get("type")
+        if t in ("gmail_send", "zapi_send"):
+            return True
+        if t == "http_request" and "z-api" in str((n.get("parameters") or {}).get("url", "")).lower():
+            return True
+    return False
+
+
+def situacao_modelos(pasta):
+    """Sufixo da linha do status: modelos de comunicação do agente em agentes/modelos/<slug>/."""
+    if modo_template() or not envia_mensagens(pasta):
+        return ""
+    return "  modelos: ok" if (AGENTES / "modelos" / pasta.name).is_dir() else "  modelos: PENDENTE"
+
+
 def cmd_status(_args):
     git("fetch", "-q", "origin", "--tags", checar=False)
     print(f"Framework: v{versao_framework()}  ({'template' if modo_template() else 'cliente'})")
@@ -422,14 +452,14 @@ def cmd_status(_args):
     pendentes = git("log", "origin/main..HEAD", "--oneline", checar=False)
     if pendentes:
         print(f"Commits ainda não enviados: {len(pendentes.splitlines())} (rode 'salvar')")
-    pastas = sorted(p for p in AGENTES.iterdir() if p.is_dir()) if AGENTES.exists() else []
+    pastas = pastas_agentes()
     if not pastas:
         print("Agentes:   nenhum")
     for p in pastas:
         tag = ultima_tag(f"{p.name}/")
         publicada = tag.split("/v")[1] if tag else "nunca"
         alterado = "com alterações desde a última release" if mudou_desde(tag, f"agentes/{p.name}") else "sem alterações"
-        print(f"  {p.name:<32} última release: {publicada:<8} {alterado}")
+        print(f"  {p.name:<32} última release: {publicada:<8} {alterado}{situacao_modelos(p)}")
     if CATALOGO.exists():
         modelos = [p.name for p in sorted(CATALOGO.iterdir()) if p.is_dir()]
         print(f"Catálogo:  {', '.join(modelos) or 'vazio'}")
@@ -441,6 +471,8 @@ def cmd_novo_agente(args):
     if modo_template():
         erro("no template não há agentes; o trabalho é no framework.")
     slug = args[0]
+    if slug in RESERVADAS:
+        erro(f"'{slug}' é nome reservado (agentes/{slug}/ não é um agente).")
     pasta = AGENTES / slug
     if pasta.exists():
         erro(f"{pasta.relative_to(RAIZ)}/ já existe: é só alterar os arquivos.")
@@ -472,6 +504,8 @@ def cmd_release(args):
     if len(args) != 2:
         erro("uso: release <slug> <patch|minor|major|X.Y.Z>")
     slug, pedido = args
+    if slug in RESERVADAS:
+        erro(f"'{slug}' não é um agente (pasta reservada).")
     exigir_main()
     exigir_limpo()
     pasta = AGENTES / slug

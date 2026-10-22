@@ -3,7 +3,9 @@
 Cada versão do `waipe-agentes-template`. Versão maior = o repositório do cliente precisa de alguma ação, descrita na seção.
 A atualização nunca toca em `agentes/`, `CLAUDE.md`, `README.md` nem em `.claude/settings.local.json`.
 
-## Não publicado
+## v2.2.0 (2026-10-22)
+- **Modelos de comunicação dos agentes**: ao fechar a release de um agente que envia WhatsApp, e-mail, documento ou planilha, a IA cria os modelos navegáveis (WhatsApp interativo, e-mail, documento em PDF, consolidado do gestor e planilhas, com dados fictícios) em `agentes/modelos/<slug>/`. Se `agentes/modelos/` já existe, só acrescenta a pasta do agente e o cartão no `index.html`. Padrão e componentes em `.claude/waipe/modelos-comunicacao/` (`PADRAO.md`, `comum.py`, `exemplo_gerar.py`); skill `waipe-fechar-release`, regra do framework e README atualizados.
+- `agentes/modelos/` é **pasta reservada**: `validar`, `status`, `novo-agente`, `release` e o hook não a tratam mais como agente (antes, `validar` falhava com "falta modelos.json"). `status` mostra `modelos: ok` ou `modelos: PENDENTE` para o agente que envia mensagens.
 - **Padrão de teste:** o destino de teste fica direto no campo do node de envio (`phone`, `to`); nada de `modoTeste` no `CONFIG` nem prefixo "[TESTE]". Registrado na skill `waipe-flow`, na regra do framework e na skill `waipe-criar-agente`.
 
 ## v2.1.0 (2026-10-16)
