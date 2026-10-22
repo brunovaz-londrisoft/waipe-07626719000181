@@ -1,0 +1,48 @@
+<!doctype html><html lang="pt-BR" data-tema="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Modelos de comunicação · Fluxos Waipe</title><style>
+:root{--bg:#eef0f3;--card:#ffffff;--tx:#1f2430;--mut:#6b7280;--bd:#e3e6ea;--acc:#303030;--acc-tx:#fff;--chip:#f1f2ec;--chip-tx:#5a6344;--shadow:0 10px 40px rgba(20,24,40,.12)}
+:root[data-tema=dark]{--bg:#0f1115;--card:#171a21;--tx:#eceef2;--mut:#9aa1ad;--bd:#262b35;--acc:#e5e7eb;--acc-tx:#1f2229;--chip:#242a1f;--chip-tx:#c9cfb4;--shadow:0 10px 40px rgba(0,0,0,.5)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;min-height:100vh}
+a{color:inherit}
+.topo{max-width:1180px;margin:0 auto;padding:22px 20px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.topo .voltar{font-size:14px;text-decoration:none;color:var(--mut);padding:7px 12px;border:1px solid var(--bd);border-radius:999px;background:var(--card)}
+.topo .voltar:hover{color:var(--tx)}
+.marca{font-weight:800;letter-spacing:-.5px;font-size:20px}
+.espaco{flex:1}
+.btn{font:inherit;font-size:14px;border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:8px 14px;border-radius:999px;cursor:pointer}
+.btn:hover{border-color:var(--mut)}
+.btn.pri{background:var(--acc);color:var(--acc-tx);border-color:var(--acc)}
+.fake{max-width:1180px;margin:14px auto 0;padding:0 20px}
+.fake span{display:inline-block;font-size:12px;color:var(--mut);background:var(--card);border:1px dashed var(--bd);padding:5px 10px;border-radius:8px}
+html,body{overflow-x:hidden}.layout>div{min-width:0}.mail{max-width:100%}.layout{max-width:1180px;margin:0 auto;padding:22px 20px 60px;display:grid;grid-template-columns:minmax(260px,380px) 1fr;gap:40px;align-items:start}
+@media(max-width:900px){.layout{grid-template-columns:1fr;gap:24px}}
+.info h1{font-size:30px;line-height:36px;margin:6px 0 10px;letter-spacing:-.6px}
+.info p{color:var(--mut);line-height:24px;margin:0 0 16px}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#8e6a1f}
+:root[data-tema=dark] .eyebrow{color:#d4b25a}
+.chips{display:flex;flex-direction:column;gap:8px;margin:18px 0}
+.chip{display:flex;gap:10px;align-items:flex-start;background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:11px 13px;font-size:14px;line-height:20px}
+.chip b{display:block;font-size:11px;letter-spacing:.9px;text-transform:uppercase;color:var(--mut);margin-bottom:1px}
+.chip .ic{font-size:18px;line-height:22px}
+.acoes{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+.dica{font-size:13px;color:var(--mut);margin-top:14px}
+
+.cab{max-width:1180px;margin:0 auto;padding:46px 20px 8px}
+.cab h1{font-size:40px;line-height:46px;letter-spacing:-1px;margin:6px 0 10px}
+.cab p{color:var(--mut);max-width:680px;line-height:26px;margin:0}
+.grade{max-width:1180px;margin:0 auto;padding:26px 20px 60px;display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:20px}
+.cartao{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:24px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px}
+.cartao .ic{font-size:32px}.cartao h2{margin:0;font-size:22px;letter-spacing:-.4px}
+.cartao .rs{color:var(--mut);line-height:22px;font-size:14px;margin:0}
+.meta{display:flex;flex-direction:column;gap:6px;font-size:13px}
+.meta span b{display:inline-block;min-width:96px;font-size:11px;letter-spacing:.9px;text-transform:uppercase;color:var(--mut)}
+.pecas{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+.pecas a{display:flex;gap:10px;align-items:center;text-decoration:none;border:1px solid var(--bd);border-radius:12px;padding:11px 13px;font-size:14px;background:var(--bg)}
+.pecas a:hover{border-color:var(--acc);transform:translateY(-1px)}
+.pecas a span.s{margin-left:auto;color:var(--mut)}
+.nota{font-size:12.5px;background:var(--chip);color:var(--chip-tx);padding:8px 10px;border-radius:8px}
+.rodape{max-width:1180px;margin:0 auto;padding:0 20px 40px;color:var(--mut);font-size:13px;line-height:20px}
+</style><script>
+(function(){try{var t=localStorage.getItem('tema');if(t)document.documentElement.setAttribute('data-tema',t);}catch(e){}})();
+function alternarTema(){var r=document.documentElement;var n=r.getAttribute('data-tema')==='dark'?'light':'dark';r.setAttribute('data-tema',n);try{localStorage.setItem('tema',n)}catch(e){}if(window.aoMudarTema)window.aoMudarTema(n);}
+</script></head><body><div class="topo"><span class="marca">waipe</span><span class="espaco"></span><button class="btn" onclick="alternarTema()">Claro / escuro</button></div><div class="cab"><div class="eyebrow">Fluxos de comunicação</div><h1>O que cada fluxo envia</h1><p>Modelos navegáveis das mensagens, e-mails, documentos e planilhas que os fluxos enviam. Abra cada peça para ver exatamente como chega.</p></div><div class="grade"><!--CARDS--><!--cartao:pendencias-de-ontem--><div class="cartao"><div class="ic">🗂️</div><h2>Pendências de Ontem</h2><p class="rs">E-mail com o que ficou pendente até ontem (orçamentos, vendas e O.S. não faturadas, contas vencidas) e o que vence hoje.</p><div class="meta"><span><b>Frequência</b>Todos os dias, 08:00</span><span><b>Quem recebe</b>Responsável pela rotina da manhã</span></div><div class="nota">Este fluxo envia um único e-mail por dia, sem mensagens a vendedores.</div><div class="pecas"><a href="pendencias-de-ontem/consolidado-gestor.html"><span>🧭</span>E-mail diário<span class="s">&rarr;</span></a></div></div><!--/cartao:pendencias-de-ontem--><!--/CARDS--></div><div class="rodape">Todos os nomes, telefones, e-mails, empresas e valores destes modelos são fictícios. O layout, os textos e a ordem das informações seguem o que os fluxos enviam de verdade.</div></body></html>
