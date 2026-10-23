@@ -1,0 +1,375 @@
+{
+  "waipe_flow_version": "2",
+  "name": "CMV Mensal",
+  "description": "Webhook POST com o período ({\"mes\": \"AAAA-MM\"} ou {\"data_inicial\", \"data_final\"}; sem corpo, mês anterior). Calcula o CMV, as vendas e o lucro por mês, empresa e produto a partir das vendas do Data Lab, grava a planilha, envia o e-mail e responde o resultado em JSON.",
+  "triggerType": "webhook",
+  "nodes": [
+    {
+      "id": "n2",
+      "type": "waipe_data",
+      "name": "Vendas 6 meses",
+      "position": {
+        "x": 380,
+        "y": 250
+      },
+      "parameters": {
+        "dataSource": "data_lab",
+        "companyIds": [],
+        "companyIdsMode": "fixed",
+        "companyIdsExpression": "",
+        "message": "",
+        "messageMode": "fixed",
+        "expertModelId": "",
+        "dataLabReportId": "SUBSTITUA_PELO_ID_DO_RELATORIO_DE_VENDAS_COM_CUSTO"
+      }
+    },
+    {
+      "id": "n3",
+      "type": "code",
+      "name": "Calcular CMV",
+      "position": {
+        "x": 660,
+        "y": 250
+      },
+      "parameters": {
+        "mode": "all_items",
+        "jsCode": "// ===== CONFIGURAÇÃO =====\nvar CODIGOS_IGNORADOS = [];         // códigos de produto fora da análise (ex.: serviços)\nvar MAX_PRODUTOS_EMAIL = 20;        // maiores CMVs listados no e-mail\nvar MAX_BYTES_DETALHE = 900000;     // acima disso a planilha recebe só os subtotais mensais\n// ===== FUNÇÕES =====\nvar AC = { 'á': 'a', 'à': 'a', 'â': 'a', 'ã': 'a', 'ä': 'a', 'é': 'e', 'è': 'e', 'ê': 'e', 'í': 'i', 'ì': 'i', 'î': 'i', 'ó': 'o', 'ò': 'o', 'ô': 'o', 'õ': 'o', 'ö': 'o', 'ú': 'u', 'ù': 'u', 'û': 'u', 'ü': 'u', 'ç': 'c' };\nvar MARCAS = ['data_venda', 'produto'];\nfunction chave(k) {\n  var s = String(k).trim().toLowerCase(), o = '';\n  for (var i = 0; i < s.length; i++) { var c = s.charAt(i); c = AC[c] || c; o += (c === ' ' || c === '-' || c === '.') ? '_' : c; }\n  return o;\n}\nfunction normalizar(o) { var r = {}; for (var k in o) r[chave(k)] = o[k]; return r; }\nfunction ehLinha(o) { var n = normalizar(o); for (var i = 0; i < MARCAS.length; i++) { if (n[MARCAS[i]] !== undefined) return n; } return null; }\nfunction coletar(v, out, nivel) {\n  if (v === null || v === undefined || nivel > 8) return;\n  if (typeof v === 'string') {\n    var t = v.trim();\n    if (t.charAt(0) === '[' || t.charAt(0) === '{') { try { coletar(JSON.parse(t), out, nivel + 1); } catch (e) {} }\n    return;\n  }\n  if (Array.isArray(v)) { for (var i = 0; i < v.length; i++) coletar(v[i], out, nivel + 1); return; }\n  if (typeof v !== 'object') return;\n  var linha = ehLinha(v);\n  if (linha) { out.push(linha); return; }\n  var cols = null, mat = null;\n  for (var k in v) {\n    var x = v[k];\n    if (Array.isArray(x) && x.length && typeof x[0] === 'string' && !cols) cols = x;\n    else if (Array.isArray(x) && x.length && Array.isArray(x[0]) && !mat) mat = x;\n  }\n  if (cols && mat) {\n    for (var r = 0; r < mat.length; r++) { var ob = {}; for (var c = 0; c < cols.length; c++) ob[cols[c]] = mat[r][c]; coletar(ob, out, nivel + 1); }\n    return;\n  }\n  for (var k2 in v) coletar(v[k2], out, nivel + 1);\n}\nfunction num(v) {\n  if (v === null || v === undefined || v === '') return 0;\n  if (typeof v === 'number') return v;\n  var s = String(v).trim();\n  if (s.indexOf(',') >= 0) s = s.split('.').join('').replace(',', '.');\n  var n = parseFloat(s); return isNaN(n) ? 0 : n;\n}\nfunction vazio(v) { return v === null || v === undefined || String(v).trim() === ''; }\nfunction dia(v) {\n  if (vazio(v)) return null;\n  var s = String(v).trim().split(' ')[0].split('T')[0];\n  if (s.indexOf('/') > 0) { var p = s.split('/'); if (p.length === 3) s = p[2] + '-' + ('0' + p[1]).slice(-2) + '-' + ('0' + p[0]).slice(-2); }\n  var d = new Date(s + 'T00:00:00Z'); return isNaN(d.getTime()) ? null : d;\n}\nfunction iso(d) { return d.toISOString().substring(0, 10); }\nfunction br(d) { var s = iso(d).split('-'); return s[2] + '/' + s[1] + '/' + s[0]; }\nfunction mesBr(m) { var s = m.split('-'); return s[1] + '/' + s[0]; }\nfunction r2(n) { return Math.round(n * 100) / 100; }\nfunction pct(lucro, venda) { return venda > 0 ? r2(lucro / venda * 100) : 0; }\nfunction brl(n) { var s = Math.abs(n).toFixed(2).split('.'), i = s[0], o = ''; while (i.length > 3) { o = '.' + i.slice(-3) + o; i = i.slice(0, -3); } return (n < 0 ? '-' : '') + 'R$ ' + i + o + ',' + s[1]; }\nfunction txt(v) { return vazio(v) ? '' : String(v).trim(); }\nfunction esc(v) { return txt(v).split('&').join('&amp;').split('<').join('&lt;'); }\n// ===== PERÍODO SOLICITADO =====\nvar hoje = new Date($today + 'T00:00:00Z');\nvar entrada = {};\ntry { entrada = $node['Receber período'].json || {}; } catch (e) { entrada = {}; }\nvar ini = null, fim = null, erro = '';\nif (!vazio(entrada.mes)) {\n  var t = String(entrada.mes).trim();\n  if (t.indexOf('/') > 0) { var q = t.split('/'); t = q[1] + '-' + q[0]; }\n  var pa = t.split('-'), ano = parseInt(pa[0], 10), mes = parseInt(pa[1], 10);\n  if (ano > 2000 && mes >= 1 && mes <= 12) { ini = new Date(Date.UTC(ano, mes - 1, 1)); fim = new Date(Date.UTC(ano, mes, 0)); }\n} else if (!vazio(entrada.data_inicial) || !vazio(entrada.data_final)) {\n  ini = dia(entrada.data_inicial); fim = dia(entrada.data_final);\n} else {\n  ini = new Date(Date.UTC(hoje.getUTCFullYear(), hoje.getUTCMonth() - 1, 1));\n  fim = new Date(Date.UTC(hoje.getUTCFullYear(), hoje.getUTCMonth(), 0));\n}\nif (!ini || !fim || ini.getTime() > fim.getTime()) {\n  erro = 'Período inválido. Envie {\"mes\": \"AAAA-MM\"} ou {\"data_inicial\": \"AAAA-MM-DD\", \"data_final\": \"AAAA-MM-DD\"} (também aceita DD/MM/AAAA). Sem corpo, usa o mês anterior completo.';\n}\n// ===== BASE DE VENDAS =====\nvar registros = [];\nitems.forEach(function (it) { coletar(it.json, registros, 0); });\nvar vendas = registros.filter(function (r) { return r.data_venda !== undefined && r.produto !== undefined; });\nvar baseIni = null, baseFim = null;\nvendas.forEach(function (v) {\n  var d = dia(v.data_venda); if (!d) return;\n  if (!baseIni || d.getTime() < baseIni.getTime()) baseIni = d;\n  if (!baseFim || d.getTime() > baseFim.getTime()) baseFim = d;\n});\n// ===== CÁLCULO =====\nvar grupos = {};\nvar dev = { linhas: 0, valor: 0 };\nvar linhasSemCusto = 0, linhasPeriodo = 0;\nif (!erro) {\n  vendas.forEach(function (v) {\n    var d = dia(v.data_venda);\n    if (!d || d.getTime() < ini.getTime() || d.getTime() > fim.getTime()) return;\n    var cod = txt(v.produto);\n    if (CODIGOS_IGNORADOS.indexOf(cod) >= 0) return;\n    var qtd = num(v.quantidade);\n    if (qtd < 0) { dev.linhas++; dev.valor += num(v.total_venda); return; }\n    if (qtd === 0) return;\n    var venda = num(v.total_venda), cmv = 0, semCusto = false;\n    if (!vazio(v.total_custo)) cmv = num(v.total_custo);\n    else if (!vazio(v.custo_unitario)) cmv = qtd * num(v.custo_unitario);\n    else { semCusto = true; }\n    var m = iso(d).substring(0, 7);\n    var cnpj = txt(v._cnpjorigem);\n    var emp = txt(v._razaoorigem).split('  ').join(' ').split('  ').join(' ');\n    var k = m + '|' + cnpj + '|' + cod;\n    if (!grupos[k]) grupos[k] = { mes: m, emp: emp, cod: cod, nome: txt(v.nomproduto), grupo: txt(v.grupo), subgrupo: txt(v.subgrupo), qtd: 0, venda: 0, cmv: 0, linhas: 0, semCusto: 0 };\n    var g = grupos[k];\n    g.qtd += qtd; g.venda += venda; g.cmv += cmv; g.linhas++;\n    if (semCusto) { g.semCusto++; linhasSemCusto++; }\n    linhasPeriodo++;\n  });\n}\nvar listaG = Object.keys(grupos).map(function (k) { return grupos[k]; });\nlistaG.sort(function (a, b) { if (a.mes !== b.mes) return a.mes < b.mes ? -1 : 1; if (a.emp !== b.emp) return a.emp < b.emp ? -1 : 1; return b.cmv - a.cmv; });\nvar mesesOrdem = [], porMes = {}, T = { venda: 0, cmv: 0, lucro: 0 };\nlistaG.forEach(function (g) {\n  if (!porMes[g.mes]) { porMes[g.mes] = { mes: g.mes, venda: 0, cmv: 0 }; mesesOrdem.push(g.mes); }\n  porMes[g.mes].venda += g.venda; porMes[g.mes].cmv += g.cmv;\n  T.venda += g.venda; T.cmv += g.cmv;\n});\nT.lucro = T.venda - T.cmv;\n// ===== TOTAIS POR EMPRESA =====\nvar porEmp = {}, porMesEmp = {};\nlistaG.forEach(function (g) {\n  if (!porEmp[g.emp]) porEmp[g.emp] = { emp: g.emp, venda: 0, cmv: 0, produtos: {} };\n  porEmp[g.emp].venda += g.venda; porEmp[g.emp].cmv += g.cmv; porEmp[g.emp].produtos[g.cod] = true;\n  var km = g.mes + '|' + g.emp;\n  if (!porMesEmp[km]) porMesEmp[km] = { venda: 0, cmv: 0 };\n  porMesEmp[km].venda += g.venda; porMesEmp[km].cmv += g.cmv;\n});\nvar empresasOrdem = Object.keys(porEmp).sort(function (a, b) { return porEmp[b].cmv - porEmp[a].cmv; });\nfunction curta(e) { return txt(e).split(' ')[0]; }\nvar porProd = {};\nlistaG.forEach(function (g) {\n  var k = g.emp + '|' + g.cod;\n  if (!porProd[k]) porProd[k] = { cod: g.cod, nome: g.nome, emp: g.emp, qtd: 0, venda: 0, cmv: 0 };\n  porProd[k].qtd += g.qtd; porProd[k].venda += g.venda; porProd[k].cmv += g.cmv;\n});\nvar topProd = Object.keys(porProd).map(function (k) { return porProd[k]; })\n  .sort(function (a, b) { return b.cmv - a.cmv; }).slice(0, MAX_PRODUTOS_EMAIL);\n// ===== PLANILHA =====\nfunction linhaPlanilha(o) {\n  return { 'Mês': o.mes, 'Código': o.cod, 'Descrição': o.desc, 'Grupo': o.grupo, 'Subgrupo': o.subgrupo, 'Empresa': o.emp,\n    'Quantidade vendida': o.qtd, 'Venda (R$)': o.venda, 'CMV (R$)': o.cmv, 'Lucro (R$)': o.lucro, 'Margem (%)': o.margem, 'Observação': o.obs };\n}\nfunction subtotal(mes, v, c, l) {\n  return linhaPlanilha({ mes: mes, cod: '', desc: 'SUBTOTAL ' + mesBr(mes), grupo: '', subgrupo: '', emp: '', qtd: '', venda: r2(v), cmv: r2(c), lucro: r2(v - c), margem: pct(v - c, v), obs: '' });\n}\nfunction linhaTotal(mes, desc, emp, v, c) {\n  return linhaPlanilha({ mes: mes, cod: '', desc: desc, grupo: '', subgrupo: '', emp: emp, qtd: '', venda: r2(v), cmv: r2(c), lucro: r2(v - c), margem: pct(v - c, v), obs: '' });\n}\nfunction montarPlanilha(comDetalhe) {\n  var out = [];\n  mesesOrdem.forEach(function (mes) {\n    var emps = Object.keys(porEmp).sort();\n    emps.forEach(function (emp) {\n      var me = porMesEmp[mes + '|' + emp];\n      if (!me) return;\n      if (comDetalhe) {\n        listaG.forEach(function (g) {\n          if (g.mes !== mes || g.emp !== emp) return;\n          out.push(linhaPlanilha({ mes: g.mes, cod: g.cod, desc: g.nome, grupo: g.grupo, subgrupo: g.subgrupo, emp: g.emp,\n            qtd: r2(g.qtd), venda: r2(g.venda), cmv: r2(g.cmv), lucro: r2(g.venda - g.cmv), margem: pct(g.venda - g.cmv, g.venda),\n            obs: g.semCusto ? g.semCusto + ' linha(s) sem custo no Gestor' : '' }));\n        });\n      }\n      out.push(linhaTotal(mes, 'SUBTOTAL ' + mesBr(mes) + ' · ' + curta(emp), emp, me.venda, me.cmv));\n    });\n    out.push(linhaTotal(mes, 'SUBTOTAL ' + mesBr(mes) + ' · TODAS AS EMPRESAS', '', porMes[mes].venda, porMes[mes].cmv));\n  });\n  if (mesesOrdem.length > 1) {\n    Object.keys(porEmp).sort().forEach(function (emp) {\n      out.push(linhaTotal('TOTAL', 'TOTAL DO PERÍODO · ' + curta(emp), emp, porEmp[emp].venda, porEmp[emp].cmv));\n    });\n  }\n  out.push(linhaTotal('TOTAL', 'TOTAL DO PERÍODO ' + br(ini) + ' a ' + br(fim) + ' · TODAS AS EMPRESAS', '', T.venda, T.cmv));\n  return out;\n}\nvar linhas = [], detalheIncluido = true;\nif (!erro && linhasPeriodo > 0) {\n  linhas = montarPlanilha(true);\n  if (JSON.stringify(linhas).length > MAX_BYTES_DETALHE) { linhas = montarPlanilha(false); detalheIncluido = false; }\n}\n// ===== DADOS DO E-MAIL (o HTML é montado em \"Montar E-mail do CMV\", com o kit Waipe) =====\nvar avisosEmail = [];\nfunction caixa(fundo, borda, cor, texto) { avisosEmail.push({ estilo: fundo === '#FFFBEB' ? 'alerta' : 'neutro', texto: texto }); return ''; }\nvar avisos = '';\nif (!erro && linhasSemCusto > 0) avisos += caixa('#FFFBEB', '#FDE68A', '#92400E', '<b>Atenção:</b> ' + linhasSemCusto + ' linha(s) de venda vieram sem custo no Gestor. Nelas o CMV ficou zerado e o lucro está superestimado.') + '<br>';\nif (!erro && dev.linhas > 0) avisos += caixa('#F9FAFB', '#E5E7EB', '#374151', dev.linhas + ' devolução(ões) no período, somando ' + brl(dev.valor) + ', não foram descontadas do CMV.') + '<br>';\nif (!erro && baseIni && baseFim && (ini.getTime() < baseIni.getTime() || fim.getTime() > baseFim.getTime())) avisos += caixa('#FFFBEB', '#FDE68A', '#92400E', '<b>Atenção:</b> o período pedido sai da base carregada (' + br(baseIni) + ' a ' + br(baseFim) + '). Meses fora dessa faixa aparecem sem dados.') + '<br>';\nif (!erro && !detalheIncluido) avisos += caixa('#F9FAFB', '#E5E7EB', '#374151', 'O detalhe por produto deste período ficou grande demais para a planilha. Ela traz só os subtotais mensais. Para o detalhe, peça um intervalo menor.') + '<br>';\nvar emailDados = erro ? null : {\n  periodo: br(ini) + ' a ' + br(fim),\n  vendas_fmt: brl(T.venda), cmv_fmt: brl(T.cmv), lucro_fmt: brl(T.lucro), margem_fmt: String(pct(T.lucro, T.venda)).replace('.', ',') + '%',\n  por_empresa: empresasOrdem.map(function (e) {\n    var p = porEmp[e], l = p.venda - p.cmv;\n    return { empresa: curta(e), produtos: Object.keys(p.produtos).length, participacao: String(T.cmv > 0 ? r2(p.cmv / T.cmv * 100) : 0).replace('.', ',') + '%',\n      vendas: brl(p.venda), cmv: brl(p.cmv), lucro: brl(l), margem: String(pct(l, p.venda)).replace('.', ',') + '%' };\n  }),\n  por_mes: mesesOrdem.map(function (m) {\n    var p = porMes[m], l = p.venda - p.cmv;\n    return { mes: mesBr(m), vendas: brl(p.venda), cmv: brl(p.cmv), lucro: brl(l), margem: String(pct(l, p.venda)).replace('.', ',') + '%' };\n  }),\n  maiores: topProd.map(function (x) { return { cod: x.cod, nome: x.nome, empresa: curta(x.emp), qtd: r2(x.qtd), vendas: brl(x.venda), cmv: brl(x.cmv) }; }),\n  avisos: avisosEmail,\n  processado: br(hoje)\n};\n// ===== SAÍDA =====\nvar resposta;\nif (erro) {\n  resposta = { erro: true, mensagem: erro };\n} else {\n  resposta = {\n    periodo_inicial: iso(ini), periodo_final: iso(fim),\n    vendas_total: r2(T.venda), cmv_total: r2(T.cmv), lucro_total: r2(T.lucro), margem_pct: pct(T.lucro, T.venda),\n    por_mes: mesesOrdem.map(function (m) { var p = porMes[m]; return { mes: m, vendas: r2(p.venda), cmv: r2(p.cmv), lucro: r2(p.venda - p.cmv), margem_pct: pct(p.venda - p.cmv, p.venda) }; }),\n    por_empresa: empresasOrdem.map(function (e) { var p = porEmp[e]; return { empresa: e, vendas: r2(p.venda), cmv: r2(p.cmv), lucro: r2(p.venda - p.cmv), margem_pct: pct(p.venda - p.cmv, p.venda), participacao_cmv_pct: T.cmv > 0 ? r2(p.cmv / T.cmv * 100) : 0, produtos: Object.keys(p.produtos).length }; }),\n    linhas_consideradas: linhasPeriodo, linhas_sem_custo: linhasSemCusto,\n    devolucoes_ignoradas: dev.linhas, devolucoes_valor: r2(dev.valor),\n    detalhe_por_produto_incluido: detalheIncluido,\n    base_inicio: baseIni ? iso(baseIni) : null, base_fim: baseFim ? iso(baseFim) : null\n  };\n}\nreturn [{ json: { quantidade: erro ? 0 : linhasPeriodo, inicio: erro ? '' : br(ini), fim: erro ? '' : br(fim),\n  linhas: linhas, email: emailDados, resposta: resposta, cmv_total_fmt: brl(T.cmv), vendas_total_fmt: brl(T.venda), lucro_total_fmt: brl(T.lucro) } }];"
+      }
+    },
+    {
+      "id": "n4",
+      "type": "if",
+      "name": "Há vendas no período?",
+      "position": {
+        "x": 940,
+        "y": 250
+      },
+      "parameters": {
+        "combine": "and",
+        "conditions": [
+          {
+            "left": "{{ $json.quantidade }}",
+            "right": "0",
+            "leftMode": "expression",
+            "operator": "number:gt",
+            "rightMode": "fixed"
+          }
+        ],
+        "caseInsensitive": true,
+        "typeValidation": "loose",
+        "nullAsEmpty": true
+      }
+    },
+    {
+      "id": "n5",
+      "type": "google_sheets",
+      "name": "Criar planilha CMV",
+      "position": {
+        "x": 1220,
+        "y": 130
+      },
+      "parameters": {
+        "credentialId": "",
+        "operation": "create",
+        "spreadsheetSource": "list",
+        "spreadsheetId": "",
+        "spreadsheetIdMode": "expression",
+        "sheetSource": "list",
+        "sheetName": "",
+        "sheetNameMode": "expression",
+        "mappingMode": "manual",
+        "columnMappings": [],
+        "matchingColumn": "",
+        "autoMappingSource": "",
+        "autoMappingSourceMode": "expression",
+        "extraDataHandling": "insert_new_column",
+        "headerRow": 1,
+        "firstDataRow": 2,
+        "title": "CMV {{ $node[\"Calcular CMV\"].json.inicio }} a {{ $node[\"Calcular CMV\"].json.fim }}",
+        "titleMode": "expression",
+        "sharing": "anyone_reader",
+        "filters": [],
+        "combineFilters": "and",
+        "returnFirstMatch": false,
+        "limit": 0,
+        "valueRenderOption": "FORMATTED_VALUE",
+        "range": "",
+        "rangeMode": "expression",
+        "values": "",
+        "valuesMode": "expression",
+        "valueInputOption": "USER_ENTERED",
+        "nameFilter": "",
+        "nameFilterMode": "expression",
+        "pageSize": 50,
+        "continueOnError": false
+      }
+    },
+    {
+      "id": "n6",
+      "type": "google_sheets",
+      "name": "Escrever cabeçalho CMV",
+      "position": {
+        "x": 1500,
+        "y": 130
+      },
+      "parameters": {
+        "credentialId": "",
+        "operation": "append",
+        "spreadsheetSource": "url",
+        "spreadsheetId": "{{ $node[\"Criar planilha CMV\"].json.spreadsheetId }}",
+        "spreadsheetIdMode": "expression",
+        "sheetSource": "list",
+        "sheetName": "Página1",
+        "sheetNameMode": "fixed",
+        "mappingMode": "raw",
+        "columnMappings": [],
+        "matchingColumn": "",
+        "autoMappingSource": "",
+        "autoMappingSourceMode": "expression",
+        "extraDataHandling": "insert_new_column",
+        "headerRow": 1,
+        "firstDataRow": 2,
+        "title": "",
+        "titleMode": "expression",
+        "sharing": "private",
+        "filters": [],
+        "combineFilters": "and",
+        "returnFirstMatch": false,
+        "limit": 0,
+        "valueRenderOption": "FORMATTED_VALUE",
+        "range": "Página1!A1",
+        "rangeMode": "fixed",
+        "values": "[[\"Mês\", \"Código\", \"Descrição\", \"Grupo\", \"Subgrupo\", \"Empresa\", \"Quantidade vendida\", \"Venda (R$)\", \"CMV (R$)\", \"Lucro (R$)\", \"Margem (%)\", \"Observação\"]]",
+        "valuesMode": "fixed",
+        "valueInputOption": "USER_ENTERED",
+        "nameFilter": "",
+        "nameFilterMode": "expression",
+        "pageSize": 50,
+        "continueOnError": false
+      }
+    },
+    {
+      "id": "n7",
+      "type": "google_sheets",
+      "name": "Gravar linhas CMV",
+      "position": {
+        "x": 1780,
+        "y": 130
+      },
+      "parameters": {
+        "credentialId": "",
+        "operation": "append",
+        "spreadsheetSource": "url",
+        "spreadsheetId": "{{ $node[\"Criar planilha CMV\"].json.spreadsheetId }}",
+        "spreadsheetIdMode": "expression",
+        "sheetSource": "list",
+        "sheetName": "Página1",
+        "sheetNameMode": "fixed",
+        "mappingMode": "auto",
+        "columnMappings": [],
+        "matchingColumn": "",
+        "autoMappingSource": "{{ $node[\"Calcular CMV\"].json.linhas }}",
+        "autoMappingSourceMode": "expression",
+        "extraDataHandling": "insert_new_column",
+        "headerRow": 1,
+        "firstDataRow": 2,
+        "title": "",
+        "titleMode": "expression",
+        "sharing": "private",
+        "filters": [],
+        "combineFilters": "and",
+        "returnFirstMatch": false,
+        "limit": 0,
+        "valueRenderOption": "FORMATTED_VALUE",
+        "range": "",
+        "rangeMode": "expression",
+        "values": "",
+        "valuesMode": "expression",
+        "valueInputOption": "USER_ENTERED",
+        "nameFilter": "",
+        "nameFilterMode": "expression",
+        "pageSize": 50,
+        "continueOnError": false
+      }
+    },
+    {
+      "id": "n8",
+      "type": "merge_out",
+      "name": "Consolidar gravação CMV",
+      "position": {
+        "x": 2060,
+        "y": 130
+      },
+      "parameters": {
+        "mode": "all_items",
+        "outputFieldName": "linhas_gravadas",
+        "include": "selected",
+        "fieldsToInclude": "rowNumber",
+        "fieldsToExclude": "",
+        "fields": [],
+        "keepMissing": false,
+        "mergeLists": false,
+        "disableDotNotation": false
+      }
+    },
+    {
+      "id": "n9",
+      "type": "gmail_send",
+      "name": "Enviar CMV por e-mail",
+      "position": {
+        "x": 2640,
+        "y": 130
+      },
+      "parameters": {
+        "credentialId": "",
+        "to": "diretoria@exemplo.com",
+        "toMode": "fixed",
+        "cc": "",
+        "ccMode": "expression",
+        "bcc": "",
+        "bccMode": "expression",
+        "subject": "{{ $json.assunto }}",
+        "subjectMode": "expression",
+        "bodyType": "html",
+        "body": "{{ $json.corpo_html }}",
+        "bodyMode": "expression",
+        "continueOnError": false
+      }
+    },
+    {
+      "id": "n10",
+      "type": "webhook_respond",
+      "name": "Responder com CMV",
+      "position": {
+        "x": 2920,
+        "y": 130
+      },
+      "parameters": {
+        "statusCode": 200,
+        "body": "{\"resultado\": {{ $node[\"Calcular CMV\"].json.resposta }}, \"planilha\": \"{{ $node[\"Criar planilha CMV\"].json.spreadsheetUrl }}\"}",
+        "bodyMode": "expression",
+        "headers": [
+          {
+            "name": "Content-Type",
+            "value": "application/json"
+          }
+        ]
+      }
+    },
+    {
+      "id": "n11",
+      "type": "webhook_respond",
+      "name": "Responder sem vendas",
+      "position": {
+        "x": 1220,
+        "y": 370
+      },
+      "parameters": {
+        "statusCode": 200,
+        "body": "{{ $node[\"Calcular CMV\"].json.resposta }}",
+        "bodyMode": "expression",
+        "headers": [
+          {
+            "name": "Content-Type",
+            "value": "application/json"
+          }
+        ]
+      }
+    },
+    {
+      "id": "2eaf7cb4-d96e-4446-b8c8-f46cc9dac400",
+      "type": "trigger_webhook",
+      "name": "Receber período",
+      "position": {
+        "x": 58,
+        "y": 234
+      },
+      "parameters": {
+        "method": "POST",
+        "authType": "none",
+        "responseMode": "by_node",
+        "responseCode": 200,
+        "responseData": "none",
+        "ignoreBots": false,
+        "allowedIPs": "",
+        "maxBodyMB": 1
+      }
+    },
+    {
+      "id": "a8715151-2fc8-503b-a4a2-af53f50b8725",
+      "type": "code",
+      "name": "Montar E-mail do CMV",
+      "position": {
+        "x": 2340,
+        "y": 130
+      },
+      "parameters": {
+        "mode": "all_items",
+        "jsCode": "// ============================================================\n// CONFIG - único bloco que deveria precisar de ajuste\n// ============================================================\nconst CONFIG = {\n  nomeEmpresa: \"NOME DA EMPRESA\",\n  rodape: \"Mensagem automática do sistema comercial NOME DA EMPRESA.\"\n};\n\n// ============================================================\n// PADRÃO DE E-MAIL WAIPE - copie este bloco para o node `code` que monta o e-mail.\n// Desenho de referência: o consolidado do gestor do Guardião da Amostra Padrão (claro, com modo escuro automático).\n// Marca \"waipe\" e empresa no topo, cartão branco com faixa escura, título com eyebrow dourado, indicadores\n// em verde-oliva, tabelas claras e rodapé Londrisoft. Todo e-mail de agente do Waipe usa este kit.\n// As funções devolvem linhas de tabela (<tr>) para dentro do cartão, exceto wpBadge/wpBarra/wpSeta, que devolvem\n// HTML para colocar dentro de uma célula. wpPagina devolve o documento HTML completo.\n// Compatível com o sandbox do Waipe Flow (sem toLocaleString, sem Intl).\n// ============================================================\nconst WP_F = \"font-family:Arial,Helvetica,sans-serif;\";\n\nfunction wpEsc(t) {\n  if (t === null || t === undefined) return \"\";\n  return String(t).replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\").replace(/'/g, \"&#39;\");\n}\nfunction wpNum(n) { return String(Math.round(Number(n) || 0)).replace(/\\B(?=(\\d{3})+(?!\\d))/g, \".\"); }\nfunction wpMoeda(v) {\n  const n = Math.round((Number(v) || 0) * 100) / 100;\n  const p = Math.abs(n).toFixed(2).split(\".\");\n  return (n < 0 ? \"-R$ \" : \"R$ \") + p[0].replace(/\\B(?=(\\d{3})+(?!\\d))/g, \".\") + \",\" + p[1];\n}\n\n// Estilos de destaque (badge, KPI e aviso): fundo, texto e borda. As cores do modo escuro ficam no <style> de wpPagina.\nconst WP_ESTILOS = {\n  neutro: { bg: \"#F9FAFB\", cor: \"#303030\", borda: \"#E5E7EB\" },\n  medio: { bg: \"#F1F2EC\", cor: \"#5A6344\", borda: \"#E3E6D8\" },\n  forte: { bg: \"#5A6344\", cor: \"#FFFFFF\", borda: \"#5A6344\" },\n  alerta: { bg: \"#FEF3F2\", cor: \"#B42318\", borda: \"#FAD7D3\" },\n  ok: { bg: \"#EEF8F1\", cor: \"#1E7A45\", borda: \"#CDEBD7\" }\n};\n\n// Documento completo: marca e empresa, cartão (eyebrow, título, saudação, destaque), miolo (linhas) e rodapé.\n// o: { preheader, empresa, rotuloDireita, eyebrow, titulo, heroEyebrow, heroValor, heroTam, heroSub, heroBarra,\n//      heroNota, saudacao, subSaudacao, miolo, rodape: [linhas] }\n// eyebrow/titulo são opcionais: sem eles, heroEyebrow vira o eyebrow do cartão.\nfunction wpPagina(o) {\n  const eyebrow = o.eyebrow || o.heroEyebrow || \"\";\n  let h = \"\";\n  h += \"<!DOCTYPE html><html lang='pt-BR'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'>\";\n  h += \"<meta name='color-scheme' content='light dark'><meta name='supported-color-schemes' content='light dark'>\";\n  h += \"<title>\" + wpEsc(o.titulo || eyebrow || o.empresa || \"Waipe\") + \"</title>\";\n  h += \"<style>body{margin:0;padding:0;-webkit-text-size-adjust:100%;}a{color:#303030;}\";\n  h += \"@media only screen and (max-width:620px){.wp-wrap{width:100%!important;max-width:100%!important;}.wp-pad{padding-left:16px!important;padding-right:16px!important;}.wp-kpi{display:block!important;width:100%!important;padding:0 0 8px 0!important;}.wp-hide{display:none!important;}.wp-h1{font-size:24px!important;line-height:30px!important;}.wp-hero{font-size:40px!important;line-height:44px!important;}}\";\n  h += \"@media (prefers-color-scheme: dark){.wp-bg{background:#16181D!important;}.wp-card{background:#1F2229!important;border-color:#323743!important;}.wp-soft{background:#272B33!important;}.wp-t{color:#F3F4F6!important;}.wp-m{color:#A8AEBB!important;}.wp-bd{border-color:#323743!important;}.wp-eb{color:#D4B25A!important;}\";\n  h += \"td[bgcolor='#303030']{background:#E5E7EB!important;}td[bgcolor='#303030'] a{color:#1F2229!important;}\";\n  h += \"td[bgcolor='#F9FAFB']{background:#272B33!important;}td[bgcolor='#F1F2EC']{background:#2A2E24!important;}td[bgcolor='#E3E6D8']{background:#3A4030!important;}\";\n  h += \"td[bgcolor='#FEF3F2']{background:#3A2422!important;}td[bgcolor='#EEF8F1']{background:#1F3A2C!important;}td[bgcolor='#F3F4F6']{background:#272B33!important;}\";\n  h += \".wp-c-medio{color:#C9CFB4!important;}.wp-c-neutro{color:#F3F4F6!important;}.wp-c-alerta{color:#FCA5A5!important;}.wp-c-ok{color:#86EFAC!important;}}\";\n  h += \"</style></head>\";\n  h += \"<body class='wp-bg' style='margin:0;padding:0;background:#F3F4F6;'>\";\n  h += \"<span style='display:none;font-size:1px;color:#F3F4F6;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;'>\" + wpEsc(o.preheader || \"\") + \"</span>\";\n  h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' bgcolor='#F3F4F6' class='wp-bg' style='background:#F3F4F6;'><tr><td align='center' style='padding:32px 12px;'>\";\n  h += \"<!--[if mso]><table role='presentation' width='600' cellpadding='0' cellspacing='0' border='0'><tr><td><![endif]-->\";\n  h += \"<table role='presentation' width='600' cellpadding='0' cellspacing='0' border='0' class='wp-wrap' style='width:600px;max-width:600px;'>\";\n  // Marca\n  h += \"<tr><td class='wp-pad' style='padding:0 8px 16px 8px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr>\";\n  h += \"<td class='wp-t' style='\" + WP_F + \"font-size:22px;font-weight:bold;color:#303030;letter-spacing:-0.5px;mso-line-height-rule:exactly;line-height:28px;'>waipe</td>\";\n  h += \"<td align='right' class='wp-m' style='\" + WP_F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(o.empresa || \"\") + (o.rotuloDireita ? \"<br>\" + o.rotuloDireita : \"\") + \"</td>\";\n  h += \"</tr></table></td></tr>\";\n  // Cartão\n  h += \"<tr><td bgcolor='#FEFEFE' class='wp-card' style='background:#FEFEFE;border:1px solid #E5E7EB;border-radius:12px;overflow:hidden;'>\";\n  h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'>\";\n  h += \"<tr><td height='4' bgcolor='#303030' style='height:4px;font-size:0;line-height:0;background:#303030;border-radius:12px 12px 0 0;'>&nbsp;</td></tr>\";\n  if (eyebrow || o.titulo || o.saudacao) {\n    h += \"<tr><td class='wp-pad' style='padding:32px 32px 8px 32px;'>\";\n    if (eyebrow) h += \"<p class='wp-eb' style='margin:0 0 8px 0;\" + WP_F + \"font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#8E6A1F;mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(eyebrow) + \"</p>\";\n    if (o.titulo) h += \"<h1 class='wp-h1 wp-t' style='margin:0 0 12px 0;\" + WP_F + \"font-size:28px;font-weight:bold;color:#303030;letter-spacing:-0.5px;mso-line-height-rule:exactly;line-height:34px;'>\" + wpEsc(o.titulo) + \"</h1>\";\n    if (o.saudacao) h += \"<p class='wp-t' style='margin:0;\" + WP_F + \"font-size:15px;color:#303030;mso-line-height-rule:exactly;line-height:23px;'>\" + o.saudacao + \"</p>\";\n    if (o.subSaudacao) h += \"<p class='wp-m' style='margin:6px 0 0 0;\" + WP_F + \"font-size:15px;color:#5B6170;mso-line-height-rule:exactly;line-height:23px;'>\" + o.subSaudacao + \"</p>\";\n    h += \"</td></tr>\";\n  }\n  if (o.heroValor !== undefined && o.heroValor !== null) {\n    const tam = Math.min(o.heroTam || 44, 48);\n    h += \"<tr><td class='wp-pad' style='padding:20px 32px 8px 32px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td bgcolor='#F1F2EC' style='background:#F1F2EC;border-radius:8px;padding:20px;'>\";\n    if (o.heroEyebrow && o.eyebrow && o.eyebrow !== o.heroEyebrow) h += \"<p class='wp-c-medio' style='margin:0 0 6px 0;\" + WP_F + \"font-size:11px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#5A6344;mso-line-height-rule:exactly;line-height:15px;'>\" + wpEsc(o.heroEyebrow) + \"</p>\";\n    h += \"<p class='wp-hero wp-c-medio' style='margin:0;\" + WP_F + \"font-size:\" + tam + \"px;font-weight:bold;color:#5A6344;letter-spacing:-1px;mso-line-height-rule:exactly;line-height:\" + (tam + 4) + \"px;'>\" + wpEsc(o.heroValor) + \"</p>\";\n    if (o.heroSub) h += \"<p class='wp-c-medio' style='margin:6px 0 0 0;\" + WP_F + \"font-size:14px;color:#5A6344;mso-line-height-rule:exactly;line-height:20px;'>\" + o.heroSub + \"</p>\";\n    if (o.heroBarra !== undefined && o.heroBarra !== null) {\n      const w = Math.max(0, Math.min(100, Math.round(o.heroBarra)));\n      h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='margin-top:14px;'><tr><td bgcolor='#E3E6D8' style='background:#E3E6D8;border-radius:5px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr>\" +\n        \"<td width='\" + w + \"%' height='10' bgcolor='#5A6344' style='height:10px;background:#5A6344;border-radius:5px;font-size:0;line-height:0;'>&nbsp;</td>\" +\n        (w < 100 ? \"<td height='10' style='height:10px;font-size:0;line-height:0;'>&nbsp;</td>\" : \"\") + \"</tr></table></td></tr></table>\";\n    }\n    if (o.heroNota) h += \"<p class='wp-c-medio' style='margin:10px 0 0 0;\" + WP_F + \"font-size:12px;color:#5A6344;mso-line-height-rule:exactly;line-height:18px;'>\" + o.heroNota + \"</p>\";\n    h += \"</td></tr></table></td></tr>\";\n  }\n  h += o.miolo || \"\";\n  h += \"<tr><td style='height:24px;font-size:0;line-height:0;'>&nbsp;</td></tr>\";\n  h += \"</table></td></tr>\";\n  // Rodapé\n  const linhasRodape = o.rodape || [];\n  h += \"<tr><td class='wp-pad' align='center' style='padding:24px 24px 0 24px;'>\";\n  for (let i = 0; i < linhasRodape.length; i++) {\n    h += \"<p class='wp-m' style='margin:\" + (i > 0 ? \"6px\" : \"0\") + \" 0 0 0;\" + WP_F + \"font-size:12px;color:\" + (i === linhasRodape.length - 1 ? \"#8A90A0\" : \"#6B7280\") + \";mso-line-height-rule:exactly;line-height:18px;'>\" + linhasRodape[i] + \"</p>\";\n  }\n  h += \"</td></tr></table>\";\n  h += \"<!--[if mso]></td></tr></table><![endif]-->\";\n  h += \"</td></tr></table></body></html>\";\n  return h;\n}\n\n// Parágrafo livre (HTML já escapado pelo chamador)\nfunction wpTexto(html) {\n  return \"<tr><td class='wp-pad' style='padding:8px 32px;'><p class='wp-m' style='margin:0;\" + WP_F + \"font-size:15px;color:#5B6170;mso-line-height-rule:exactly;line-height:23px;'>\" + html + \"</p></td></tr>\";\n}\n\n// Título de seção com subtítulo\nfunction wpSecao(titulo, sub) {\n  return \"<tr><td class='wp-pad' style='padding:24px 32px 12px 32px;'>\" +\n    \"<p class='wp-t' style='margin:0;\" + WP_F + \"font-size:16px;font-weight:bold;color:#303030;mso-line-height-rule:exactly;line-height:22px;'>\" + wpEsc(titulo) + \"</p>\" +\n    (sub ? \"<p class='wp-m' style='margin:4px 0 0 0;\" + WP_F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:18px;'>\" + sub + \"</p>\" : \"\") + \"</td></tr>\";\n}\n\n// Cartões de indicador lado a lado. lista: [{rotulo, valor, estilo, sub}], titulo (opcional) vira um rótulo pequeno acima.\n// Sem estilo, o primeiro é \"medio\" (verde-oliva) e os outros \"neutro\", como no Guardião.\nfunction wpKpis(lista, titulo) {\n  const n = lista.length;\n  const larg = (100 / n).toFixed(2);\n  let h = \"<tr><td class='wp-pad' style='padding:20px 32px 8px 32px;'>\";\n  if (titulo) h += \"<p class='wp-m' style='margin:0 0 8px 0;\" + WP_F + \"font-size:11px;font-weight:bold;letter-spacing:0.8px;text-transform:uppercase;color:#6B7280;mso-line-height-rule:exactly;line-height:15px;'>\" + wpEsc(titulo) + \"</p>\";\n  h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr>\";\n  // Valor longo (ex.: R$ 99.716,16) com 3 ou mais cartões lado a lado: fonte menor para caber numa linha.\n  const maiorValor = lista.reduce(function (m, k) { return Math.max(m, String(k.valor === undefined ? \"\" : k.valor).length); }, 0);\n  const tam = n >= 3 && maiorValor > 9 ? 20 : n >= 2 && maiorValor > 14 ? 20 : 26;\n  for (let i = 0; i < n; i++) {\n    const k = lista[i];\n    const nome = WP_ESTILOS[k.estilo] ? k.estilo : (i === 0 ? \"medio\" : \"neutro\");\n    const e = nome === \"forte\" ? WP_ESTILOS.medio : WP_ESTILOS[nome];\n    const cls = nome === \"forte\" ? \"medio\" : nome;\n    const pad = n === 1 ? \"\" : (i === 0 ? \"padding-right:6px;\" : (i === n - 1 ? \"padding-left:6px;\" : \"padding:0 3px;\"));\n    h += \"<td class='wp-kpi' width='\" + larg + \"%' valign='top' style='width:\" + larg + \"%;\" + pad + \"'>\" +\n      \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td bgcolor='\" + e.bg + \"' style='background:\" + e.bg + \";border-radius:8px;padding:16px;'>\" +\n      \"<p class='wp-c-\" + cls + \"' style='margin:0;\" + WP_F + \"font-size:\" + tam + \"px;font-weight:bold;color:\" + e.cor + \";mso-line-height-rule:exactly;line-height:\" + (tam + 6) + \"px;white-space:nowrap;'>\" + wpEsc(k.valor) + \"</p>\" +\n      \"<p class='wp-c-\" + cls + \"' style='margin:4px 0 0 0;\" + WP_F + \"font-size:13px;color:\" + (nome === \"neutro\" ? \"#5B6170\" : e.cor) + \";mso-line-height-rule:exactly;line-height:18px;'>\" + wpEsc(k.rotulo) + \"</p>\" +\n      (k.sub ? \"<p class='wp-m' style='margin:2px 0 0 0;\" + WP_F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(k.sub) + \"</p>\" : \"\") +\n      \"</td></tr></table></td>\";\n  }\n  return h + \"</tr></table></td></tr>\";\n}\n\n// Tabela. colunas: [{t, a: \"left\"|\"right\"|\"center\", w, oculta}], linhas: [[html da célula, ...], ...]\n// oculta = some em tela pequena. nota (opcional): texto abaixo da tabela.\nfunction wpTabela(colunas, linhas, nota) {\n  let h = \"<tr><td class='wp-pad' style='padding:4px 32px 8px 32px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' class='wp-bd' style='border:1px solid #E5E7EB;border-radius:8px;border-collapse:separate;'><tr>\";\n  for (let c = 0; c < colunas.length; c++) {\n    const col = colunas[c];\n    const canto = c === 0 ? \"border-radius:8px 0 0 0;\" : (c === colunas.length - 1 ? \"border-radius:0 8px 0 0;\" : \"\");\n    h += \"<td bgcolor='#F9FAFB' align='\" + (col.a || \"left\") + \"'\" + (col.w ? \" width='\" + col.w + \"'\" : \"\") + \" class='wp-soft wp-m\" + (col.oculta ? \" wp-hide\" : \"\") + \"'\" +\n      \" style='background:#F9FAFB;padding:10px 12px;\" + WP_F + \"font-size:11px;font-weight:bold;letter-spacing:0.8px;text-transform:uppercase;color:#6B7280;mso-line-height-rule:exactly;line-height:15px;\" + canto + \"'>\" + wpEsc(col.t) + \"</td>\";\n  }\n  h += \"</tr>\";\n  if (linhas.length === 0) {\n    h += \"<tr><td colspan='\" + colunas.length + \"' class='wp-bd wp-m' style='border-top:1px solid #F3F4F6;padding:14px 12px;\" + WP_F + \"font-size:13px;color:#6B7280;'>Nada para mostrar.</td></tr>\";\n  }\n  for (let i = 0; i < linhas.length; i++) {\n    h += \"<tr>\";\n    for (let c = 0; c < colunas.length; c++) {\n      const col = colunas[c];\n      h += \"<td\" + (col.a ? \" align='\" + col.a + \"'\" : \"\") + \" valign='middle' class='wp-bd wp-t\" + (col.oculta ? \" wp-hide\" : \"\") + \"'\" +\n        \" style='border-top:1px solid #F3F4F6;padding:10px 12px;\" + WP_F + \"font-size:13px;color:#303030;mso-line-height-rule:exactly;line-height:18px;'>\" + (linhas[i][c] === undefined ? \"\" : linhas[i][c]) + \"</td>\";\n    }\n    h += \"</tr>\";\n  }\n  h += \"</table>\" + (nota ? \"<p class='wp-m' style='margin:8px 2px 0 2px;\" + WP_F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:17px;'>\" + nota + \"</p>\" : \"\") + \"</td></tr>\";\n  return h;\n}\n\n// Pílula de destaque (para dentro de uma célula). a: \"left\" | \"right\". Texto curto (até 3 caracteres) vira círculo,\n// como a posição do ranking do Guardião.\nfunction wpBadge(texto, estilo, a) {\n  const nome = WP_ESTILOS[estilo] ? estilo : \"neutro\";\n  const e = nome === \"neutro\" ? { bg: \"#F3F4F6\", cor: \"#5B6170\" } : WP_ESTILOS[nome];\n  const t = String(texto === null || texto === undefined ? \"\" : texto);\n  const alinhar = a === \"right\" ? \" align='right'\" : \"\";\n  if (t.length <= 3) {\n    return \"<table role='presentation' cellpadding='0' cellspacing='0' border='0'\" + alinhar + \"><tr><td width='24' height='24' align='center' valign='middle' bgcolor='\" + e.bg + \"' style='width:24px;height:24px;background:\" + e.bg + \";border-radius:12px;\" + WP_F + \"font-size:12px;font-weight:bold;color:\" + e.cor + \";mso-line-height-rule:exactly;line-height:24px;'>\" + wpEsc(t) + \"</td></tr></table>\";\n  }\n  return \"<table role='presentation' cellpadding='0' cellspacing='0' border='0'\" + alinhar + \"><tr><td bgcolor='\" + e.bg + \"' style='background:\" + e.bg + \";border-radius:20px;padding:3px 10px;\" + WP_F + \"font-size:11px;font-weight:bold;color:\" + e.cor + \";white-space:nowrap;mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(t) + \"</td></tr></table>\";\n}\n\n// Barra proporcional (para dentro de uma célula). pct 0-100; forte = verde-oliva cheio, senão oliva claro\nfunction wpBarra(pct, forte) {\n  const w = Math.max(4, Math.min(100, Math.round(pct)));\n  const cor = forte ? \"#5A6344\" : \"#BFC4AC\";\n  return \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='margin-top:6px;'><tr>\" +\n    \"<td width='\" + w + \"%' height='6' bgcolor='\" + cor + \"' style='height:6px;background:\" + cor + \";border-radius:3px;font-size:0;line-height:0;'>&nbsp;</td>\" +\n    (w < 100 ? \"<td width='\" + (100 - w) + \"%' height='6' style='height:6px;font-size:0;line-height:0;'>&nbsp;</td>\" : \"\") + \"</tr></table>\";\n}\n\n// Botão quadrado com seta (para dentro de uma célula): abre a planilha ou lista da linha\nfunction wpSeta(url, titulo) {\n  return \"<table role='presentation' cellpadding='0' cellspacing='0' border='0' align='right'><tr><td width='32' height='32' align='center' valign='middle' bgcolor='#303030' style='width:32px;height:32px;background:#303030;border-radius:8px;'>\" +\n    \"<a href='\" + wpEsc(url) + \"' target='_blank' title='\" + wpEsc(titulo) + \"' aria-label='\" + wpEsc(titulo) + \"' style='display:block;width:32px;\" + WP_F + \"font-size:18px;font-weight:bold;color:#FFFFFF;text-decoration:none;mso-line-height-rule:exactly;line-height:32px;border-radius:8px;'>&rarr;</a></td></tr></table>\";\n}\n\n// Botão de chamada (linha própria)\nfunction wpBotao(url, rotulo) {\n  return \"<tr><td class='wp-pad' align='left' style='padding:16px 32px 8px 32px;'><table role='presentation' cellpadding='0' cellspacing='0' border='0'><tr><td align='center' bgcolor='#303030' style='background:#303030;border-radius:8px;'>\" +\n    \"<a href='\" + wpEsc(url) + \"' target='_blank' style='display:block;padding:12px 24px;\" + WP_F + \"font-size:14px;font-weight:bold;color:#FFFFFF;text-decoration:none;mso-line-height-rule:exactly;line-height:20px;border-radius:8px;'>\" + wpEsc(rotulo) + \"</a></td></tr></table></td></tr>\";\n}\n\n// Caixa de aviso (linha própria): titulo + corpo em HTML\nfunction wpAviso(titulo, corpoHtml, estilo) {\n  const nome = WP_ESTILOS[estilo] ? estilo : \"medio\";\n  const e = nome === \"forte\" ? WP_ESTILOS.medio : WP_ESTILOS[nome];\n  const cls = nome === \"forte\" ? \"medio\" : nome;\n  return \"<tr><td class='wp-pad' style='padding:16px 32px 8px 32px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td bgcolor='\" + e.bg + \"' style='background:\" + e.bg + \";border:1px solid \" + e.borda + \";border-radius:8px;padding:16px 18px;'>\" +\n    \"<p class='wp-c-\" + cls + \"' style='margin:0;\" + WP_F + \"font-size:11px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:\" + e.cor + \";mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(titulo) + \"</p>\" +\n    \"<p class='wp-t' style='margin:8px 0 0 0;\" + WP_F + \"font-size:13px;color:#303030;mso-line-height-rule:exactly;line-height:20px;'>\" + corpoHtml + \"</p></td></tr></table></td></tr>\";\n}\n// ============================================================\n// FIM DO PADRÃO DE E-MAIL WAIPE\n// ============================================================\n\nconst c = $node[\"Calcular CMV\"].json;\nconst e = c.email || {};\nconst urlPlanilha = String($node[\"Criar planilha CMV\"].json.spreadsheetUrl || \"\");\n// Valor em R$ numa linha só (não quebra entre \"R$\" e o número)\nfunction rs(v, forte) { return '<span style=\"white-space:nowrap;\">' + (forte ? \"<b>\" + wpEsc(v) + \"</b>\" : wpEsc(v)) + \"</span>\"; }\nconst porEmpresa = (e.por_empresa || []).map(function (x) {\n  return [\"<b>\" + wpEsc(x.empresa) + \"</b><br><span style=\\\"color:#6B7280;\\\">\" + wpEsc(x.participacao) + \" do CMV &middot; \" + wpNum(x.produtos) + \" produtos</span>\",\n    rs(x.vendas), rs(x.cmv, true), rs(x.lucro), wpEsc(x.margem)];\n});\nconst porMes = (e.por_mes || []).map(function (x) { return [\"<b>\" + wpEsc(x.mes) + \"</b>\", rs(x.vendas), rs(x.cmv, true), rs(x.lucro), wpEsc(x.margem)]; });\nconst maiores = (e.maiores || []).map(function (x, i) {\n  return [wpBadge(String(i + 1), i < 3 ? \"forte\" : \"neutro\"), \"<b>\" + wpEsc(x.cod) + \"</b> &middot; \" + wpEsc(x.nome) + \"<br><span style=\\\"color:#6B7280;\\\">\" + wpEsc(x.empresa) + \"</span>\",\n    wpNum(x.qtd), rs(x.vendas), rs(x.cmv, true)];\n});\n// O título da caixa já diz \"Atenção\": tira o \"Atenção:\" do começo do texto\nconst avisos = (e.avisos || []).map(function (a) {\n  return wpAviso(a.estilo === \"alerta\" ? \"Atenção\" : \"Observação\", String(a.texto).replace(/^<b>Atenção:<\\/b>\\s*/, \"\"), a.estilo === \"alerta\" ? \"alerta\" : \"neutro\");\n}).join(\"\");\nconst colunas = [{ t: \"Vendas\", a: \"right\", oculta: true }, { t: \"CMV\", a: \"right\" }, { t: \"Lucro\", a: \"right\", oculta: true }, { t: \"Margem\", a: \"right\" }];\n\nconst miolo =\n  wpKpis([{ rotulo: \"Vendas no período\", valor: e.vendas_fmt }, { rotulo: \"Lucro bruto\", valor: e.lucro_fmt }, { rotulo: \"Margem bruta\", valor: e.margem_fmt }]) +\n  (porEmpresa.length ? wpSecao(\"Resumo por empresa\", \"Da maior para a menor participação no CMV.\") + wpTabela([{ t: \"Empresa\" }].concat(colunas), porEmpresa) : \"\") +\n  (porMes.length ? wpSecao(\"Resumo mensal\", \"\") + wpTabela([{ t: \"Mês\", w: \"90\" }].concat(colunas), porMes) : \"\") +\n  (maiores.length ? wpSecao(\"Maiores CMVs do período (\" + maiores.length + \")\", \"Produtos com o maior custo de mercadoria vendida.\") +\n    wpTabela([{ t: \"#\", w: \"40\" }, { t: \"Produto\" }, { t: \"Qtd\", a: \"right\", oculta: true }, { t: \"Vendas\", a: \"right\", oculta: true }, { t: \"CMV\", a: \"right\" }], maiores) : \"\") +\n  avisos +\n  (urlPlanilha ? wpBotao(urlPlanilha, \"Abrir planilha do CMV\") : \"\");\n\nconst html = wpPagina({\n  titulo: \"CMV do período\",\n  eyebrow: \"CMV mensal\",\n  preheader: \"CMV de \" + e.cmv_fmt + \" em \" + e.periodo + \", com margem bruta de \" + e.margem_fmt + \".\",\n  empresa: CONFIG.nomeEmpresa,\n  rotuloDireita: \"Período &middot; \" + wpEsc(e.periodo),\n  heroEyebrow: \"Custo da mercadoria vendida\",\n  heroValor: e.cmv_fmt,\n  heroTam: 40,\n  heroSub: \"de CMV no período de \" + wpEsc(e.periodo),\n  saudacao: \"Olá!\",\n  subSaudacao: \"Custo das mercadorias vendidas no período, usando o custo registrado em cada venda no Gestor, com vendas, lucro bruto e margem por empresa, por mês e por produto.\",\n  miolo: miolo,\n  rodape: [wpEsc(CONFIG.rodape), \"Processado em \" + wpEsc(e.processado), \"Londrisoft &mdash; Londrina, PR\"]\n});\nreturn [{ json: { assunto: \"CMV - Custo da Mercadoria Vendida \" + c.inicio + \" a \" + c.fim, corpo_html: html } }];\n"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e2",
+      "source": "n2",
+      "target": "n3"
+    },
+    {
+      "id": "e3",
+      "source": "n3",
+      "target": "n4"
+    },
+    {
+      "id": "e4",
+      "source": "n4",
+      "target": "n5",
+      "sourceHandle": "true"
+    },
+    {
+      "id": "e5",
+      "source": "n4",
+      "target": "n11",
+      "sourceHandle": "false"
+    },
+    {
+      "id": "e6",
+      "source": "n5",
+      "target": "n6"
+    },
+    {
+      "id": "e7",
+      "source": "n6",
+      "target": "n7"
+    },
+    {
+      "id": "e8",
+      "source": "n7",
+      "target": "n8"
+    },
+    {
+      "id": "e9",
+      "source": "n8",
+      "target": "a8715151-2fc8-503b-a4a2-af53f50b8725"
+    },
+    {
+      "id": "e10",
+      "source": "n9",
+      "target": "n10"
+    },
+    {
+      "id": "e-2eaf7cb4-d96e-4446-b8c8-f46cc9dac400-n2-1792003898264",
+      "source": "2eaf7cb4-d96e-4446-b8c8-f46cc9dac400",
+      "target": "n2"
+    },
+    {
+      "id": "e-a8715151",
+      "source": "a8715151-2fc8-503b-a4a2-af53f50b8725",
+      "target": "n9"
+    }
+  ],
+  "webhookMethod": "POST",
+  "webhookConfig": {
+    "responseMode": "by_node"
+  }
+}

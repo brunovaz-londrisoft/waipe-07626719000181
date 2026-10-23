@@ -3,6 +3,10 @@
 Cada versão do `waipe-agentes-template`. Versão maior = o repositório do cliente precisa de alguma ação, descrita na seção.
 A atualização nunca toca em `agentes/`, `CLAUDE.md`, `README.md` nem em `.claude/settings.local.json`.
 
+## v3.2.0 (2026-10-23)
+- Catálogo: modelos novos `cmv-mensal` (CMV do período por webhook) e `produtos-sem-giro` (produtos parados e mais
+  vendidos com cobertura de estoque), adotados do cliente piloto.
+
 ## v3.1.0 (2026-10-23)
 - **Rotina de atualização dos modelos** (`catalogo/ATUALIZAR-MODELOS.md`, seguida pela skill `waipe-revisar-modelos`):
   compara os agentes de todos os repositórios da conta (próprios, de organização e compartilhados) com o catálogo pelo

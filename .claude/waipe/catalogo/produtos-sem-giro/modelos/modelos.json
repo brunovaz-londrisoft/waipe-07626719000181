@@ -1,0 +1,42 @@
+{
+  "versao": 1,
+  "aviso": "Dados fictícios. O layout, os textos e a ordem seguem o que o fluxo envia.",
+  "pecas": [
+    {
+      "arquivo": "email-alerta-sem-giro.html",
+      "tipo": "email",
+      "rotulo": "Alerta de produtos sem giro",
+      "assunto": "Alerta: 12 produtos sem giro há 20+ dias (23/10/2026)",
+      "de": "Relatórios Waipe <relatorios@empresa.exemplo.com.br>",
+      "para": "Compras <compras@empresa.exemplo.com.br>",
+      "data": "sex., 23 out. 07:00",
+      "quem": "Compras e gestão de estoque"
+    },
+    {
+      "arquivo": "email-mais-vendidos.html",
+      "tipo": "email",
+      "rotulo": "Mais vendidos e reposição",
+      "assunto": "Mais vendidos: 3 itens do ranking pedem reposição (23/10/2026)",
+      "de": "Relatórios Waipe <relatorios@empresa.exemplo.com.br>",
+      "para": "Compras <compras@empresa.exemplo.com.br>",
+      "data": "sex., 23 out. 07:00",
+      "quem": "Compras e gestão de estoque"
+    },
+    {
+      "arquivo": "email-sem-produtos-parados.html",
+      "tipo": "email",
+      "rotulo": "Aviso: nenhum produto parado",
+      "assunto": "Produtos sem giro: nenhum produto a listar (23/10/2026)",
+      "de": "Relatórios Waipe <relatorios@empresa.exemplo.com.br>",
+      "para": "Compras <compras@empresa.exemplo.com.br>",
+      "data": "sex., 23 out. 07:00",
+      "quem": "Compras (quando não há produto parado)"
+    },
+    {
+      "arquivo": "planilhas/produtos-sem-giro.html",
+      "tipo": "planilha",
+      "rotulo": "Planilha de produtos sem giro",
+      "quem": "Compras e gestão de estoque"
+    }
+  ]
+}

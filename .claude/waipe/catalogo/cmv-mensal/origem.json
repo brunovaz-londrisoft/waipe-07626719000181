@@ -1,0 +1,34 @@
+{
+  "origens": [
+    {
+      "repo": "e84d0d46853c",
+      "agente": "cmv-mensal",
+      "versao": "1.0.0",
+      "registrado": "2026-10-23",
+      "assinatura": {
+        "nodes": {
+          "waipe_data": 1,
+          "code": 1,
+          "if": 1,
+          "google_sheets": 3,
+          "merge_out": 1,
+          "gmail_send": 1,
+          "webhook_respond": 2,
+          "trigger_manual": 1
+        },
+        "arestas": {
+          "waipe_data>>code": 1,
+          "code>>if": 1,
+          "if>true>google_sheets": 1,
+          "if>false>webhook_respond": 1,
+          "google_sheets>>google_sheets": 2,
+          "google_sheets>>merge_out": 1,
+          "merge_out>>gmail_send": 1,
+          "gmail_send>>webhook_respond": 1,
+          "trigger_manual>>waipe_data": 1
+        },
+        "gatilho": "manual"
+      }
+    }
+  ]
+}
