@@ -1,0 +1,42 @@
+{
+  "origens": [
+    {
+      "repo": "52549af1c2d6",
+      "agente": "coach-dos-representantes",
+      "versao": "5.0.0",
+      "registrado": "2026-10-23",
+      "assinatura": {
+        "nodes": {
+          "waipe_data": 3,
+          "google_sheets": 1,
+          "code": 3,
+          "loop": 1,
+          "gmail_send": 2,
+          "google_docs": 1,
+          "google_drive": 1,
+          "http_request": 1,
+          "switch": 1,
+          "edit_fields": 1,
+          "trigger_schedule": 1
+        },
+        "arestas": {
+          "waipe_data>>waipe_data": 2,
+          "waipe_data>>google_sheets": 1,
+          "google_sheets>>code": 1,
+          "code>>loop": 1,
+          "loop>done>code": 1,
+          "code>>gmail_send": 1,
+          "google_docs>>google_drive": 1,
+          "code>>google_docs": 1,
+          "google_drive>>switch": 1,
+          "switch>com_telefone>http_request": 1,
+          "switch>com_email>gmail_send": 1,
+          "switch>sem_contato>edit_fields": 1,
+          "trigger_schedule>>waipe_data": 1,
+          "loop>loop>code": 1
+        },
+        "gatilho": "schedule"
+      }
+    }
+  ]
+}

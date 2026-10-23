@@ -1,0 +1,22 @@
+{
+  "versao": 1,
+  "aviso": "Dados fictícios. O layout, os textos e a ordem seguem o que o fluxo envia.",
+  "pecas": [
+    {
+      "arquivo": "relatorio-gestor.html",
+      "tipo": "email",
+      "rotulo": "Relatório do gestor",
+      "assunto": "Monitoramento comercial da carteira - 23/10/2026",
+      "de": "Relatórios Waipe <relatorios@empresa.exemplo.com.br>",
+      "para": "Nome do Gestor <gestor@empresa.exemplo.com.br>",
+      "data": "sex., 17:00",
+      "quem": "Gestor comercial"
+    },
+    {
+      "arquivo": "planilhas/monitoramento-da-carteira.html",
+      "tipo": "planilha",
+      "rotulo": "Planilha da carteira",
+      "quem": "Gestor comercial"
+    }
+  ]
+}

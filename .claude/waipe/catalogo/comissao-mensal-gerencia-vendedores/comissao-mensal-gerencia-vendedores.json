@@ -1,0 +1,601 @@
+{
+  "waipe_flow_version": "2",
+  "exportedAt": "2026-10-22T19:04:21.897Z",
+  "graphReflects": "current_canvas_including_unsaved",
+  "source": {
+    "flowId": "e8970c49-3a01-4092-a84e-6aee4196c091",
+    "flowName": "Comissão Mensal — Gerência e Vendedores"
+  },
+  "name": "Comissão Mensal - Gerência e Vendedores",
+  "description": "Último dia do mês às 08h: calcula a comissão de cada venda faturada no mês (data de emissão da nota fiscal), envia o ranking e a planilha geral à gerência e a planilha individual a cada vendedor.",
+  "status": "draft",
+  "triggerType": "schedule",
+  "nodes": [
+    {
+      "id": "f_ultimo_dia",
+      "type": "filter",
+      "name": "É o último dia do mês?",
+      "position": {
+        "x": 588,
+        "y": 210
+      },
+      "parameters": {
+        "combine": "and",
+        "conditions": [
+          {
+            "left": "{{ new Date(Date.parse($today + \"T12:00:00Z\") + 86400000).getUTCDate() }}",
+            "right": "1",
+            "leftMode": "expression",
+            "operator": "number:equals",
+            "rightMode": "fixed"
+          }
+        ],
+        "caseInsensitive": true,
+        "typeValidation": "loose",
+        "nullAsEmpty": true,
+        "continueIfEmpty": false
+      }
+    },
+    {
+      "id": "6d61f90d-3483-4949-8098-0203f785e40c",
+      "type": "waipe_data",
+      "name": "Buscar Vendas",
+      "position": {
+        "x": 660,
+        "y": 220
+      },
+      "parameters": {
+        "dataSource": "data_lab",
+        "companyIds": [],
+        "companyIdsMode": "fixed",
+        "companyIdsExpression": "",
+        "message": "",
+        "messageMode": "fixed",
+        "expertModelId": "",
+        "dataLabReportId": "SUBSTITUA_PELO_ID_DO_RELATORIO_DE_VENDAS_FATURADAS"
+      }
+    },
+    {
+      "id": "c_filtrar_mes",
+      "type": "code",
+      "name": "Filtrar Vendas Faturadas no Mês",
+      "position": {
+        "x": 940,
+        "y": 220
+      },
+      "parameters": {
+        "mode": "all_items",
+        "jsCode": "// =========================================================\n// Filtrar Vendas Faturadas no Mês\n// A comissão pertence ao mês de EMISSÃO DA NOTA FISCAL, não ao mês\n// da data da venda. Mantém só as vendas com nota emitida no mês\n// corrente (referência: $today). Venda sem nota ou sem data de\n// emissão é DESCARTADA: sem nota, não houve faturamento.\n// =========================================================\nconst CHAVES_LISTA = ['dados', 'data', 'registros', 'records', 'results', 'rows', 'itens', 'items', 'body'];\nfunction extrairRegistros(entrada) {\n  const out = [];\n  const visitar = (v) => {\n    if (v === null || v === undefined) return;\n    if (Array.isArray(v)) { v.forEach(visitar); return; }\n    if (typeof v === 'string') {\n      const s = v.trim();\n      if (s.startsWith('[') || s.startsWith('{')) {\n        try { visitar(JSON.parse(s)); } catch (e) {}\n      }\n      return;\n    }\n    if (typeof v === 'object') {\n      const chave = CHAVES_LISTA.find((k) => Array.isArray(v[k]) || (typeof v[k] === 'string' && String(v[k]).trim().startsWith('[')));\n      if (chave) { visitar(v[chave]); return; }\n      out.push(v);\n    }\n  };\n  entrada.forEach((it) => visitar(it && it.json !== undefined ? it.json : it));\n  return out;\n}\nfunction normKey(k) {\n  return String(k).normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');\n}\nfunction pega(json, candidatos) {\n  const mapa = {};\n  Object.keys(json).forEach((k) => { mapa[normKey(k)] = json[k]; });\n  for (const c of candidatos) {\n    const v = mapa[normKey(c)];\n    if (v !== undefined && v !== null && v !== '') return v;\n  }\n  return null;\n}\n\n// ---- Campos aceitos (ajuste se o relatório usar outro nome)\n// Só datas de emissão da NF: a data da venda NÃO decide o mês da comissão.\nconst CAMPOS_DATA = ['data_emissao_nota', 'data_emissao_nota_fiscal', 'data_emissao_nf', 'dt_emissao_nf', 'data_emissao', 'dt_emissao', 'emissao', 'data_faturamento'];\nconst CAMPOS_NOTA = ['numnota', 'numero_nota', 'numero_nota_fiscal', 'nota_fiscal', 'nr_nota'];\n\n// Aceita AAAA-MM-DD (ISO), DD/MM/AAAA e timestamp em milissegundos\nfunction anoMes(v) {\n  if (v === null || v === undefined || v === '') return null;\n  if (typeof v === 'number') {\n    if (v < 100000000000) return null;\n    const d = new Date(v);\n    return { ano: d.getUTCFullYear(), mes: d.getUTCMonth() + 1 };\n  }\n  const s = String(v).trim();\n  let m = s.match(/^(\\d{4})-(\\d{2})-(\\d{2})/);\n  if (m) return { ano: Number(m[1]), mes: Number(m[2]) };\n  m = s.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4})/);\n  if (m) return { ano: Number(m[3]), mes: Number(m[2]) };\n  return null;\n}\n\nconst hoje = String($today).split('-');\nconst ANO = Number(hoje[0]);\nconst MES = Number(hoje[1]);\n\nconst registros = extrairRegistros(items);\nlet semNota = 0;\nlet semData = 0;\nconst doMes = registros.filter((r) => {\n  const nota = pega(r, CAMPOS_NOTA);\n  if (nota === null || String(nota).trim() === '0') { semNota += 1; return false; }\n  const am = anoMes(pega(r, CAMPOS_DATA));\n  if (!am) { semData += 1; return false; }\n  return am.ano === ANO && am.mes === MES;\n});\n\nconsole.log('Vendas recebidas: ' + registros.length + ' | faturadas no mês: ' + doMes.length + ' | sem nota (descartadas): ' + semNota + ' | sem data de emissão (descartadas): ' + semData);\nreturn doMes.map((r) => ({ json: r }));"
+      }
+    },
+    {
+      "id": "waipe_code_1",
+      "type": "code",
+      "name": "Calcular Comissão",
+      "position": {
+        "x": 1220,
+        "y": 220
+      },
+      "parameters": {
+        "mode": "all_items",
+        "jsCode": "// =========================================================\n// Comissão de vendas - Code node (n8n)\n// Base de cálculo: valor_total_venda (JÁ LÍQUIDO, desconto abatido)\n// Faixa de comissão: percentual de desconto SOBRE O BRUTO\n// Sem arredondamento: valores saem com precisão total\n// =========================================================\n\n// ---- Ajustes rápidos\nconst NOME_TABELA = \"Tabela de Comissão\";\n\n// O campo percentual_desconto da origem vem dividido pelo LÍQUIDO\n// (ex.: 130,15 / 70,05 = 185,79%), o que estoura as faixas da tabela.\n// Padrão: recalcular sobre o bruto (líquido + desconto).\nconst RECALCULAR_DESCONTO = true;\n\n// ---- Tabela de comissão: \"ate\" = limite superior INCLUSIVE do desconto\nconst FAIXAS = [\n  { ate: 0,    perc: 5.00 },\n  { ate: 5,    perc: 4.80 },\n  { ate: 10,   perc: 4.50 },\n  { ate: 12.5, perc: 4.30 },\n  { ate: 15,   perc: 4.00 },\n  { ate: 17.5, perc: 3.80 },\n  { ate: 20,   perc: 3.50 },\n  { ate: 22.5, perc: 3.30 },\n  { ate: 25,   perc: 3.00 },\n  { ate: 27.5, perc: 2.80 },\n  { ate: 30,   perc: 2.50 },\n  { ate: 32.5, perc: 2.30 },\n  { ate: 35,   perc: 2.00 },\n  { ate: 37.5, perc: 1.80 },\n  { ate: 40,   perc: 1.50 },\n  { ate: 42.5, perc: 1.30 },\n  { ate: 45,   perc: 1.00 },\n  { ate: 47.5, perc: 0.80 },\n  { ate: 50,   perc: 0.50 },\n  { ate: 55,   perc: 0.30 },\n  { ate: Infinity, perc: 0.00 },\n];\n\n// ---- Helpers (pt-BR manual, sem Intl: não roda no sandbox do n8n)\nconst pct1 = (n) => n.toFixed(1).replace(\".\", \",\") + \"%\";\nconst pct2 = (n) => n.toFixed(2).replace(\".\", \",\") + \"%\";\n\nfunction num(v) {\n  if (v === null || v === undefined || v === \"\") return NaN;\n  if (typeof v === \"number\") return v;\n  const s = String(v).trim().replace(/R\\$|\\s|%/g, \"\");\n  return Number(s.includes(\",\") ? s.replace(/\\./g, \"\").replace(\",\", \".\") : s);\n}\n\n// ---- Desempacota payloads aninhados: 1 item com array dentro vira N itens\nconst CHAVES_LISTA = [\"dados\", \"data\", \"registros\", \"records\", \"results\", \"rows\", \"itens\", \"items\", \"body\"];\nfunction extrairRegistros(entrada) {\n  const out = [];\n  const visitar = (v) => {\n    if (v === null || v === undefined) return;\n    if (Array.isArray(v)) { v.forEach(visitar); return; }\n    if (typeof v === \"string\") {\n      const s = v.trim();\n      if (s.startsWith(\"[\") || s.startsWith(\"{\")) {\n        try { visitar(JSON.parse(s)); } catch (e) {}\n      }\n      return;\n    }\n    if (typeof v === \"object\") {\n      const chave = CHAVES_LISTA.find((k) => Array.isArray(v[k]) || (typeof v[k] === \"string\" && String(v[k]).trim().startsWith(\"[\")));\n      if (chave) { visitar(v[chave]); return; }\n      out.push(v);\n    }\n  };\n  entrada.forEach((it) => visitar(it && it.json !== undefined ? it.json : it));\n  return out;\n}\n\n// ---- Leitura de campo tolerante a acento, caixa, underscore e prefixo\nfunction normKey(k) {\n  return String(k)\n    .normalize(\"NFD\").replace(/[\\u0300-\\u036f]/g, \"\")\n    .toLowerCase().replace(/[^a-z0-9]/g, \"\");\n}\nfunction pega(json, candidatos) {\n  const mapa = {};\n  Object.keys(json).forEach((k) => { mapa[normKey(k)] = json[k]; });\n  for (const c of candidatos) {\n    const v = mapa[normKey(c)];\n    if (v !== undefined && v !== null && v !== \"\") return v;\n  }\n  return null;\n}\n\nfunction faixaDe(pd) {\n  for (let i = 0; i < FAIXAS.length; i++) {\n    if (pd <= FAIXAS[i].ate) {\n      const f = FAIXAS[i];\n      let descricao;\n      if (i === 0) descricao = \"desconto igual a 0%: comissão \" + pct1(f.perc);\n      else if (f.ate === Infinity) descricao = \"desconto acima de \" + pct1(FAIXAS[i - 1].ate) + \": comissão \" + pct1(f.perc);\n      else descricao = \"desconto acima de \" + pct1(FAIXAS[i - 1].ate) + \" até \" + pct1(f.ate) + \": comissão \" + pct1(f.perc);\n      return { perc: f.perc, descricao };\n    }\n  }\n  return { perc: 0, descricao: \"faixa não encontrada\" };\n}\n\n// ---- Processamento venda a venda\nconst vendas = extrairRegistros(items);\n\nreturn vendas.map((json) => {\n  // ATENÇÃO: \"vendedor\" (sem \"nom\") é o CÓDIGO do vendedor, não entra como nome\n  const cnpj_origem   = pega(json, [\"_cnpjOrigem\", \"cnpj_origem\", \"cnpjorigem\", \"cnpj\"]);\n  const razao_origem  = pega(json, [\"_razaoOrigem\", \"razao_origem\", \"razaoorigem\", \"razao_social\", \"razao\"]);\n  const nome_cliente  = pega(json, [\"nomcliente\", \"nome_cliente\", \"nomecliente\", \"cliente\", \"razao_social_cliente\"]);\n  const nome_vendedor = pega(json, [\"nomvendedor\", \"nome_vendedor\", \"nomevendedor\", \"vendedor_nome\", \"representante\"]);\n  const numero_venda  = pega(json, [\"lancamento\", \"numero_venda\", \"num_venda\", \"nr_venda\", \"nro_venda\", \"numvenda\", \"numero_pedido\", \"num_pedido\", \"nr_pedido\", \"numero_nota\", \"nota_fiscal\", \"id_venda\"]);\n\n  const liquido  = num(pega(json, [\"valor_total_venda\", \"valor_venda\", \"valor_liquido\", \"total_venda\"]));\n  const desconto = num(pega(json, [\"valor_total_desconto\", \"desconto_total\", \"valor_desconto\", \"desconto\"]));\n  const numero_nota     = pega(json, [\"numnota\", \"numero_nota\", \"numero_nota_fiscal\", \"nota_fiscal\", \"nr_nota\"]);\n  const data_emissao_nf = pega(json, [\"data_emissao_nota\", \"data_emissao_nota_fiscal\", \"data_emissao_nf\", \"data_emissao\"]);\n  const data_venda      = pega(json, [\"data_venda\", \"data_da_venda\", \"dt_venda\"]);\n\n  const bruto = (!isNaN(liquido) && !isNaN(desconto)) ? liquido + desconto : NaN;\n\n  // percentual sobre o bruto, do jeito que a tabela de comissão espera\n  const pdBruto = (!isNaN(bruto) && bruto > 0) ? (desconto / bruto) * 100 : NaN;\n\n  // fallback: converte o percentual da origem (sobre líquido) para base bruto\n  // r = desconto/liquido  ->  desconto/bruto = r / (1 + r)\n  const pdCampoLiq = num(pega(json, [\"percentual_desconto\", \"perc_desconto\", \"percentual_desconto_venda\"]));\n  const pdCampoConvertido = !isNaN(pdCampoLiq) ? (pdCampoLiq / (1 + pdCampoLiq / 100)) : NaN;\n\n  let pdUsado;\n  if (RECALCULAR_DESCONTO) pdUsado = !isNaN(pdBruto) ? pdBruto : pdCampoConvertido;\n  else pdUsado = !isNaN(pdCampoLiq) ? pdCampoLiq : pdBruto;\n\n  let percentual_comissao = 0;\n  let regra_aplicada = \"\";\n\n  if (isNaN(pdUsado)) {\n    regra_aplicada = \"percentual de desconto indisponível: comissão 0%\";\n  } else {\n    const pd = pdUsado < 0 ? 0 : pdUsado;\n    const f = faixaDe(pd);\n    percentual_comissao = f.perc;\n    regra_aplicada = f.descricao + (pdUsado < 0 ? \" (desconto negativo tratado como 0%)\" : \"\");\n  }\n\n  // Comissão SEMPRE sobre o valor líquido da venda, sem abater desconto de novo\n  const valor_comissao = isNaN(liquido) ? null : (liquido * percentual_comissao / 100);\n\n  return {\n    json: {\n      cnpj_origem: cnpj_origem,\n      razao_origem: razao_origem,\n      nome_cliente: nome_cliente,\n      nome_vendedor: nome_vendedor,\n      numero_venda: numero_venda,\n      numero_nota: numero_nota,\n      data_emissao_nf: data_emissao_nf,\n      data_venda: data_venda,\n      subtotal_venda: (function () {\n        const st = num(pega(json, [\"subtotal_venda\", \"subtotal_da_venda\", \"subtotal\", \"valor_bruto\"]));\n        if (!isNaN(st)) return st;\n        return isNaN(bruto) ? null : Math.round(bruto * 100) / 100;\n      })(),\n      valor_total_venda: isNaN(liquido) ? null : liquido,\n      valor_total_desconto: isNaN(desconto) ? null : desconto,\n      percentual_desconto_usado: isNaN(pdUsado) ? null : pdUsado,\n      regra_comissao_aplicada: regra_aplicada,\n      tabela_comissao: NOME_TABELA + \": \" + pct2(percentual_comissao),\n      valor_comissao: valor_comissao,\n    },\n  };\n});"
+      }
+    },
+    {
+      "id": "m_agregar_vendas",
+      "type": "merge_out",
+      "name": "Agregar Vendas",
+      "position": {
+        "x": 1500,
+        "y": 220
+      },
+      "parameters": {
+        "mode": "all_items",
+        "outputFieldName": "vendas",
+        "include": "all",
+        "fieldsToInclude": "",
+        "fieldsToExclude": "",
+        "fields": [],
+        "keepMissing": false,
+        "mergeLists": false,
+        "disableDotNotation": false
+      }
+    },
+    {
+      "id": "d_vendedores",
+      "type": "waipe_data",
+      "name": "Buscar Vendedores",
+      "position": {
+        "x": 1780,
+        "y": 220
+      },
+      "parameters": {
+        "dataSource": "data_lab",
+        "companyIds": [],
+        "companyIdsMode": "fixed",
+        "companyIdsExpression": "",
+        "message": "",
+        "messageMode": "fixed",
+        "expertModelId": "",
+        "dataLabReportId": "SUBSTITUA_PELO_ID_DO_RELATORIO_DE_VENDEDORES"
+      }
+    },
+    {
+      "id": "c_consolidar",
+      "type": "code",
+      "name": "Consolidar Comissões",
+      "position": {
+        "x": 2060,
+        "y": 220
+      },
+      "parameters": {
+        "mode": "all_items",
+        "jsCode": "// =========================================================\n// Consolidar Comissões\n// Entradas:\n//   items                               -> cadastro de vendedores (\"Buscar Vendedores\")\n//   $node['Agregar Vendas'].json.vendas -> vendas já calculadas (\"Calcular Comissão\")\n// O cálculo da comissão NÃO muda aqui: este node só agrupa, soma e formata.\n// Valores em R$ são arredondados para 2 casas apenas na apresentação.\n// =========================================================\n\nconst MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];\nconst hoje = String($today).split('-');\nconst ANO = Number(hoje[0]);\nconst MES = Number(hoje[1]);\nconst DIA = Number(hoje[2]);\nconst pad = (n) => (n < 10 ? '0' : '') + n;\nconst MES_REF = MESES[MES - 1] + '/' + ANO;\nconst DATA_EXEC = pad(DIA) + '/' + pad(MES) + '/' + ANO;\n\n// ---- Formatação pt-BR manual (sem Intl)\nconst r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;\nfunction brl(n) {\n  const v = r2(n);\n  const partes = Math.abs(v).toFixed(2).split('.');\n  const inteiro = partes[0].replace(/\\B(?=(\\d{3})+(?!\\d))/g, '.');\n  return (v < 0 ? '-' : '') + 'R$ ' + inteiro + ',' + partes[1];\n}\nfunction esc(s) {\n  return String(s === null || s === undefined ? '' : s)\n    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')\n    .replace(/\"/g, '&quot;').replace(/'/g, '&#39;');\n}\n\n// ---- Leitura tolerante (mesma lógica do \"Calcular Comissão\")\nconst CHAVES_LISTA = ['dados', 'data', 'registros', 'records', 'results', 'rows', 'itens', 'items', 'body'];\nfunction extrairRegistros(entrada) {\n  const out = [];\n  const visitar = (v) => {\n    if (v === null || v === undefined) return;\n    if (Array.isArray(v)) { v.forEach(visitar); return; }\n    if (typeof v === 'string') {\n      const s = v.trim();\n      if (s.startsWith('[') || s.startsWith('{')) {\n        try { visitar(JSON.parse(s)); } catch (e) {}\n      }\n      return;\n    }\n    if (typeof v === 'object') {\n      const chave = CHAVES_LISTA.find((k) => Array.isArray(v[k]) || (typeof v[k] === 'string' && String(v[k]).trim().startsWith('[')));\n      if (chave) { visitar(v[chave]); return; }\n      out.push(v);\n    }\n  };\n  entrada.forEach((it) => visitar(it && it.json !== undefined ? it.json : it));\n  return out;\n}\nfunction normKey(k) {\n  return String(k).normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');\n}\nfunction pega(json, candidatos) {\n  const mapa = {};\n  Object.keys(json).forEach((k) => { mapa[normKey(k)] = json[k]; });\n  for (const c of candidatos) {\n    const v = mapa[normKey(c)];\n    if (v !== undefined && v !== null && v !== '') return v;\n  }\n  return null;\n}\n// Chave de comparação de nomes: sem acento, minúsculas, espaços únicos\nconst chaveNome = (s) => String(s || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().replace(/\\s+/g, ' ').trim();\n\n// ---- 1) Cadastro de vendedores: nome -> e-mail\nconst CAMPOS_NOME = ['nomvendedor', 'nome_vendedor', 'nomevendedor', 'vendedor_nome', 'nome', 'representante'];\nconst CAMPOS_EMAIL = ['email', 'e_mail', 'email_vendedor', 'emailvendedor', 'mail', 'endereco_email'];\nconst cadastro = {};\nextrairRegistros(items).forEach((r) => {\n  const nome = pega(r, CAMPOS_NOME);\n  const email = pega(r, CAMPOS_EMAIL);\n  if (!nome || !email || String(email).indexOf('@') < 0) return;\n  cadastro[chaveNome(nome)] = String(email).trim();\n});\n\n// ---- 2) Agrupa as vendas por vendedor\nconst agregado = $node['Agregar Vendas'].json || {};\nconst vendas = Array.isArray(agregado.vendas) ? agregado.vendas : [];\nconst grupos = {};\nvendas.forEach((v) => {\n  const nome = v.nome_vendedor ? String(v.nome_vendedor).trim() : 'Sem vendedor';\n  const k = chaveNome(nome) || 'sem vendedor';\n  if (!grupos[k]) grupos[k] = { chave: k, nome: nome, qtd: 0, vendido: 0, comissao: 0, vendas: [] };\n  const g = grupos[k];\n  g.qtd += 1;\n  g.vendido += r2(v.valor_total_venda);\n  g.comissao += r2(v.valor_comissao);\n  g.vendas.push(v);\n});\n\n// ---- 3) Ranking: do maior para o menor total vendido\nconst ranking = Object.keys(grupos).map((k) => grupos[k]);\nranking.forEach((g) => { g.vendido = r2(g.vendido); g.comissao = r2(g.comissao); });\nranking.sort((a, b) => (b.vendido - a.vendido) || (b.comissao - a.comissao));\nconst totalVendido = r2(ranking.reduce((s, g) => s + g.vendido, 0));\nconst totalComissao = r2(ranking.reduce((s, g) => s + g.comissao, 0));\n\n// ---- 4) Linhas da planilha (mesmas colunas para gerência e vendedores)\n// Data AAAA-MM-DD[...] ou DD/MM/AAAA -> DD/MM/AAAA\n// Data -> DD/MM/AAAA (padrão brasileiro; a planilha precisa estar com localidade Brasil)\nfunction dataBR(v) {\n  if (v === null || v === undefined || v === '') return '';\n  const s = String(v).trim();\n  let m = s.match(/^(\\d{4})-(\\d{2})-(\\d{2})/);\n  if (m) return m[3] + '/' + m[2] + '/' + m[1];\n  m = s.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4})/);\n  if (m) return m[1] + '/' + m[2] + '/' + m[3];\n  return s.slice(0, 10);\n}\nconst valorOuVazio = (n) => (n === null || n === undefined || n === '' || isNaN(Number(n)) ? '' : r2(n));\nfunction linha(g, v) {\n  // Ordem exata das colunas na planilha\n  return {\n    'Lançamento': v.numero_venda === null || v.numero_venda === undefined ? '' : String(v.numero_venda),\n    'Nº da Nota': v.numero_nota === null || v.numero_nota === undefined ? '' : String(v.numero_nota),\n    'Data da Venda': dataBR(v.data_venda),\n    'Emissão da NF': dataBR(v.data_emissao_nf),\n    'Nome do Cliente': v.nome_cliente || '',\n    'Subtotal da Venda': valorOuVazio(v.subtotal_venda),\n    'Valor Total da Venda': valorOuVazio(v.valor_total_venda),\n    'Valor Total do Desconto': valorOuVazio(v.valor_total_desconto),\n    '% do Desconto': valorOuVazio(v.percentual_desconto_usado),\n    'Valor da Comissão': valorOuVazio(v.valor_comissao),\n    'Regra Aplicada': v.regra_comissao_aplicada || '',\n    'Nome do Vendedor': g.nome,\n    'Nome da Empresa de Origem': v.razao_origem || '',\n  };\n}\nconst linhas = [];\nranking.forEach((g) => {\n  g.vendas.sort((a, b) => (Number(b.valor_total_venda) || 0) - (Number(a.valor_total_venda) || 0));\n  g.vendas.forEach((v) => linhas.push(linha(g, v)));\n});\n\n// ---- 5) Ranking resumido para o e-mail da gerência (o HTML é montado em \"Montar E-mail da Gerência\")\nconst rankingResumo = ranking.map((g, i) => ({\n  posicao: i + 1, nome: g.nome, qtd: g.qtd, vendido: g.vendido, comissao: g.comissao,\n  vendido_fmt: brl(g.vendido), comissao_fmt: brl(g.comissao), tem_email: Boolean(cadastro[g.chave]),\n}));\n\n// ---- 6) Vendedores sem e-mail no cadastro (aviso no e-mail da gerência)\nconst semEmail = ranking.filter((g) => !cadastro[g.chave]);\n\n// ---- 7) Lista do Loop: só quem tem e-mail, SEM as linhas (mantém a expressão do Loop leve)\nconst vendedores = ranking.filter((g) => cadastro[g.chave]).map((g) => ({\n  nome: g.nome,\n  email: cadastro[g.chave],\n  qtd_vendas: g.qtd,\n  total_vendido: g.vendido,\n  total_comissao: g.comissao,\n  total_vendido_fmt: brl(g.vendido),\n  total_comissao_fmt: brl(g.comissao),\n  titulo_planilha: 'Comissão ' + MES_REF + ' - ' + g.nome,\n}));\n\nconsole.log('Vendas: ' + vendas.length + ' | vendedores: ' + ranking.length + ' | com e-mail: ' + vendedores.length + ' | sem e-mail: ' + semEmail.length);\n\nreturn [{\n  json: {\n    mes_referencia: MES_REF,\n    data_execucao: DATA_EXEC,\n    qtd_vendas: vendas.length,\n    qtd_vendedores: ranking.length,\n    total_vendido: totalVendido,\n    total_comissao: totalComissao,\n    total_vendido_fmt: brl(totalVendido),\n    total_comissao_fmt: brl(totalComissao),\n    titulo_planilha_geral: 'Comissões ' + MES_REF + ' - Todos os vendedores',\n    ranking_resumo: rankingResumo,\n    sem_email: semEmail.map((g) => g.nome),\n    vendedores: vendedores,\n    linhas: linhas,\n  },\n}];"
+      }
+    },
+    {
+      "id": "s_criar_geral",
+      "type": "google_sheets",
+      "name": "Criar Planilha Geral",
+      "position": {
+        "x": 2340,
+        "y": 80
+      },
+      "parameters": {
+        "credentialId": "",
+        "operation": "create",
+        "spreadsheetSource": "list",
+        "spreadsheetId": "",
+        "spreadsheetIdMode": "expression",
+        "sheetSource": "list",
+        "sheetName": "",
+        "sheetNameMode": "expression",
+        "mappingMode": "manual",
+        "columnMappings": [],
+        "matchingColumn": "",
+        "autoMappingSource": "",
+        "autoMappingSourceMode": "expression",
+        "extraDataHandling": "insert_new_column",
+        "headerRow": 1,
+        "firstDataRow": 2,
+        "title": "{{ $node[\"Consolidar Comissões\"].json.titulo_planilha_geral }}",
+        "titleMode": "expression",
+        "sharing": "anyone_reader",
+        "filters": [],
+        "combineFilters": "and",
+        "returnFirstMatch": false,
+        "limit": 0,
+        "valueRenderOption": "FORMATTED_VALUE",
+        "range": "",
+        "rangeMode": "expression",
+        "values": "",
+        "valuesMode": "expression",
+        "valueInputOption": "USER_ENTERED",
+        "nameFilter": "",
+        "nameFilterMode": "expression",
+        "pageSize": 50,
+        "continueOnError": false
+      }
+    },
+    {
+      "id": "c_linhas_gerais",
+      "type": "code",
+      "name": "Expandir Linhas Gerais",
+      "position": {
+        "x": 2620,
+        "y": 80
+      },
+      "parameters": {
+        "mode": "all_items",
+        "jsCode": "// Uma linha da planilha por item, com as colunas na ordem exata abaixo.\n// O \"Gravar Planilha Geral\" ordena os cabeçalhos em ordem alfabética; o prefixo\n// invisível (zero-width space) em quantidade crescente força esta ordem sem\n// mudar o texto visível do cabeçalho.\nconst COLUNAS = [\n  'Lançamento',\n  'Nº da Nota',\n  'Data da Venda',\n  'Emissão da NF',\n  'Nome do Cliente',\n  'Subtotal da Venda',\n  'Valor Total do Desconto',\n  'Valor Total da Venda',\n  '% do Desconto',\n  'Valor da Comissão',\n  'Regra Aplicada',\n  'Nome do Vendedor',\n  'Nome da Empresa de Origem',\n];\nconst ordenar = (l) => {\n  const o = {};\n  COLUNAS.forEach((c, i) => { o['\\u200B'.repeat(i) + c] = l[c] === undefined || l[c] === null ? '' : l[c]; });\n  return o;\n};\n\nconst linhas = $node['Consolidar Comissões'].json.linhas || [];\nif (linhas.length === 0) return [{ json: ordenar({ 'Nome do Vendedor': 'Nenhuma venda encontrada no período' }) }];\nreturn linhas.map((l) => ({ json: ordenar(l) }));"
+      }
+    },
+    {
+      "id": "s_gravar_geral",
+      "type": "google_sheets",
+      "name": "Gravar Planilha Geral",
+      "position": {
+        "x": 2900,
+        "y": 80
+      },
+      "parameters": {
+        "credentialId": "",
+        "operation": "append",
+        "spreadsheetSource": "url",
+        "spreadsheetId": "{{ $node[\"Criar Planilha Geral\"].json.spreadsheetId }}",
+        "spreadsheetIdMode": "expression",
+        "sheetSource": "list",
+        "sheetName": "Página1",
+        "sheetNameMode": "fixed",
+        "mappingMode": "auto",
+        "columnMappings": [],
+        "matchingColumn": "",
+        "autoMappingSource": "",
+        "autoMappingSourceMode": "expression",
+        "extraDataHandling": "insert_new_column",
+        "headerRow": 1,
+        "firstDataRow": 2,
+        "title": "",
+        "titleMode": "expression",
+        "sharing": "private",
+        "filters": [],
+        "combineFilters": "and",
+        "returnFirstMatch": false,
+        "limit": 0,
+        "valueRenderOption": "FORMATTED_VALUE",
+        "range": "",
+        "rangeMode": "expression",
+        "values": "",
+        "valuesMode": "expression",
+        "valueInputOption": "USER_ENTERED",
+        "nameFilter": "",
+        "nameFilterMode": "expression",
+        "pageSize": 50,
+        "continueOnError": false
+      }
+    },
+    {
+      "id": "m_resumo_geral",
+      "type": "merge_out",
+      "name": "Resumir Gravação Geral",
+      "position": {
+        "x": 3180,
+        "y": 80
+      },
+      "parameters": {
+        "mode": "all_items",
+        "outputFieldName": "linhas_gravadas",
+        "include": "selected",
+        "fieldsToInclude": "rowNumber",
+        "fieldsToExclude": "",
+        "fields": [],
+        "keepMissing": false,
+        "mergeLists": false,
+        "disableDotNotation": false
+      }
+    },
+    {
+      "id": "g_gerencia",
+      "type": "gmail_send",
+      "name": "Enviar Email Gerência",
+      "position": {
+        "x": 3760,
+        "y": 80
+      },
+      "parameters": {
+        "credentialId": "",
+        "to": "gerencia@exemplo.com",
+        "toMode": "fixed",
+        "cc": "",
+        "ccMode": "fixed",
+        "bcc": "",
+        "bccMode": "fixed",
+        "subject": "{{ $json.assunto }}",
+        "subjectMode": "expression",
+        "bodyType": "html",
+        "body": "{{ $json.corpo_html }}",
+        "bodyMode": "expression",
+        "continueOnError": false
+      }
+    },
+    {
+      "id": "l_vendedores",
+      "type": "loop",
+      "name": "Um Vendedor por Vez",
+      "position": {
+        "x": 2340,
+        "y": 360
+      },
+      "parameters": {
+        "arrayExpression": "{{ $json.vendedores }}",
+        "arrayExpressionMode": "expression",
+        "batchSize": 1,
+        "pauseBetweenBatchesSeconds": 1,
+        "continueOnItemError": true
+      }
+    },
+    {
+      "id": "s_criar_vendedor",
+      "type": "google_sheets",
+      "name": "Criar Planilha do Vendedor",
+      "position": {
+        "x": 2620,
+        "y": 500
+      },
+      "parameters": {
+        "credentialId": "",
+        "operation": "create",
+        "spreadsheetSource": "list",
+        "spreadsheetId": "",
+        "spreadsheetIdMode": "expression",
+        "sheetSource": "list",
+        "sheetName": "",
+        "sheetNameMode": "expression",
+        "mappingMode": "manual",
+        "columnMappings": [],
+        "matchingColumn": "",
+        "autoMappingSource": "",
+        "autoMappingSourceMode": "expression",
+        "extraDataHandling": "insert_new_column",
+        "headerRow": 1,
+        "firstDataRow": 2,
+        "title": "{{ $node[\"Um Vendedor por Vez\"].json.titulo_planilha }}",
+        "titleMode": "expression",
+        "sharing": "anyone_reader",
+        "filters": [],
+        "combineFilters": "and",
+        "returnFirstMatch": false,
+        "limit": 0,
+        "valueRenderOption": "FORMATTED_VALUE",
+        "range": "",
+        "rangeMode": "expression",
+        "values": "",
+        "valuesMode": "expression",
+        "valueInputOption": "USER_ENTERED",
+        "nameFilter": "",
+        "nameFilterMode": "expression",
+        "pageSize": 50,
+        "continueOnError": false
+      }
+    },
+    {
+      "id": "c_linhas_vendedor",
+      "type": "code",
+      "name": "Linhas do Vendedor",
+      "position": {
+        "x": 2900,
+        "y": 500
+      },
+      "parameters": {
+        "mode": "all_items",
+        "jsCode": "// Só as vendas do vendedor da iteração atual do Loop, uma linha por item,\n// com as colunas na ordem exata abaixo (mesma lógica da planilha geral).\nconst COLUNAS = [\n  'Lançamento',\n  'Nº da Nota',\n  'Data da Venda',\n  'Emissão da NF',\n  'Nome do Cliente',\n  'Subtotal da Venda',\n  'Valor Total do Desconto',\n  'Valor Total da Venda',\n  '% do Desconto',\n  'Valor da Comissão',\n  'Regra Aplicada',\n  'Nome do Vendedor',\n  'Nome da Empresa de Origem',\n];\nconst ordenar = (l) => {\n  const o = {};\n  COLUNAS.forEach((c, i) => { o['\\u200B'.repeat(i) + c] = l[c] === undefined || l[c] === null ? '' : l[c]; });\n  return o;\n};\n\nconst vendedor = $node['Um Vendedor por Vez'].json;\nconst linhas = ($node['Consolidar Comissões'].json.linhas || []).filter((l) => l['Nome do Vendedor'] === vendedor.nome);\nreturn linhas.map((l) => ({ json: ordenar(l) }));"
+      }
+    },
+    {
+      "id": "s_gravar_vendedor",
+      "type": "google_sheets",
+      "name": "Gravar Planilha do Vendedor",
+      "position": {
+        "x": 3180,
+        "y": 500
+      },
+      "parameters": {
+        "credentialId": "",
+        "operation": "append",
+        "spreadsheetSource": "url",
+        "spreadsheetId": "{{ $node[\"Criar Planilha do Vendedor\"].json.spreadsheetId }}",
+        "spreadsheetIdMode": "expression",
+        "sheetSource": "list",
+        "sheetName": "Página1",
+        "sheetNameMode": "fixed",
+        "mappingMode": "auto",
+        "columnMappings": [],
+        "matchingColumn": "",
+        "autoMappingSource": "",
+        "autoMappingSourceMode": "expression",
+        "extraDataHandling": "insert_new_column",
+        "headerRow": 1,
+        "firstDataRow": 2,
+        "title": "",
+        "titleMode": "expression",
+        "sharing": "private",
+        "filters": [],
+        "combineFilters": "and",
+        "returnFirstMatch": false,
+        "limit": 0,
+        "valueRenderOption": "FORMATTED_VALUE",
+        "range": "",
+        "rangeMode": "expression",
+        "values": "",
+        "valuesMode": "expression",
+        "valueInputOption": "USER_ENTERED",
+        "nameFilter": "",
+        "nameFilterMode": "expression",
+        "pageSize": 50,
+        "continueOnError": false
+      }
+    },
+    {
+      "id": "m_resumo_vendedor",
+      "type": "merge_out",
+      "name": "Resumir Gravação do Vendedor",
+      "position": {
+        "x": 3460,
+        "y": 500
+      },
+      "parameters": {
+        "mode": "all_items",
+        "outputFieldName": "linhas_gravadas",
+        "include": "selected",
+        "fieldsToInclude": "rowNumber",
+        "fieldsToExclude": "",
+        "fields": [],
+        "keepMissing": false,
+        "mergeLists": false,
+        "disableDotNotation": false
+      }
+    },
+    {
+      "id": "g_vendedor",
+      "type": "gmail_send",
+      "name": "Enviar Email ao Vendedor",
+      "position": {
+        "x": 4040,
+        "y": 500
+      },
+      "parameters": {
+        "credentialId": "",
+        "to": "{{ $json.email }}",
+        "toMode": "expression",
+        "cc": "",
+        "ccMode": "fixed",
+        "bcc": "",
+        "bccMode": "fixed",
+        "subject": "{{ $json.assunto }}",
+        "subjectMode": "expression",
+        "bodyType": "html",
+        "body": "{{ $json.corpo_html }}",
+        "bodyMode": "expression",
+        "continueOnError": false
+      }
+    },
+    {
+      "id": "83fdd4ee-b964-4749-987a-bbf656efa2cc",
+      "type": "trigger_schedule",
+      "name": "Agendamento",
+      "position": {
+        "x": 328,
+        "y": 210
+      },
+      "parameters": {
+        "scheduleType": "daily",
+        "interval": 1,
+        "hour": 23,
+        "minute": 30,
+        "weekdays": "1,2,3,4,5,6,0",
+        "monthDays": "1",
+        "cronExpression": "30 23 * * *",
+        "timezone": "America/Sao_Paulo"
+      }
+    },
+    {
+      "id": "bc5135a8-b151-5d56-859c-dffcf1cb4d41",
+      "type": "code",
+      "name": "Montar E-mail da Gerência",
+      "position": {
+        "x": 3460,
+        "y": 80
+      },
+      "parameters": {
+        "mode": "all_items",
+        "jsCode": "// ============================================================\n// CONFIG - único bloco que deveria precisar de ajuste\n// ============================================================\nconst CONFIG = {\n  nomeEmpresa: \"NOME DA EMPRESA\",\n  titulo: \"Comissões do mês por vendedor\",\n  assunto: \"Comissões de {mes} - ranking de vendedores\",\n  rodape: \"Mensagem automática do sistema comercial NOME DA EMPRESA.\"\n};\n\n// ============================================================\n// PADRÃO DE E-MAIL WAIPE - copie este bloco para o node `code` que monta o e-mail.\n// Desenho de referência: o consolidado do gestor do Guardião da Amostra Padrão (claro, com modo escuro automático).\n// Marca \"waipe\" e empresa no topo, cartão branco com faixa escura, título com eyebrow dourado, indicadores\n// em verde-oliva, tabelas claras e rodapé Londrisoft. Todo e-mail de agente do Waipe usa este kit.\n// As funções devolvem linhas de tabela (<tr>) para dentro do cartão, exceto wpBadge/wpBarra/wpSeta, que devolvem\n// HTML para colocar dentro de uma célula. wpPagina devolve o documento HTML completo.\n// Compatível com o sandbox do Waipe Flow (sem toLocaleString, sem Intl).\n// ============================================================\nconst WP_F = \"font-family:Arial,Helvetica,sans-serif;\";\n\nfunction wpEsc(t) {\n  if (t === null || t === undefined) return \"\";\n  return String(t).replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\").replace(/'/g, \"&#39;\");\n}\nfunction wpNum(n) { return String(Math.round(Number(n) || 0)).replace(/\\B(?=(\\d{3})+(?!\\d))/g, \".\"); }\nfunction wpMoeda(v) {\n  const n = Math.round((Number(v) || 0) * 100) / 100;\n  const p = Math.abs(n).toFixed(2).split(\".\");\n  return (n < 0 ? \"-R$ \" : \"R$ \") + p[0].replace(/\\B(?=(\\d{3})+(?!\\d))/g, \".\") + \",\" + p[1];\n}\n\n// Estilos de destaque (badge, KPI e aviso): fundo, texto e borda. As cores do modo escuro ficam no <style> de wpPagina.\nconst WP_ESTILOS = {\n  neutro: { bg: \"#F9FAFB\", cor: \"#303030\", borda: \"#E5E7EB\" },\n  medio: { bg: \"#F1F2EC\", cor: \"#5A6344\", borda: \"#E3E6D8\" },\n  forte: { bg: \"#5A6344\", cor: \"#FFFFFF\", borda: \"#5A6344\" },\n  alerta: { bg: \"#FEF3F2\", cor: \"#B42318\", borda: \"#FAD7D3\" },\n  ok: { bg: \"#EEF8F1\", cor: \"#1E7A45\", borda: \"#CDEBD7\" }\n};\n\n// Documento completo: marca e empresa, cartão (eyebrow, título, saudação, destaque), miolo (linhas) e rodapé.\n// o: { preheader, empresa, rotuloDireita, eyebrow, titulo, heroEyebrow, heroValor, heroTam, heroSub, heroBarra,\n//      heroNota, saudacao, subSaudacao, miolo, rodape: [linhas] }\n// eyebrow/titulo são opcionais: sem eles, heroEyebrow vira o eyebrow do cartão.\nfunction wpPagina(o) {\n  const eyebrow = o.eyebrow || o.heroEyebrow || \"\";\n  let h = \"\";\n  h += \"<!DOCTYPE html><html lang='pt-BR'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'>\";\n  h += \"<meta name='color-scheme' content='light dark'><meta name='supported-color-schemes' content='light dark'>\";\n  h += \"<title>\" + wpEsc(o.titulo || eyebrow || o.empresa || \"Waipe\") + \"</title>\";\n  h += \"<style>body{margin:0;padding:0;-webkit-text-size-adjust:100%;}a{color:#303030;}\";\n  h += \"@media only screen and (max-width:620px){.wp-wrap{width:100%!important;max-width:100%!important;}.wp-pad{padding-left:16px!important;padding-right:16px!important;}.wp-kpi{display:block!important;width:100%!important;padding:0 0 8px 0!important;}.wp-hide{display:none!important;}.wp-h1{font-size:24px!important;line-height:30px!important;}.wp-hero{font-size:40px!important;line-height:44px!important;}}\";\n  h += \"@media (prefers-color-scheme: dark){.wp-bg{background:#16181D!important;}.wp-card{background:#1F2229!important;border-color:#323743!important;}.wp-soft{background:#272B33!important;}.wp-t{color:#F3F4F6!important;}.wp-m{color:#A8AEBB!important;}.wp-bd{border-color:#323743!important;}.wp-eb{color:#D4B25A!important;}\";\n  h += \"td[bgcolor='#303030']{background:#E5E7EB!important;}td[bgcolor='#303030'] a{color:#1F2229!important;}\";\n  h += \"td[bgcolor='#F9FAFB']{background:#272B33!important;}td[bgcolor='#F1F2EC']{background:#2A2E24!important;}td[bgcolor='#E3E6D8']{background:#3A4030!important;}\";\n  h += \"td[bgcolor='#FEF3F2']{background:#3A2422!important;}td[bgcolor='#EEF8F1']{background:#1F3A2C!important;}td[bgcolor='#F3F4F6']{background:#272B33!important;}\";\n  h += \".wp-c-medio{color:#C9CFB4!important;}.wp-c-neutro{color:#F3F4F6!important;}.wp-c-alerta{color:#FCA5A5!important;}.wp-c-ok{color:#86EFAC!important;}}\";\n  h += \"</style></head>\";\n  h += \"<body class='wp-bg' style='margin:0;padding:0;background:#F3F4F6;'>\";\n  h += \"<span style='display:none;font-size:1px;color:#F3F4F6;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;'>\" + wpEsc(o.preheader || \"\") + \"</span>\";\n  h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' bgcolor='#F3F4F6' class='wp-bg' style='background:#F3F4F6;'><tr><td align='center' style='padding:32px 12px;'>\";\n  h += \"<!--[if mso]><table role='presentation' width='600' cellpadding='0' cellspacing='0' border='0'><tr><td><![endif]-->\";\n  h += \"<table role='presentation' width='600' cellpadding='0' cellspacing='0' border='0' class='wp-wrap' style='width:600px;max-width:600px;'>\";\n  // Marca\n  h += \"<tr><td class='wp-pad' style='padding:0 8px 16px 8px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr>\";\n  h += \"<td class='wp-t' style='\" + WP_F + \"font-size:22px;font-weight:bold;color:#303030;letter-spacing:-0.5px;mso-line-height-rule:exactly;line-height:28px;'>waipe</td>\";\n  h += \"<td align='right' class='wp-m' style='\" + WP_F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(o.empresa || \"\") + (o.rotuloDireita ? \"<br>\" + o.rotuloDireita : \"\") + \"</td>\";\n  h += \"</tr></table></td></tr>\";\n  // Cartão\n  h += \"<tr><td bgcolor='#FEFEFE' class='wp-card' style='background:#FEFEFE;border:1px solid #E5E7EB;border-radius:12px;overflow:hidden;'>\";\n  h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'>\";\n  h += \"<tr><td height='4' bgcolor='#303030' style='height:4px;font-size:0;line-height:0;background:#303030;border-radius:12px 12px 0 0;'>&nbsp;</td></tr>\";\n  if (eyebrow || o.titulo || o.saudacao) {\n    h += \"<tr><td class='wp-pad' style='padding:32px 32px 8px 32px;'>\";\n    if (eyebrow) h += \"<p class='wp-eb' style='margin:0 0 8px 0;\" + WP_F + \"font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#8E6A1F;mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(eyebrow) + \"</p>\";\n    if (o.titulo) h += \"<h1 class='wp-h1 wp-t' style='margin:0 0 12px 0;\" + WP_F + \"font-size:28px;font-weight:bold;color:#303030;letter-spacing:-0.5px;mso-line-height-rule:exactly;line-height:34px;'>\" + wpEsc(o.titulo) + \"</h1>\";\n    if (o.saudacao) h += \"<p class='wp-t' style='margin:0;\" + WP_F + \"font-size:15px;color:#303030;mso-line-height-rule:exactly;line-height:23px;'>\" + o.saudacao + \"</p>\";\n    if (o.subSaudacao) h += \"<p class='wp-m' style='margin:6px 0 0 0;\" + WP_F + \"font-size:15px;color:#5B6170;mso-line-height-rule:exactly;line-height:23px;'>\" + o.subSaudacao + \"</p>\";\n    h += \"</td></tr>\";\n  }\n  if (o.heroValor !== undefined && o.heroValor !== null) {\n    const tam = Math.min(o.heroTam || 44, 48);\n    h += \"<tr><td class='wp-pad' style='padding:20px 32px 8px 32px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td bgcolor='#F1F2EC' style='background:#F1F2EC;border-radius:8px;padding:20px;'>\";\n    if (o.heroEyebrow && o.eyebrow && o.eyebrow !== o.heroEyebrow) h += \"<p class='wp-c-medio' style='margin:0 0 6px 0;\" + WP_F + \"font-size:11px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#5A6344;mso-line-height-rule:exactly;line-height:15px;'>\" + wpEsc(o.heroEyebrow) + \"</p>\";\n    h += \"<p class='wp-hero wp-c-medio' style='margin:0;\" + WP_F + \"font-size:\" + tam + \"px;font-weight:bold;color:#5A6344;letter-spacing:-1px;mso-line-height-rule:exactly;line-height:\" + (tam + 4) + \"px;'>\" + wpEsc(o.heroValor) + \"</p>\";\n    if (o.heroSub) h += \"<p class='wp-c-medio' style='margin:6px 0 0 0;\" + WP_F + \"font-size:14px;color:#5A6344;mso-line-height-rule:exactly;line-height:20px;'>\" + o.heroSub + \"</p>\";\n    if (o.heroBarra !== undefined && o.heroBarra !== null) {\n      const w = Math.max(0, Math.min(100, Math.round(o.heroBarra)));\n      h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='margin-top:14px;'><tr><td bgcolor='#E3E6D8' style='background:#E3E6D8;border-radius:5px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr>\" +\n        \"<td width='\" + w + \"%' height='10' bgcolor='#5A6344' style='height:10px;background:#5A6344;border-radius:5px;font-size:0;line-height:0;'>&nbsp;</td>\" +\n        (w < 100 ? \"<td height='10' style='height:10px;font-size:0;line-height:0;'>&nbsp;</td>\" : \"\") + \"</tr></table></td></tr></table>\";\n    }\n    if (o.heroNota) h += \"<p class='wp-c-medio' style='margin:10px 0 0 0;\" + WP_F + \"font-size:12px;color:#5A6344;mso-line-height-rule:exactly;line-height:18px;'>\" + o.heroNota + \"</p>\";\n    h += \"</td></tr></table></td></tr>\";\n  }\n  h += o.miolo || \"\";\n  h += \"<tr><td style='height:24px;font-size:0;line-height:0;'>&nbsp;</td></tr>\";\n  h += \"</table></td></tr>\";\n  // Rodapé\n  const linhasRodape = o.rodape || [];\n  h += \"<tr><td class='wp-pad' align='center' style='padding:24px 24px 0 24px;'>\";\n  for (let i = 0; i < linhasRodape.length; i++) {\n    h += \"<p class='wp-m' style='margin:\" + (i > 0 ? \"6px\" : \"0\") + \" 0 0 0;\" + WP_F + \"font-size:12px;color:\" + (i === linhasRodape.length - 1 ? \"#8A90A0\" : \"#6B7280\") + \";mso-line-height-rule:exactly;line-height:18px;'>\" + linhasRodape[i] + \"</p>\";\n  }\n  h += \"</td></tr></table>\";\n  h += \"<!--[if mso]></td></tr></table><![endif]-->\";\n  h += \"</td></tr></table></body></html>\";\n  return h;\n}\n\n// Parágrafo livre (HTML já escapado pelo chamador)\nfunction wpTexto(html) {\n  return \"<tr><td class='wp-pad' style='padding:8px 32px;'><p class='wp-m' style='margin:0;\" + WP_F + \"font-size:15px;color:#5B6170;mso-line-height-rule:exactly;line-height:23px;'>\" + html + \"</p></td></tr>\";\n}\n\n// Título de seção com subtítulo\nfunction wpSecao(titulo, sub) {\n  return \"<tr><td class='wp-pad' style='padding:24px 32px 12px 32px;'>\" +\n    \"<p class='wp-t' style='margin:0;\" + WP_F + \"font-size:16px;font-weight:bold;color:#303030;mso-line-height-rule:exactly;line-height:22px;'>\" + wpEsc(titulo) + \"</p>\" +\n    (sub ? \"<p class='wp-m' style='margin:4px 0 0 0;\" + WP_F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:18px;'>\" + sub + \"</p>\" : \"\") + \"</td></tr>\";\n}\n\n// Cartões de indicador lado a lado. lista: [{rotulo, valor, estilo, sub}], titulo (opcional) vira um rótulo pequeno acima.\n// Sem estilo, o primeiro é \"medio\" (verde-oliva) e os outros \"neutro\", como no Guardião.\nfunction wpKpis(lista, titulo) {\n  const n = lista.length;\n  const larg = (100 / n).toFixed(2);\n  let h = \"<tr><td class='wp-pad' style='padding:20px 32px 8px 32px;'>\";\n  if (titulo) h += \"<p class='wp-m' style='margin:0 0 8px 0;\" + WP_F + \"font-size:11px;font-weight:bold;letter-spacing:0.8px;text-transform:uppercase;color:#6B7280;mso-line-height-rule:exactly;line-height:15px;'>\" + wpEsc(titulo) + \"</p>\";\n  h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr>\";\n  // Valor longo (ex.: R$ 99.716,16) com 3 ou mais cartões lado a lado: fonte menor para caber numa linha.\n  const maiorValor = lista.reduce(function (m, k) { return Math.max(m, String(k.valor === undefined ? \"\" : k.valor).length); }, 0);\n  const tam = n >= 3 && maiorValor > 9 ? 20 : n >= 2 && maiorValor > 14 ? 20 : 26;\n  for (let i = 0; i < n; i++) {\n    const k = lista[i];\n    const nome = WP_ESTILOS[k.estilo] ? k.estilo : (i === 0 ? \"medio\" : \"neutro\");\n    const e = nome === \"forte\" ? WP_ESTILOS.medio : WP_ESTILOS[nome];\n    const cls = nome === \"forte\" ? \"medio\" : nome;\n    const pad = n === 1 ? \"\" : (i === 0 ? \"padding-right:6px;\" : (i === n - 1 ? \"padding-left:6px;\" : \"padding:0 3px;\"));\n    h += \"<td class='wp-kpi' width='\" + larg + \"%' valign='top' style='width:\" + larg + \"%;\" + pad + \"'>\" +\n      \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td bgcolor='\" + e.bg + \"' style='background:\" + e.bg + \";border-radius:8px;padding:16px;'>\" +\n      \"<p class='wp-c-\" + cls + \"' style='margin:0;\" + WP_F + \"font-size:\" + tam + \"px;font-weight:bold;color:\" + e.cor + \";mso-line-height-rule:exactly;line-height:\" + (tam + 6) + \"px;white-space:nowrap;'>\" + wpEsc(k.valor) + \"</p>\" +\n      \"<p class='wp-c-\" + cls + \"' style='margin:4px 0 0 0;\" + WP_F + \"font-size:13px;color:\" + (nome === \"neutro\" ? \"#5B6170\" : e.cor) + \";mso-line-height-rule:exactly;line-height:18px;'>\" + wpEsc(k.rotulo) + \"</p>\" +\n      (k.sub ? \"<p class='wp-m' style='margin:2px 0 0 0;\" + WP_F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(k.sub) + \"</p>\" : \"\") +\n      \"</td></tr></table></td>\";\n  }\n  return h + \"</tr></table></td></tr>\";\n}\n\n// Tabela. colunas: [{t, a: \"left\"|\"right\"|\"center\", w, oculta}], linhas: [[html da célula, ...], ...]\n// oculta = some em tela pequena. nota (opcional): texto abaixo da tabela.\nfunction wpTabela(colunas, linhas, nota) {\n  let h = \"<tr><td class='wp-pad' style='padding:4px 32px 8px 32px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' class='wp-bd' style='border:1px solid #E5E7EB;border-radius:8px;border-collapse:separate;'><tr>\";\n  for (let c = 0; c < colunas.length; c++) {\n    const col = colunas[c];\n    const canto = c === 0 ? \"border-radius:8px 0 0 0;\" : (c === colunas.length - 1 ? \"border-radius:0 8px 0 0;\" : \"\");\n    h += \"<td bgcolor='#F9FAFB' align='\" + (col.a || \"left\") + \"'\" + (col.w ? \" width='\" + col.w + \"'\" : \"\") + \" class='wp-soft wp-m\" + (col.oculta ? \" wp-hide\" : \"\") + \"'\" +\n      \" style='background:#F9FAFB;padding:10px 12px;\" + WP_F + \"font-size:11px;font-weight:bold;letter-spacing:0.8px;text-transform:uppercase;color:#6B7280;mso-line-height-rule:exactly;line-height:15px;\" + canto + \"'>\" + wpEsc(col.t) + \"</td>\";\n  }\n  h += \"</tr>\";\n  if (linhas.length === 0) {\n    h += \"<tr><td colspan='\" + colunas.length + \"' class='wp-bd wp-m' style='border-top:1px solid #F3F4F6;padding:14px 12px;\" + WP_F + \"font-size:13px;color:#6B7280;'>Nada para mostrar.</td></tr>\";\n  }\n  for (let i = 0; i < linhas.length; i++) {\n    h += \"<tr>\";\n    for (let c = 0; c < colunas.length; c++) {\n      const col = colunas[c];\n      h += \"<td\" + (col.a ? \" align='\" + col.a + \"'\" : \"\") + \" valign='middle' class='wp-bd wp-t\" + (col.oculta ? \" wp-hide\" : \"\") + \"'\" +\n        \" style='border-top:1px solid #F3F4F6;padding:10px 12px;\" + WP_F + \"font-size:13px;color:#303030;mso-line-height-rule:exactly;line-height:18px;'>\" + (linhas[i][c] === undefined ? \"\" : linhas[i][c]) + \"</td>\";\n    }\n    h += \"</tr>\";\n  }\n  h += \"</table>\" + (nota ? \"<p class='wp-m' style='margin:8px 2px 0 2px;\" + WP_F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:17px;'>\" + nota + \"</p>\" : \"\") + \"</td></tr>\";\n  return h;\n}\n\n// Pílula de destaque (para dentro de uma célula). a: \"left\" | \"right\". Texto curto (até 3 caracteres) vira círculo,\n// como a posição do ranking do Guardião.\nfunction wpBadge(texto, estilo, a) {\n  const nome = WP_ESTILOS[estilo] ? estilo : \"neutro\";\n  const e = nome === \"neutro\" ? { bg: \"#F3F4F6\", cor: \"#5B6170\" } : WP_ESTILOS[nome];\n  const t = String(texto === null || texto === undefined ? \"\" : texto);\n  const alinhar = a === \"right\" ? \" align='right'\" : \"\";\n  if (t.length <= 3) {\n    return \"<table role='presentation' cellpadding='0' cellspacing='0' border='0'\" + alinhar + \"><tr><td width='24' height='24' align='center' valign='middle' bgcolor='\" + e.bg + \"' style='width:24px;height:24px;background:\" + e.bg + \";border-radius:12px;\" + WP_F + \"font-size:12px;font-weight:bold;color:\" + e.cor + \";mso-line-height-rule:exactly;line-height:24px;'>\" + wpEsc(t) + \"</td></tr></table>\";\n  }\n  return \"<table role='presentation' cellpadding='0' cellspacing='0' border='0'\" + alinhar + \"><tr><td bgcolor='\" + e.bg + \"' style='background:\" + e.bg + \";border-radius:20px;padding:3px 10px;\" + WP_F + \"font-size:11px;font-weight:bold;color:\" + e.cor + \";white-space:nowrap;mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(t) + \"</td></tr></table>\";\n}\n\n// Barra proporcional (para dentro de uma célula). pct 0-100; forte = verde-oliva cheio, senão oliva claro\nfunction wpBarra(pct, forte) {\n  const w = Math.max(4, Math.min(100, Math.round(pct)));\n  const cor = forte ? \"#5A6344\" : \"#BFC4AC\";\n  return \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='margin-top:6px;'><tr>\" +\n    \"<td width='\" + w + \"%' height='6' bgcolor='\" + cor + \"' style='height:6px;background:\" + cor + \";border-radius:3px;font-size:0;line-height:0;'>&nbsp;</td>\" +\n    (w < 100 ? \"<td width='\" + (100 - w) + \"%' height='6' style='height:6px;font-size:0;line-height:0;'>&nbsp;</td>\" : \"\") + \"</tr></table>\";\n}\n\n// Botão quadrado com seta (para dentro de uma célula): abre a planilha ou lista da linha\nfunction wpSeta(url, titulo) {\n  return \"<table role='presentation' cellpadding='0' cellspacing='0' border='0' align='right'><tr><td width='32' height='32' align='center' valign='middle' bgcolor='#303030' style='width:32px;height:32px;background:#303030;border-radius:8px;'>\" +\n    \"<a href='\" + wpEsc(url) + \"' target='_blank' title='\" + wpEsc(titulo) + \"' aria-label='\" + wpEsc(titulo) + \"' style='display:block;width:32px;\" + WP_F + \"font-size:18px;font-weight:bold;color:#FFFFFF;text-decoration:none;mso-line-height-rule:exactly;line-height:32px;border-radius:8px;'>&rarr;</a></td></tr></table>\";\n}\n\n// Botão de chamada (linha própria)\nfunction wpBotao(url, rotulo) {\n  return \"<tr><td class='wp-pad' align='left' style='padding:16px 32px 8px 32px;'><table role='presentation' cellpadding='0' cellspacing='0' border='0'><tr><td align='center' bgcolor='#303030' style='background:#303030;border-radius:8px;'>\" +\n    \"<a href='\" + wpEsc(url) + \"' target='_blank' style='display:block;padding:12px 24px;\" + WP_F + \"font-size:14px;font-weight:bold;color:#FFFFFF;text-decoration:none;mso-line-height-rule:exactly;line-height:20px;border-radius:8px;'>\" + wpEsc(rotulo) + \"</a></td></tr></table></td></tr>\";\n}\n\n// Caixa de aviso (linha própria): titulo + corpo em HTML\nfunction wpAviso(titulo, corpoHtml, estilo) {\n  const nome = WP_ESTILOS[estilo] ? estilo : \"medio\";\n  const e = nome === \"forte\" ? WP_ESTILOS.medio : WP_ESTILOS[nome];\n  const cls = nome === \"forte\" ? \"medio\" : nome;\n  return \"<tr><td class='wp-pad' style='padding:16px 32px 8px 32px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td bgcolor='\" + e.bg + \"' style='background:\" + e.bg + \";border:1px solid \" + e.borda + \";border-radius:8px;padding:16px 18px;'>\" +\n    \"<p class='wp-c-\" + cls + \"' style='margin:0;\" + WP_F + \"font-size:11px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:\" + e.cor + \";mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(titulo) + \"</p>\" +\n    \"<p class='wp-t' style='margin:8px 0 0 0;\" + WP_F + \"font-size:13px;color:#303030;mso-line-height-rule:exactly;line-height:20px;'>\" + corpoHtml + \"</p></td></tr></table></td></tr>\";\n}\n// ============================================================\n// FIM DO PADRÃO DE E-MAIL WAIPE\n// ============================================================\n\nconst c = $node[\"Consolidar Comissões\"].json;\nconst urlPlanilha = String($node[\"Criar Planilha Geral\"].json.spreadsheetUrl || \"\");\nconst ranking = Array.isArray(c.ranking_resumo) ? c.ranking_resumo : [];\nconst maior = ranking.length > 0 ? ranking[0].vendido : 0;\nconst linhas = ranking.map(function (g, i) {\n  return [\n    wpBadge(String(g.posicao), i < 3 ? \"forte\" : \"neutro\"),\n    \"<b>\" + wpEsc(g.nome) + \"</b>\" + wpBarra(maior > 0 ? g.vendido / maior * 100 : 0, i < 3),\n    wpEsc(g.vendido_fmt),\n    \"<b>\" + wpEsc(g.comissao_fmt) + \"</b>\"\n  ];\n});\nif (ranking.length > 0) linhas.push([\"\", \"<b>Total geral</b>\", \"<b>\" + wpEsc(c.total_vendido_fmt) + \"</b>\", \"<b>\" + wpEsc(c.total_comissao_fmt) + \"</b>\"]);\nconst semEmail = Array.isArray(c.sem_email) ? c.sem_email : [];\nconst aviso = semEmail.length > 0\n  ? wpAviso(\"Vendedores sem e-mail no cadastro\", wpEsc(semEmail.length + \" vendedor(es) não receberam o relatório individual: \" + semEmail.join(\", \") + \".\"), \"alerta\")\n  : \"\";\n\nconst miolo =\n  wpKpis([\n    { rotulo: \"Total vendido\", valor: c.total_vendido_fmt },\n    { rotulo: \"Vendas no mês\", valor: wpNum(c.qtd_vendas) },\n    { rotulo: \"Vendedores\", valor: wpNum(c.qtd_vendedores) }\n  ]) +\n  wpSecao(\"Ranking de vendedores\", \"Do maior para o menor volume vendido no mês.\") +\n  wpTabela([{ t: \"#\", w: \"44\" }, { t: \"Vendedor\" }, { t: \"Vendido\", a: \"right\", oculta: true }, { t: \"Comissão\", a: \"right\", w: \"110\" }], linhas) +\n  aviso +\n  (urlPlanilha ? wpBotao(urlPlanilha, \"Abrir planilha com todas as vendas\") : \"\");\n\nconst html = wpPagina({\n  titulo: CONFIG.titulo,\n  eyebrow: \"Comissão mensal\",\n  preheader: c.total_comissao_fmt + \" em comissões de \" + c.mes_referencia + \". Veja o ranking de vendedores.\",\n  empresa: CONFIG.nomeEmpresa,\n  rotuloDireita: \"Mês de referência &middot; \" + wpEsc(c.mes_referencia),\n  heroEyebrow: \"Comissões do mês\",\n  heroValor: c.total_comissao_fmt,\n  heroTam: 40,\n  heroSub: \"em comissões sobre as vendas com nota fiscal emitida em \" + wpEsc(c.mes_referencia),\n  saudacao: \"Olá!\",\n  subSaudacao: \"Segue o fechamento de comissões do mês: cada venda com nota fiscal emitida no mês recebeu a comissão da tabela de faixas por desconto.\",\n  miolo: miolo,\n  rodape: [wpEsc(CONFIG.rodape), \"Processado em \" + wpEsc(c.data_execucao), \"Londrisoft &mdash; Londrina, PR\"]\n});\nreturn [{ json: { assunto: CONFIG.assunto.replace(\"{mes}\", c.mes_referencia), corpo_html: html } }];\n"
+      }
+    },
+    {
+      "id": "68390448-6599-5d91-995a-2fd5bd00107d",
+      "type": "code",
+      "name": "Montar E-mail do Vendedor",
+      "position": {
+        "x": 3740,
+        "y": 500
+      },
+      "parameters": {
+        "mode": "all_items",
+        "jsCode": "// ============================================================\n// CONFIG - único bloco que deveria precisar de ajuste\n// ============================================================\nconst CONFIG = {\n  nomeEmpresa: \"NOME DA EMPRESA\",\n  assunto: \"Sua comissão de {mes}\",\n  rodape: \"Mensagem automática do sistema comercial NOME DA EMPRESA.\"\n};\n\n// ============================================================\n// PADRÃO DE E-MAIL WAIPE - copie este bloco para o node `code` que monta o e-mail.\n// Desenho de referência: o consolidado do gestor do Guardião da Amostra Padrão (claro, com modo escuro automático).\n// Marca \"waipe\" e empresa no topo, cartão branco com faixa escura, título com eyebrow dourado, indicadores\n// em verde-oliva, tabelas claras e rodapé Londrisoft. Todo e-mail de agente do Waipe usa este kit.\n// As funções devolvem linhas de tabela (<tr>) para dentro do cartão, exceto wpBadge/wpBarra/wpSeta, que devolvem\n// HTML para colocar dentro de uma célula. wpPagina devolve o documento HTML completo.\n// Compatível com o sandbox do Waipe Flow (sem toLocaleString, sem Intl).\n// ============================================================\nconst WP_F = \"font-family:Arial,Helvetica,sans-serif;\";\n\nfunction wpEsc(t) {\n  if (t === null || t === undefined) return \"\";\n  return String(t).replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\").replace(/'/g, \"&#39;\");\n}\nfunction wpNum(n) { return String(Math.round(Number(n) || 0)).replace(/\\B(?=(\\d{3})+(?!\\d))/g, \".\"); }\nfunction wpMoeda(v) {\n  const n = Math.round((Number(v) || 0) * 100) / 100;\n  const p = Math.abs(n).toFixed(2).split(\".\");\n  return (n < 0 ? \"-R$ \" : \"R$ \") + p[0].replace(/\\B(?=(\\d{3})+(?!\\d))/g, \".\") + \",\" + p[1];\n}\n\n// Estilos de destaque (badge, KPI e aviso): fundo, texto e borda. As cores do modo escuro ficam no <style> de wpPagina.\nconst WP_ESTILOS = {\n  neutro: { bg: \"#F9FAFB\", cor: \"#303030\", borda: \"#E5E7EB\" },\n  medio: { bg: \"#F1F2EC\", cor: \"#5A6344\", borda: \"#E3E6D8\" },\n  forte: { bg: \"#5A6344\", cor: \"#FFFFFF\", borda: \"#5A6344\" },\n  alerta: { bg: \"#FEF3F2\", cor: \"#B42318\", borda: \"#FAD7D3\" },\n  ok: { bg: \"#EEF8F1\", cor: \"#1E7A45\", borda: \"#CDEBD7\" }\n};\n\n// Documento completo: marca e empresa, cartão (eyebrow, título, saudação, destaque), miolo (linhas) e rodapé.\n// o: { preheader, empresa, rotuloDireita, eyebrow, titulo, heroEyebrow, heroValor, heroTam, heroSub, heroBarra,\n//      heroNota, saudacao, subSaudacao, miolo, rodape: [linhas] }\n// eyebrow/titulo são opcionais: sem eles, heroEyebrow vira o eyebrow do cartão.\nfunction wpPagina(o) {\n  const eyebrow = o.eyebrow || o.heroEyebrow || \"\";\n  let h = \"\";\n  h += \"<!DOCTYPE html><html lang='pt-BR'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'>\";\n  h += \"<meta name='color-scheme' content='light dark'><meta name='supported-color-schemes' content='light dark'>\";\n  h += \"<title>\" + wpEsc(o.titulo || eyebrow || o.empresa || \"Waipe\") + \"</title>\";\n  h += \"<style>body{margin:0;padding:0;-webkit-text-size-adjust:100%;}a{color:#303030;}\";\n  h += \"@media only screen and (max-width:620px){.wp-wrap{width:100%!important;max-width:100%!important;}.wp-pad{padding-left:16px!important;padding-right:16px!important;}.wp-kpi{display:block!important;width:100%!important;padding:0 0 8px 0!important;}.wp-hide{display:none!important;}.wp-h1{font-size:24px!important;line-height:30px!important;}.wp-hero{font-size:40px!important;line-height:44px!important;}}\";\n  h += \"@media (prefers-color-scheme: dark){.wp-bg{background:#16181D!important;}.wp-card{background:#1F2229!important;border-color:#323743!important;}.wp-soft{background:#272B33!important;}.wp-t{color:#F3F4F6!important;}.wp-m{color:#A8AEBB!important;}.wp-bd{border-color:#323743!important;}.wp-eb{color:#D4B25A!important;}\";\n  h += \"td[bgcolor='#303030']{background:#E5E7EB!important;}td[bgcolor='#303030'] a{color:#1F2229!important;}\";\n  h += \"td[bgcolor='#F9FAFB']{background:#272B33!important;}td[bgcolor='#F1F2EC']{background:#2A2E24!important;}td[bgcolor='#E3E6D8']{background:#3A4030!important;}\";\n  h += \"td[bgcolor='#FEF3F2']{background:#3A2422!important;}td[bgcolor='#EEF8F1']{background:#1F3A2C!important;}td[bgcolor='#F3F4F6']{background:#272B33!important;}\";\n  h += \".wp-c-medio{color:#C9CFB4!important;}.wp-c-neutro{color:#F3F4F6!important;}.wp-c-alerta{color:#FCA5A5!important;}.wp-c-ok{color:#86EFAC!important;}}\";\n  h += \"</style></head>\";\n  h += \"<body class='wp-bg' style='margin:0;padding:0;background:#F3F4F6;'>\";\n  h += \"<span style='display:none;font-size:1px;color:#F3F4F6;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;'>\" + wpEsc(o.preheader || \"\") + \"</span>\";\n  h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' bgcolor='#F3F4F6' class='wp-bg' style='background:#F3F4F6;'><tr><td align='center' style='padding:32px 12px;'>\";\n  h += \"<!--[if mso]><table role='presentation' width='600' cellpadding='0' cellspacing='0' border='0'><tr><td><![endif]-->\";\n  h += \"<table role='presentation' width='600' cellpadding='0' cellspacing='0' border='0' class='wp-wrap' style='width:600px;max-width:600px;'>\";\n  // Marca\n  h += \"<tr><td class='wp-pad' style='padding:0 8px 16px 8px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr>\";\n  h += \"<td class='wp-t' style='\" + WP_F + \"font-size:22px;font-weight:bold;color:#303030;letter-spacing:-0.5px;mso-line-height-rule:exactly;line-height:28px;'>waipe</td>\";\n  h += \"<td align='right' class='wp-m' style='\" + WP_F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(o.empresa || \"\") + (o.rotuloDireita ? \"<br>\" + o.rotuloDireita : \"\") + \"</td>\";\n  h += \"</tr></table></td></tr>\";\n  // Cartão\n  h += \"<tr><td bgcolor='#FEFEFE' class='wp-card' style='background:#FEFEFE;border:1px solid #E5E7EB;border-radius:12px;overflow:hidden;'>\";\n  h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'>\";\n  h += \"<tr><td height='4' bgcolor='#303030' style='height:4px;font-size:0;line-height:0;background:#303030;border-radius:12px 12px 0 0;'>&nbsp;</td></tr>\";\n  if (eyebrow || o.titulo || o.saudacao) {\n    h += \"<tr><td class='wp-pad' style='padding:32px 32px 8px 32px;'>\";\n    if (eyebrow) h += \"<p class='wp-eb' style='margin:0 0 8px 0;\" + WP_F + \"font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#8E6A1F;mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(eyebrow) + \"</p>\";\n    if (o.titulo) h += \"<h1 class='wp-h1 wp-t' style='margin:0 0 12px 0;\" + WP_F + \"font-size:28px;font-weight:bold;color:#303030;letter-spacing:-0.5px;mso-line-height-rule:exactly;line-height:34px;'>\" + wpEsc(o.titulo) + \"</h1>\";\n    if (o.saudacao) h += \"<p class='wp-t' style='margin:0;\" + WP_F + \"font-size:15px;color:#303030;mso-line-height-rule:exactly;line-height:23px;'>\" + o.saudacao + \"</p>\";\n    if (o.subSaudacao) h += \"<p class='wp-m' style='margin:6px 0 0 0;\" + WP_F + \"font-size:15px;color:#5B6170;mso-line-height-rule:exactly;line-height:23px;'>\" + o.subSaudacao + \"</p>\";\n    h += \"</td></tr>\";\n  }\n  if (o.heroValor !== undefined && o.heroValor !== null) {\n    const tam = Math.min(o.heroTam || 44, 48);\n    h += \"<tr><td class='wp-pad' style='padding:20px 32px 8px 32px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td bgcolor='#F1F2EC' style='background:#F1F2EC;border-radius:8px;padding:20px;'>\";\n    if (o.heroEyebrow && o.eyebrow && o.eyebrow !== o.heroEyebrow) h += \"<p class='wp-c-medio' style='margin:0 0 6px 0;\" + WP_F + \"font-size:11px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#5A6344;mso-line-height-rule:exactly;line-height:15px;'>\" + wpEsc(o.heroEyebrow) + \"</p>\";\n    h += \"<p class='wp-hero wp-c-medio' style='margin:0;\" + WP_F + \"font-size:\" + tam + \"px;font-weight:bold;color:#5A6344;letter-spacing:-1px;mso-line-height-rule:exactly;line-height:\" + (tam + 4) + \"px;'>\" + wpEsc(o.heroValor) + \"</p>\";\n    if (o.heroSub) h += \"<p class='wp-c-medio' style='margin:6px 0 0 0;\" + WP_F + \"font-size:14px;color:#5A6344;mso-line-height-rule:exactly;line-height:20px;'>\" + o.heroSub + \"</p>\";\n    if (o.heroBarra !== undefined && o.heroBarra !== null) {\n      const w = Math.max(0, Math.min(100, Math.round(o.heroBarra)));\n      h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='margin-top:14px;'><tr><td bgcolor='#E3E6D8' style='background:#E3E6D8;border-radius:5px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr>\" +\n        \"<td width='\" + w + \"%' height='10' bgcolor='#5A6344' style='height:10px;background:#5A6344;border-radius:5px;font-size:0;line-height:0;'>&nbsp;</td>\" +\n        (w < 100 ? \"<td height='10' style='height:10px;font-size:0;line-height:0;'>&nbsp;</td>\" : \"\") + \"</tr></table></td></tr></table>\";\n    }\n    if (o.heroNota) h += \"<p class='wp-c-medio' style='margin:10px 0 0 0;\" + WP_F + \"font-size:12px;color:#5A6344;mso-line-height-rule:exactly;line-height:18px;'>\" + o.heroNota + \"</p>\";\n    h += \"</td></tr></table></td></tr>\";\n  }\n  h += o.miolo || \"\";\n  h += \"<tr><td style='height:24px;font-size:0;line-height:0;'>&nbsp;</td></tr>\";\n  h += \"</table></td></tr>\";\n  // Rodapé\n  const linhasRodape = o.rodape || [];\n  h += \"<tr><td class='wp-pad' align='center' style='padding:24px 24px 0 24px;'>\";\n  for (let i = 0; i < linhasRodape.length; i++) {\n    h += \"<p class='wp-m' style='margin:\" + (i > 0 ? \"6px\" : \"0\") + \" 0 0 0;\" + WP_F + \"font-size:12px;color:\" + (i === linhasRodape.length - 1 ? \"#8A90A0\" : \"#6B7280\") + \";mso-line-height-rule:exactly;line-height:18px;'>\" + linhasRodape[i] + \"</p>\";\n  }\n  h += \"</td></tr></table>\";\n  h += \"<!--[if mso]></td></tr></table><![endif]-->\";\n  h += \"</td></tr></table></body></html>\";\n  return h;\n}\n\n// Parágrafo livre (HTML já escapado pelo chamador)\nfunction wpTexto(html) {\n  return \"<tr><td class='wp-pad' style='padding:8px 32px;'><p class='wp-m' style='margin:0;\" + WP_F + \"font-size:15px;color:#5B6170;mso-line-height-rule:exactly;line-height:23px;'>\" + html + \"</p></td></tr>\";\n}\n\n// Título de seção com subtítulo\nfunction wpSecao(titulo, sub) {\n  return \"<tr><td class='wp-pad' style='padding:24px 32px 12px 32px;'>\" +\n    \"<p class='wp-t' style='margin:0;\" + WP_F + \"font-size:16px;font-weight:bold;color:#303030;mso-line-height-rule:exactly;line-height:22px;'>\" + wpEsc(titulo) + \"</p>\" +\n    (sub ? \"<p class='wp-m' style='margin:4px 0 0 0;\" + WP_F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:18px;'>\" + sub + \"</p>\" : \"\") + \"</td></tr>\";\n}\n\n// Cartões de indicador lado a lado. lista: [{rotulo, valor, estilo, sub}], titulo (opcional) vira um rótulo pequeno acima.\n// Sem estilo, o primeiro é \"medio\" (verde-oliva) e os outros \"neutro\", como no Guardião.\nfunction wpKpis(lista, titulo) {\n  const n = lista.length;\n  const larg = (100 / n).toFixed(2);\n  let h = \"<tr><td class='wp-pad' style='padding:20px 32px 8px 32px;'>\";\n  if (titulo) h += \"<p class='wp-m' style='margin:0 0 8px 0;\" + WP_F + \"font-size:11px;font-weight:bold;letter-spacing:0.8px;text-transform:uppercase;color:#6B7280;mso-line-height-rule:exactly;line-height:15px;'>\" + wpEsc(titulo) + \"</p>\";\n  h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr>\";\n  // Valor longo (ex.: R$ 99.716,16) com 3 ou mais cartões lado a lado: fonte menor para caber numa linha.\n  const maiorValor = lista.reduce(function (m, k) { return Math.max(m, String(k.valor === undefined ? \"\" : k.valor).length); }, 0);\n  const tam = n >= 3 && maiorValor > 9 ? 20 : n >= 2 && maiorValor > 14 ? 20 : 26;\n  for (let i = 0; i < n; i++) {\n    const k = lista[i];\n    const nome = WP_ESTILOS[k.estilo] ? k.estilo : (i === 0 ? \"medio\" : \"neutro\");\n    const e = nome === \"forte\" ? WP_ESTILOS.medio : WP_ESTILOS[nome];\n    const cls = nome === \"forte\" ? \"medio\" : nome;\n    const pad = n === 1 ? \"\" : (i === 0 ? \"padding-right:6px;\" : (i === n - 1 ? \"padding-left:6px;\" : \"padding:0 3px;\"));\n    h += \"<td class='wp-kpi' width='\" + larg + \"%' valign='top' style='width:\" + larg + \"%;\" + pad + \"'>\" +\n      \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td bgcolor='\" + e.bg + \"' style='background:\" + e.bg + \";border-radius:8px;padding:16px;'>\" +\n      \"<p class='wp-c-\" + cls + \"' style='margin:0;\" + WP_F + \"font-size:\" + tam + \"px;font-weight:bold;color:\" + e.cor + \";mso-line-height-rule:exactly;line-height:\" + (tam + 6) + \"px;white-space:nowrap;'>\" + wpEsc(k.valor) + \"</p>\" +\n      \"<p class='wp-c-\" + cls + \"' style='margin:4px 0 0 0;\" + WP_F + \"font-size:13px;color:\" + (nome === \"neutro\" ? \"#5B6170\" : e.cor) + \";mso-line-height-rule:exactly;line-height:18px;'>\" + wpEsc(k.rotulo) + \"</p>\" +\n      (k.sub ? \"<p class='wp-m' style='margin:2px 0 0 0;\" + WP_F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(k.sub) + \"</p>\" : \"\") +\n      \"</td></tr></table></td>\";\n  }\n  return h + \"</tr></table></td></tr>\";\n}\n\n// Tabela. colunas: [{t, a: \"left\"|\"right\"|\"center\", w, oculta}], linhas: [[html da célula, ...], ...]\n// oculta = some em tela pequena. nota (opcional): texto abaixo da tabela.\nfunction wpTabela(colunas, linhas, nota) {\n  let h = \"<tr><td class='wp-pad' style='padding:4px 32px 8px 32px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' class='wp-bd' style='border:1px solid #E5E7EB;border-radius:8px;border-collapse:separate;'><tr>\";\n  for (let c = 0; c < colunas.length; c++) {\n    const col = colunas[c];\n    const canto = c === 0 ? \"border-radius:8px 0 0 0;\" : (c === colunas.length - 1 ? \"border-radius:0 8px 0 0;\" : \"\");\n    h += \"<td bgcolor='#F9FAFB' align='\" + (col.a || \"left\") + \"'\" + (col.w ? \" width='\" + col.w + \"'\" : \"\") + \" class='wp-soft wp-m\" + (col.oculta ? \" wp-hide\" : \"\") + \"'\" +\n      \" style='background:#F9FAFB;padding:10px 12px;\" + WP_F + \"font-size:11px;font-weight:bold;letter-spacing:0.8px;text-transform:uppercase;color:#6B7280;mso-line-height-rule:exactly;line-height:15px;\" + canto + \"'>\" + wpEsc(col.t) + \"</td>\";\n  }\n  h += \"</tr>\";\n  if (linhas.length === 0) {\n    h += \"<tr><td colspan='\" + colunas.length + \"' class='wp-bd wp-m' style='border-top:1px solid #F3F4F6;padding:14px 12px;\" + WP_F + \"font-size:13px;color:#6B7280;'>Nada para mostrar.</td></tr>\";\n  }\n  for (let i = 0; i < linhas.length; i++) {\n    h += \"<tr>\";\n    for (let c = 0; c < colunas.length; c++) {\n      const col = colunas[c];\n      h += \"<td\" + (col.a ? \" align='\" + col.a + \"'\" : \"\") + \" valign='middle' class='wp-bd wp-t\" + (col.oculta ? \" wp-hide\" : \"\") + \"'\" +\n        \" style='border-top:1px solid #F3F4F6;padding:10px 12px;\" + WP_F + \"font-size:13px;color:#303030;mso-line-height-rule:exactly;line-height:18px;'>\" + (linhas[i][c] === undefined ? \"\" : linhas[i][c]) + \"</td>\";\n    }\n    h += \"</tr>\";\n  }\n  h += \"</table>\" + (nota ? \"<p class='wp-m' style='margin:8px 2px 0 2px;\" + WP_F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:17px;'>\" + nota + \"</p>\" : \"\") + \"</td></tr>\";\n  return h;\n}\n\n// Pílula de destaque (para dentro de uma célula). a: \"left\" | \"right\". Texto curto (até 3 caracteres) vira círculo,\n// como a posição do ranking do Guardião.\nfunction wpBadge(texto, estilo, a) {\n  const nome = WP_ESTILOS[estilo] ? estilo : \"neutro\";\n  const e = nome === \"neutro\" ? { bg: \"#F3F4F6\", cor: \"#5B6170\" } : WP_ESTILOS[nome];\n  const t = String(texto === null || texto === undefined ? \"\" : texto);\n  const alinhar = a === \"right\" ? \" align='right'\" : \"\";\n  if (t.length <= 3) {\n    return \"<table role='presentation' cellpadding='0' cellspacing='0' border='0'\" + alinhar + \"><tr><td width='24' height='24' align='center' valign='middle' bgcolor='\" + e.bg + \"' style='width:24px;height:24px;background:\" + e.bg + \";border-radius:12px;\" + WP_F + \"font-size:12px;font-weight:bold;color:\" + e.cor + \";mso-line-height-rule:exactly;line-height:24px;'>\" + wpEsc(t) + \"</td></tr></table>\";\n  }\n  return \"<table role='presentation' cellpadding='0' cellspacing='0' border='0'\" + alinhar + \"><tr><td bgcolor='\" + e.bg + \"' style='background:\" + e.bg + \";border-radius:20px;padding:3px 10px;\" + WP_F + \"font-size:11px;font-weight:bold;color:\" + e.cor + \";white-space:nowrap;mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(t) + \"</td></tr></table>\";\n}\n\n// Barra proporcional (para dentro de uma célula). pct 0-100; forte = verde-oliva cheio, senão oliva claro\nfunction wpBarra(pct, forte) {\n  const w = Math.max(4, Math.min(100, Math.round(pct)));\n  const cor = forte ? \"#5A6344\" : \"#BFC4AC\";\n  return \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='margin-top:6px;'><tr>\" +\n    \"<td width='\" + w + \"%' height='6' bgcolor='\" + cor + \"' style='height:6px;background:\" + cor + \";border-radius:3px;font-size:0;line-height:0;'>&nbsp;</td>\" +\n    (w < 100 ? \"<td width='\" + (100 - w) + \"%' height='6' style='height:6px;font-size:0;line-height:0;'>&nbsp;</td>\" : \"\") + \"</tr></table>\";\n}\n\n// Botão quadrado com seta (para dentro de uma célula): abre a planilha ou lista da linha\nfunction wpSeta(url, titulo) {\n  return \"<table role='presentation' cellpadding='0' cellspacing='0' border='0' align='right'><tr><td width='32' height='32' align='center' valign='middle' bgcolor='#303030' style='width:32px;height:32px;background:#303030;border-radius:8px;'>\" +\n    \"<a href='\" + wpEsc(url) + \"' target='_blank' title='\" + wpEsc(titulo) + \"' aria-label='\" + wpEsc(titulo) + \"' style='display:block;width:32px;\" + WP_F + \"font-size:18px;font-weight:bold;color:#FFFFFF;text-decoration:none;mso-line-height-rule:exactly;line-height:32px;border-radius:8px;'>&rarr;</a></td></tr></table>\";\n}\n\n// Botão de chamada (linha própria)\nfunction wpBotao(url, rotulo) {\n  return \"<tr><td class='wp-pad' align='left' style='padding:16px 32px 8px 32px;'><table role='presentation' cellpadding='0' cellspacing='0' border='0'><tr><td align='center' bgcolor='#303030' style='background:#303030;border-radius:8px;'>\" +\n    \"<a href='\" + wpEsc(url) + \"' target='_blank' style='display:block;padding:12px 24px;\" + WP_F + \"font-size:14px;font-weight:bold;color:#FFFFFF;text-decoration:none;mso-line-height-rule:exactly;line-height:20px;border-radius:8px;'>\" + wpEsc(rotulo) + \"</a></td></tr></table></td></tr>\";\n}\n\n// Caixa de aviso (linha própria): titulo + corpo em HTML\nfunction wpAviso(titulo, corpoHtml, estilo) {\n  const nome = WP_ESTILOS[estilo] ? estilo : \"medio\";\n  const e = nome === \"forte\" ? WP_ESTILOS.medio : WP_ESTILOS[nome];\n  const cls = nome === \"forte\" ? \"medio\" : nome;\n  return \"<tr><td class='wp-pad' style='padding:16px 32px 8px 32px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td bgcolor='\" + e.bg + \"' style='background:\" + e.bg + \";border:1px solid \" + e.borda + \";border-radius:8px;padding:16px 18px;'>\" +\n    \"<p class='wp-c-\" + cls + \"' style='margin:0;\" + WP_F + \"font-size:11px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:\" + e.cor + \";mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(titulo) + \"</p>\" +\n    \"<p class='wp-t' style='margin:8px 0 0 0;\" + WP_F + \"font-size:13px;color:#303030;mso-line-height-rule:exactly;line-height:20px;'>\" + corpoHtml + \"</p></td></tr></table></td></tr>\";\n}\n// ============================================================\n// FIM DO PADRÃO DE E-MAIL WAIPE\n// ============================================================\n\nconst c = $node[\"Consolidar Comissões\"].json;\nconst v = $node[\"Um Vendedor por Vez\"].json;\nconst urlPlanilha = String($node[\"Criar Planilha do Vendedor\"].json.spreadsheetUrl || \"\");\nconst primeiro = String(v.nome || \"\").trim().split(/\\s+/)[0] || \"\";\n\nconst miolo =\n  wpKpis([\n    { rotulo: \"Total vendido\", valor: v.total_vendido_fmt },\n    { rotulo: \"Vendas faturadas\", valor: wpNum(v.qtd_vendas) }\n  ]) +\n  wpTexto(\"A planilha traz cada venda do mês com a nota fiscal, o desconto, a faixa aplicada e o valor da comissão.\") +\n  (urlPlanilha ? wpBotao(urlPlanilha, \"Abrir minha planilha de comissão\") : \"\");\n\nconst html = wpPagina({\n  titulo: \"Sua comissão de \" + c.mes_referencia,\n  eyebrow: \"Comissão mensal\",\n  preheader: \"Sua comissão de \" + c.mes_referencia + \": \" + v.total_comissao_fmt + \" sobre \" + v.qtd_vendas + \" venda(s).\",\n  empresa: CONFIG.nomeEmpresa,\n  rotuloDireita: \"Mês de referência &middot; \" + wpEsc(c.mes_referencia),\n  heroEyebrow: \"Sua comissão\",\n  heroValor: v.total_comissao_fmt,\n  heroTam: 40,\n  heroSub: \"sobre \" + wpNum(v.qtd_vendas) + \" venda(s) com nota fiscal emitida em \" + wpEsc(c.mes_referencia),\n  saudacao: \"Olá, <strong>\" + wpEsc(primeiro) + \"</strong>!\",\n  subSaudacao: \"Este é o fechamento da sua comissão do mês.\",\n  miolo: miolo,\n  rodape: [wpEsc(CONFIG.rodape), \"Processado em \" + wpEsc(c.data_execucao), \"Londrisoft &mdash; Londrina, PR\"]\n});\nreturn [{ json: { email: v.email, assunto: CONFIG.assunto.replace(\"{mes}\", c.mes_referencia), corpo_html: html } }];\n"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e3",
+      "source": "6d61f90d-3483-4949-8098-0203f785e40c",
+      "target": "c_filtrar_mes"
+    },
+    {
+      "id": "e4",
+      "source": "c_filtrar_mes",
+      "target": "waipe_code_1"
+    },
+    {
+      "id": "e5",
+      "source": "waipe_code_1",
+      "target": "m_agregar_vendas"
+    },
+    {
+      "id": "e6",
+      "source": "m_agregar_vendas",
+      "target": "d_vendedores"
+    },
+    {
+      "id": "e7",
+      "source": "d_vendedores",
+      "target": "c_consolidar"
+    },
+    {
+      "id": "e8",
+      "source": "c_consolidar",
+      "target": "s_criar_geral"
+    },
+    {
+      "id": "e9",
+      "source": "s_criar_geral",
+      "target": "c_linhas_gerais"
+    },
+    {
+      "id": "e10",
+      "source": "c_linhas_gerais",
+      "target": "s_gravar_geral"
+    },
+    {
+      "id": "e11",
+      "source": "s_gravar_geral",
+      "target": "m_resumo_geral"
+    },
+    {
+      "id": "e12",
+      "source": "m_resumo_geral",
+      "target": "bc5135a8-b151-5d56-859c-dffcf1cb4d41"
+    },
+    {
+      "id": "e14",
+      "source": "l_vendedores",
+      "target": "s_criar_vendedor",
+      "sourceHandle": "loop"
+    },
+    {
+      "id": "e15",
+      "source": "s_criar_vendedor",
+      "target": "c_linhas_vendedor"
+    },
+    {
+      "id": "e16",
+      "source": "c_linhas_vendedor",
+      "target": "s_gravar_vendedor"
+    },
+    {
+      "id": "e17",
+      "source": "s_gravar_vendedor",
+      "target": "m_resumo_vendedor"
+    },
+    {
+      "id": "e18",
+      "source": "m_resumo_vendedor",
+      "target": "68390448-6599-5d91-995a-2fd5bd00107d"
+    },
+    {
+      "id": "e-gatilho-filtro",
+      "source": "83fdd4ee-b964-4749-987a-bbf656efa2cc",
+      "target": "f_ultimo_dia"
+    },
+    {
+      "id": "e-filtro-vendas",
+      "source": "f_ultimo_dia",
+      "target": "6d61f90d-3483-4949-8098-0203f785e40c"
+    },
+    {
+      "id": "e-consolidar-loop",
+      "source": "c_consolidar",
+      "target": "l_vendedores"
+    },
+    {
+      "id": "e-bc5135a8",
+      "source": "bc5135a8-b151-5d56-859c-dffcf1cb4d41",
+      "target": "g_gerencia"
+    },
+    {
+      "id": "e-68390448",
+      "source": "68390448-6599-5d91-995a-2fd5bd00107d",
+      "target": "g_vendedor"
+    }
+  ],
+  "scheduleConfig": {
+    "hour": 23,
+    "type": "daily",
+    "minute": 30,
+    "interval": 1,
+    "timezone": "America/Sao_Paulo",
+    "weekdays": "1,2,3,4,5,6,0",
+    "monthDays": "1",
+    "cronExpression": "30 23 * * *"
+  }
+}

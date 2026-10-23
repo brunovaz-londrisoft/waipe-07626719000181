@@ -3,6 +3,18 @@
 Cada versão do `waipe-agentes-template`. Versão maior = o repositório do cliente precisa de alguma ação, descrita na seção.
 A atualização nunca toca em `agentes/`, `CLAUDE.md`, `README.md` nem em `.claude/settings.local.json`.
 
+## v3.1.0 (2026-10-23)
+- **Rotina de atualização dos modelos** (`catalogo/ATUALIZAR-MODELOS.md`, seguida pela skill `waipe-revisar-modelos`):
+  compara os agentes de todos os repositórios da conta (próprios, de organização e compartilhados) com o catálogo pelo
+  nome e pelo fluxo e traz os que faltam, descaracterizados e com os e-mails no padrão Waipe. Mesmo nome com fluxo
+  diferente vira modelo "(2)", "(3)"...
+- `waipe.py comparar-catalogo [--json]`: similaridade de fluxo (tipos de node e ligações) de cada agente publicado com
+  cada modelo; `waipe.py clientes` passa a achar todos os repositórios `waipe-*` com o framework, inclusive compartilhados.
+- `waipe.py atualizar-kit` (troca o kit em todos os nodes do catálogo) e `waipe.py gerar-modelos` (regera as peças):
+  cada modelo do catálogo tem o seu `gerar_modelos.py` com os dados fictícios.
+- Catálogo: modelos novos `comissao-mensal-gerencia-vendedores` e `guardiao-da-carteira`.
+- Kit de e-mail: indicador com valor longo usa fonte menor para caber numa linha.
+
 ## v3.0.0 (2026-10-22)
 - **Ação no cliente (versão maior):** os modelos de comunicação saem de `agentes/modelos/` (galeria com `index.html`) e vão
   para dentro de cada agente, em `agentes/<slug>/modelos/`, só com as peças enviadas (e-mail como é enviado, conversa de

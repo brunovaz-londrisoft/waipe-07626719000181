@@ -79,7 +79,9 @@ peças pelo que **este** agente envia.
 6. **Confira:** abra cada peça no navegador sem janela (`--screenshot=<png>`), no claro e no escuro
    (`--blink-settings=preferredColorScheme=1` força o claro) e na largura de celular. Rode `waipe.py validar`.
 
-`exemplo_gerar.py` (nesta pasta) tem um gerador mínimo: copie para a pasta temporária, adapte e rode de lá.
+`exemplo_gerar.py` (nesta pasta) tem um gerador mínimo: copie para a pasta temporária, adapte e rode de lá. No catálogo,
+cada modelo guarda o seu gerador em `catalogo/<slug>/gerar_modelos.py` (com os dados fictícios embutidos), e
+`waipe.py gerar-modelos` regera todos, por exemplo depois de `waipe.py atualizar-kit`.
 
 ## Dados fictícios (obrigatório)
 

@@ -1,0 +1,482 @@
+{
+  "waipe_flow_version": "2",
+  "exportedAt": "2026-10-16T19:37:11.228Z",
+  "graphReflects": "current_canvas_including_unsaved",
+  "source": {
+    "flowId": "46603e28-5d2d-4286-9e53-4537ecab20ed",
+    "flowName": "Guardiao da Carteira - Monitoramento Comercial"
+  },
+  "name": "Guardião da Carteira - Monitoramento Comercial",
+  "description": "Cruza clientes do Gestor/Datalab (data da última venda) com as interações do Ploomes dos últimos 18 meses (data do último contato), consolida 1 linha por cliente, classifica o status por cor (D-15/D-30/D-60/D-90 calculados a cada execução), grava no Google Sheets e envia o resumo por Gmail.",
+  "status": "active",
+  "triggerType": "schedule",
+  "scheduleConfig": {
+    "hour": 17,
+    "type": "weekly",
+    "minute": 0,
+    "interval": 1,
+    "timezone": "America/Sao_Paulo",
+    "weekdays": "5",
+    "monthDays": "1",
+    "cronExpression": "0 9 * * *"
+  },
+  "nodes": [
+    {
+      "id": "af8337df-3a9b-4519-8c3a-4d09172cce81",
+      "type": "waipe_data",
+      "name": "Entrada Datalab (Clientes e Vendas)",
+      "position": {
+        "x": 390,
+        "y": 120
+      },
+      "parameters": {
+        "dataSource": "data_lab",
+        "companyIds": [],
+        "message": "",
+        "messageMode": "fixed",
+        "expertModelId": "",
+        "dataLabReportId": "SUBSTITUA_PELO_ID_DO_RELATORIO_DE_CLIENTES_E_VENDAS"
+      }
+    },
+    {
+      "id": "bd7af8c2-9710-4f7c-9a0c-dc7614632ced",
+      "type": "http_request",
+      "name": "Buscar Interações Ploomes (18 meses)",
+      "position": {
+        "x": 390,
+        "y": 360
+      },
+      "parameters": {
+        "method": "GET",
+        "url": "https://public-api2.ploomes.com/InteractionRecords",
+        "authType": "custom_header_inline",
+        "basicUserMode": "expression",
+        "sendQueryParams": true,
+        "queryParams": [
+          {
+            "key": "$filter",
+            "value": "Date ge {{ (() => { const d = new Date(Date.now() - 3 * 3600000); d.setUTCMonth(d.getUTCMonth() - 18); return d.toISOString().slice(0, 10); })() }}T00:00:00-03:00 and Date le {{ new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10) }}T23:59:59-03:00"
+          },
+          {
+            "key": "$select",
+            "value": "Id,ContactId,Date"
+          },
+          {
+            "key": "$orderby",
+            "value": "Id"
+          }
+        ],
+        "sendHeaders": false,
+        "headers": [],
+        "contentType": "application/json",
+        "body": "",
+        "bodyMode": "expression",
+        "jsonBodyMode": "editor",
+        "jsonBodyFields": [],
+        "formUrlEncodedFields": [],
+        "multipartFields": [],
+        "binaryRef": "",
+        "binaryRefMode": "expression",
+        "responseFormat": "auto",
+        "binaryPropertyName": "data",
+        "timeoutSeconds": 60,
+        "continueOnError": false,
+        "followRedirects": true,
+        "maxRedirects": 10,
+        "ignoreSSL": false,
+        "proxyUrl": "",
+        "pagination": true,
+        "paginationType": "offset",
+        "paginationField": "",
+        "paginationItemsPath": "value",
+        "paginationOffsetParam": "$skip",
+        "paginationLimitParam": "$top",
+        "paginationPageSize": 300,
+        "paginationPageParam": "page",
+        "paginationCursorParam": "cursor",
+        "maxPages": 500,
+        "urlMode": "fixed",
+        "customHeaderName": "User-Key",
+        "customHeaderValue": "SUBSTITUA_PELA_CHAVE_DE_API_DO_PLOOMES"
+      }
+    },
+    {
+      "id": "f5c1dc76-0ab9-4b34-8b24-ed19dc5adc38",
+      "type": "code",
+      "name": "Extrair ContactIds Únicos",
+      "position": {
+        "x": 700,
+        "y": 360
+      },
+      "parameters": {
+        "mode": "all_items",
+        "jsCode": "// ===================== CONFIG =====================\nconst CONFIG = {\n  TAMANHO_LOTE: 10,         // quantos ContactIds por consulta na API /Contacts\n  MAX_PAGINAS_HTTP: 500      // mesmo valor de maxPages do node \"Buscar Interações Ploomes (18 meses)\"\n};\n// ==================================================\n\n// Junta todas as páginas retornadas pela paginação do node HTTP\nconst contactIds = new Set();\nlet totalInteracoes = 0;\nlet semContactId = 0;\n\nitems.forEach(item => {\n  const j = item.json || {};\n  const pag = j.pagination;\n  const paginas = pag && Array.isArray(pag.allParsedBodies) ? pag.allParsedBodies : [j.parsedBody];\n\n  if (pag && (pag.truncated || pag.pageCount >= CONFIG.MAX_PAGINAS_HTTP)) {\n    console.warn('ATENÇÃO: paginação de InteractionRecords pode estar incompleta (pageCount=' + pag.pageCount + ', truncated=' + !!pag.truncated + '). Aumente maxPages.');\n  }\n\n  paginas.forEach(pb => {\n    const registros = pb && Array.isArray(pb.value) ? pb.value : (Array.isArray(pb) ? pb : []);\n    registros.forEach(r => {\n      totalInteracoes++;\n      const id = r && r.ContactId != null ? String(r.ContactId).trim() : '';\n      if (/^\\d+$/.test(id) && id !== '0') contactIds.add(id);\n      else semContactId++;\n    });\n  });\n});\n\n// Deduplicação: várias interações do mesmo ContactId viram um único ContactId\nconst ids = Array.from(contactIds);\nconsole.log('Interações lidas: ' + totalInteracoes + ' | sem ContactId: ' + semContactId + ' | ContactIds únicos: ' + ids.length);\n\n// Lotes de ContactIds para consultar a API /Contacts com $filter=Id eq X or Id eq Y ...\nconst lotes = [];\nfor (let i = 0; i < ids.length; i += CONFIG.TAMANHO_LOTE) {\n  const lote = ids.slice(i, i + CONFIG.TAMANHO_LOTE);\n  lotes.push({\n    json: {\n      lote: lotes.length + 1,\n      quantidade: lote.length,\n      ids: lote,\n      filtro: lote.map(id => 'Id eq ' + id).join(' or '),\n      total_interacoes: totalInteracoes,\n      total_contatos_unicos: ids.length\n    }\n  });\n}\n\n// Sem interações: consulta neutra (Id eq 0 não retorna nada) só para manter o ramo vivo até a comparação\nif (lotes.length === 0) {\n  lotes.push({ json: { lote: 1, quantidade: 0, ids: [], filtro: 'Id eq 0', total_interacoes: totalInteracoes, total_contatos_unicos: 0 } });\n}\n\nreturn lotes;"
+      }
+    },
+    {
+      "id": "74ea59bb-0897-450b-b428-daffe314504b",
+      "type": "http_request",
+      "name": "Buscar Dados dos Contatos Ploomes",
+      "position": {
+        "x": 1010,
+        "y": 360
+      },
+      "parameters": {
+        "method": "GET",
+        "url": "https://public-api2.ploomes.com/Contacts",
+        "authType": "custom_header_inline",
+        "basicUserMode": "expression",
+        "sendQueryParams": true,
+        "queryParams": [
+          {
+            "key": "$filter",
+            "value": "{{ $json.filtro }}"
+          },
+          {
+            "key": "$expand",
+            "value": "Phones,Company"
+          },
+          {
+            "key": "$top",
+            "value": "300"
+          }
+        ],
+        "sendHeaders": false,
+        "headers": [],
+        "contentType": "application/json",
+        "body": "",
+        "bodyMode": "expression",
+        "jsonBodyMode": "editor",
+        "jsonBodyFields": [],
+        "formUrlEncodedFields": [],
+        "multipartFields": [],
+        "binaryRef": "",
+        "binaryRefMode": "expression",
+        "responseFormat": "auto",
+        "binaryPropertyName": "data",
+        "timeoutSeconds": 45,
+        "continueOnError": false,
+        "followRedirects": true,
+        "maxRedirects": 10,
+        "ignoreSSL": false,
+        "proxyUrl": "",
+        "pagination": false,
+        "paginationType": "link",
+        "paginationField": "",
+        "paginationItemsPath": "",
+        "paginationOffsetParam": "offset",
+        "paginationLimitParam": "limit",
+        "paginationPageSize": 100,
+        "paginationPageParam": "page",
+        "paginationCursorParam": "cursor",
+        "maxPages": 10,
+        "urlMode": "fixed",
+        "customHeaderName": "User-Key",
+        "customHeaderValue": "SUBSTITUA_PELA_CHAVE_DE_API_DO_PLOOMES"
+      }
+    },
+    {
+      "id": "dbf0a74c-c135-4bde-8ad8-5e507c3b9a09",
+      "type": "code",
+      "name": "Consolidar Clientes e Calcular Status",
+      "position": {
+        "x": 1320,
+        "y": 240
+      },
+      "parameters": {
+        "mode": "all_items",
+        "jsCode": "// ===================== CONFIG =====================\n// Ajuste aqui os nomes de campo caso o relatório do Datalab ou a API do Ploomes usem outros.\nconst CONFIG = {\n  FUSO_HORAS: -3,               // America/Sao_Paulo (sem horário de verão)\n  INCLUIR_SO_PLOOMES: false,    // true = também lista contatos do Ploomes sem cadastro no Gestor\n  NODE_INTERACOES: 'Buscar Interações Ploomes (18 meses)',\n  SO_DOCUMENTO: true,           // true = cliente do Gestor COM CPF/CNPJ só vincula ao Ploomes por documento (sem e-mail/telefone)\n  MAX_POR_CHAVE: 2,             // e-mail/telefone compartilhado por mais contatos (Ploomes) ou clientes (Gestor) que isso é genérico e não vincula\n  // Campos do relatório do Datalab\n  DL_CODIGO: ['codigo', 'codigo_cliente', 'cod_cliente'],\n  DL_NOME: ['nome_razao_social', 'nome_razao', 'nome/razao', 'razao_social', 'nome'],\n  DL_DOC: ['cnpj_cpf', 'documento', 'cpf_cnpj', 'cpf', 'cnpj'],\n  DL_EMAIL: ['email', 'e_mail'],\n  DL_FONE: ['telefone', 'fone', 'celular'],\n  DL_TIPO: ['tipo_pessoa'],\n  DL_VENDEDOR: ['vendedor', 'nome_vendedor', 'vendedor_nome', 'representante'],\n  DL_EMPRESA: ['_razaoOrigem', 'empresa', 'nome_empresa', 'empresa_nome', 'razao_empresa', 'filial', 'cod_empresa', 'id_empresa'],\n  DL_DATA_VENDA: ['data_ultima_venda', 'ultima_venda', 'dt_ultima_venda', 'data_ultima_compra', 'ultima_compra', 'data_venda', 'dt_venda'],\n  // Campos da API /Contacts do Ploomes\n  PL_NOME: ['Name', 'LegalName'],\n  PL_DOC: ['CPF', 'CNPJ', 'Register'],\n  PL_FONE: ['PhoneNumber', 'SearchPhoneNumber'],\n  STATUS: { vermelho: '🔴 Vermelho', laranja: '🟠 Laranja', amarelo: '🟡 Amarelo', azul: '🔵 Azul', verde: '🟢 Verde' }\n};\n// ==================================================\n\nconst DIA = 86400000;\nconst OFF = CONFIG.FUSO_HORAS * 3600000;\nconst HOJE = Math.floor((Date.now() + OFF) / DIA); // dia de hoje no fuso local (dias desde 1970)\n\nconst soDig = v => String(v ?? '').replace(/\\D/g, '');\nconst iguais = d => /^(\\d)\\1*$/.test(d);\nconst add = (l, v) => { if (v && !l.includes(v)) l.push(v); };\nfunction primeiro(o, campos) {\n  for (const c of campos) { const v = o[c]; if (v != null && String(v).trim() !== '') return v; }\n  return null;\n}\n\n// CPF = 11 dígitos | CNPJ = 14 dígitos (recupera zeros à esquerda)\nfunction doc(v) {\n  const d = soDig(v);\n  if (!d || iguais(d)) return null;\n  if (d.length >= 9 && d.length <= 11) return d.padStart(11, '0');\n  if (d.length >= 12 && d.length <= 14) return d.padStart(14, '0');\n  return null;\n}\nfunction mascara(d) {\n  return d.length === 11\n    ? d.replace(/^(\\d{3})(\\d{3})(\\d{3})(\\d{2})$/, '$1.$2.$3-$4')\n    : d.replace(/^(\\d{2})(\\d{3})(\\d{3})(\\d{4})(\\d{2})$/, '$1.$2.$3/$4-$5');\n}\nfunction emails(v) {\n  return String(v ?? '').toLowerCase().split(/[;,\\s]+/).filter(e => /^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(e));\n}\n// Chave de telefone = DDD + 8 últimos dígitos\nfunction fone(v) {\n  let d = soDig(v).replace(/^0+/, '');\n  if ((d.length === 12 || d.length === 13) && d.startsWith('55')) d = d.slice(2);\n  if (d.length !== 10 && d.length !== 11) return null;\n  const n = d.slice(-8);\n  return iguais(n) ? null : d.slice(0, 2) + n;\n}\n\n// Converte data (ISO, ISO com fuso, DD/MM/AAAA, epoch ms, serial do Excel) em \"dia\" local\nfunction dia(v) {\n  if (v == null || v === '') return null;\n  if (typeof v === 'number') {\n    if (v > 1e11) return Math.floor((v + OFF) / DIA);\n    if (v > 20000 && v < 80000) return Math.floor(v) - 25569;\n    return null;\n  }\n  const s = String(v).trim();\n  let m = s.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4})/);\n  if (m) return Date.UTC(+m[3], +m[2] - 1, +m[1]) / DIA;\n  m = s.match(/^(\\d{4})-(\\d{2})-(\\d{2})(.*)$/);\n  if (!m || +m[1] < 1900) return null;\n  if (/(Z|[+-]\\d{2}:?\\d{2})$/.test(m[4])) {\n    const t = Date.parse(s);\n    return isNaN(t) ? null : Math.floor((t + OFF) / DIA);\n  }\n  return Date.UTC(+m[1], +m[2] - 1, +m[3]) / DIA;\n}\nfunction fmt(d) {\n  if (d == null) return '';\n  const x = new Date(d * DIA);\n  return String(x.getUTCDate()).padStart(2, '0') + '/' + String(x.getUTCMonth() + 1).padStart(2, '0') + '/' + x.getUTCFullYear();\n}\nconst maior = (a, b) => a == null ? b : b == null ? a : Math.max(a, b);\n\n// Status pela data da ÚLTIMA COMPRA NO GESTOR (o contato do Ploomes é só informativo)\n// Faixas exclusivas: verde <=15 | azul 16-30 | amarelo 31-60 | laranja 61-90 | vermelho >90 ou sem registro\nfunction statusDe(ref) {\n  if (ref == null) return 'vermelho';\n  const dias = HOJE - ref;\n  if (dias <= 15) return 'verde';\n  if (dias <= 30) return 'azul';\n  if (dias <= 60) return 'amarelo';\n  if (dias <= 90) return 'laranja';\n  return 'vermelho';\n}\n\n// ---------- 1) Interação mais recente por ContactId (18 meses) ----------\nconst inter = $node[CONFIG.NODE_INTERACOES].json || {};\nconst paginas = inter.pagination && Array.isArray(inter.pagination.allParsedBodies) ? inter.pagination.allParsedBodies : [inter.parsedBody];\nconst ultimaInteracao = new Map();\npaginas.forEach(pb => (pb && Array.isArray(pb.value) ? pb.value : []).forEach(r => {\n  const id = r && r.ContactId != null ? String(r.ContactId) : '';\n  const d = dia(r && r.Date);\n  if (id && d != null && d <= HOJE) ultimaInteracao.set(id, maior(ultimaInteracao.get(id), d)); // ignora interações futuras (agendadas)\n}));\n\n// ---------- 2) Separar entradas: contatos Ploomes (HTTP) x linhas do Datalab ----------\nconst plMap = new Map();\nconst plVistos = new Set();\nconst dlRows = [];\nfunction expandir(o) {\n  if (!o || typeof o !== 'object') return;\n  if (Array.isArray(o.dados)) { o.dados.forEach(expandir); return; }\n  if (primeiro(o, CONFIG.DL_CODIGO) != null || primeiro(o, CONFIG.DL_DOC) != null || primeiro(o, CONFIG.DL_NOME) != null) dlRows.push(o);\n}\n\nitems.forEach(it => {\n  const j = it.json || {};\n  if (j.parsedBody === undefined || j.status === undefined) { expandir(j); return; }\n  const lista = j.parsedBody && Array.isArray(j.parsedBody.value) ? j.parsedBody.value : [];\n  lista.forEach(c => {\n    if (!c || c.Id == null || plVistos.has(String(c.Id))) return;\n    const id = String(c.Id);\n    plVistos.add(id);\n    const docs = [], ems = [], fones = [], tels = [];\n    CONFIG.PL_DOC.forEach(f => add(docs, doc(c[f])));\n    // Pessoa sem documento próprio herda o CNPJ/CPF da empresa vinculada no Ploomes\n    if (!docs.length && c.Company && typeof c.Company === 'object') CONFIG.PL_DOC.forEach(f => add(docs, doc(c.Company[f])));\n    emails(c.Email).forEach(e => add(ems, e));\n    (Array.isArray(c.Phones) ? c.Phones : []).forEach(p => CONFIG.PL_FONE.forEach(f => {\n      const n = fone(p && p[f]);\n      if (n) { add(fones, n); add(tels, String(p[f]).trim()); }\n    }));\n    // Cada contato do Ploomes fica separado; o vínculo junta os contatos depois (por documento, e-mail ou telefone)\n    const chave = 'id:' + id;\n    let p = plMap.get(chave);\n    if (!p) { p = { ids: [], nome: '', docs: [], emails: [], fones: [], tel: '', email: '', uc: null, usado: false }; plMap.set(chave, p); }\n    add(p.ids, id);\n    if (!p.nome) p.nome = String(primeiro(c, CONFIG.PL_NOME) || '').trim();\n    docs.forEach(v => add(p.docs, v));\n    ems.forEach(v => add(p.emails, v));\n    fones.forEach(v => add(p.fones, v));\n    if (!p.tel && tels[0]) p.tel = tels[0];\n    if (!p.email && ems[0]) p.email = ems[0];\n    p.uc = maior(p.uc, ultimaInteracao.get(id));\n  });\n});\n\nconst idxDoc = new Map(), idxEmail = new Map(), idxFone = new Map();\nconst indexar = (m, k, p) => { if (!m.has(k)) m.set(k, []); m.get(k).push(p); };\nplMap.forEach(p => {\n  p.docs.forEach(k => indexar(idxDoc, k, p));\n  p.emails.forEach(k => indexar(idxEmail, k, p));\n  p.fones.forEach(k => indexar(idxFone, k, p));\n});\n\n// ---------- 3) Clientes do Gestor: 1 cliente = 1 grupo (várias vendas/empresas fundidas) ----------\nconst grupos = [];\nconst porChave = new Map();\nlet fundidos = 0;\ndlRows.forEach((r, i) => {\n  const docs = [];\n  CONFIG.DL_DOC.forEach(f => add(docs, doc(r[f])));\n  const cod = primeiro(r, CONFIG.DL_CODIGO);\n  const codS = cod == null ? '' : String(cod).trim();\n  const ems = emails(primeiro(r, CONFIG.DL_EMAIL));\n  const fs = [];\n  CONFIG.DL_FONE.forEach(f => add(fs, fone(r[f])));\n  const nome = String(primeiro(r, CONFIG.DL_NOME) ?? '').trim();\n\n  // Chave do cliente = código do Gestor (é o mesmo nas 4 empresas). Sem código, usa o CPF/CNPJ.\n  // Não agrupa por documento quando há código: um mesmo CNPJ pode ter vários cadastros (ex.: unidades de uma mesma rede).\n  const chaves = codS ? ['cod:' + codS] : docs.map(d => 'doc:' + d);\n  if (!chaves.length) chaves.push(ems[0] ? 'email:' + ems[0] : fs[0] ? 'fone:' + fs[0] : nome ? 'nome:' + nome.toUpperCase() : 'linha:' + i);\n\n  let g = null;\n  for (const k of chaves) if (porChave.has(k)) { g = porChave.get(k); break; }\n  if (g) fundidos++;\n  else { g = { cods: [], nome: '', docs: [], emails: [], fones: [], tel: '', email: '', vend: [], tipo: [], uv: null, empUv: [] }; grupos.push(g); }\n  chaves.forEach(k => porChave.set(k, g));\n\n  add(g.cods, codS);\n  docs.forEach(v => add(g.docs, v));\n  ems.forEach(v => add(g.emails, v));\n  fs.forEach(v => add(g.fones, v));\n  if (!g.nome) g.nome = nome;\n  const vd = primeiro(r, CONFIG.DL_VENDEDOR);\n  if (vd != null) add(g.vend, String(vd).trim());\n  const tp = primeiro(r, CONFIG.DL_TIPO);\n  if (tp != null) add(g.tipo, String(tp).trim());\n  if (!g.tel) { const t = primeiro(r, CONFIG.DL_FONE); if (t != null) g.tel = String(t).trim(); }\n  if (!g.email) g.email = String(primeiro(r, CONFIG.DL_EMAIL) ?? '').trim();\n  // Última venda: guarda a(s) empresa(s) da linha com a data mais recente (empate = todas)\n  let dv = null;\n  CONFIG.DL_DATA_VENDA.forEach(f => { dv = maior(dv, dia(r[f])); });\n  if (dv != null) {\n    const emp = primeiro(r, CONFIG.DL_EMPRESA);\n    const empS = emp == null ? '' : String(emp).replace(/\\s+/g, ' ').trim();\n    if (g.uv == null || dv > g.uv) { g.uv = dv; g.empUv = empS ? [empS] : []; }\n    else if (dv === g.uv) add(g.empUv, empS);\n  }\n});\n\n// ---------- 4) Vincular Gestor x Ploomes (CPF/CNPJ primeiro; e-mail/telefone só sem conflito de documento) ----------\n// E-mail/telefone \"genérico\": compartilhado por mais de MAX_POR_CHAVE contatos do Ploomes\n// ou por mais de MAX_POR_CHAVE clientes do Gestor (ex.: lojasproprias@...). Esses não vinculam.\nconst usoGestor = new Map();\ngrupos.forEach(g => g.emails.map(e => 'e:' + e).concat(g.fones.map(f => 'f:' + f))\n  .forEach(k => usoGestor.set(k, (usoGestor.get(k) || 0) + 1)));\nconst genericoGestor = k => (usoGestor.get(k) || 0) > CONFIG.MAX_POR_CHAVE;\n// CPF/CNPJ \"compartilhado\": o mesmo documento em mais de um cliente do Gestor (ex.: várias unidades com o mesmo CNPJ).\n// Nesse caso o documento sozinho não diz qual cliente o contato atende: exige também e-mail ou telefone em comum.\nconst usoDoc = new Map();\ngrupos.forEach(g => g.docs.forEach(d => usoDoc.set(d, (usoDoc.get(d) || 0) + 1)));\nconst unicos = l => (l && l.reduce((n, p) => n + p.ids.length, 0) <= CONFIG.MAX_POR_CHAVE ? l : []);\n\nfunction vincular(g) {\n  const achados = new Set();\n  const temContatoComum = p => p.emails.some(e => g.emails.includes(e) && !genericoGestor('e:' + e)) ||\n    p.fones.some(f => g.fones.includes(f) && !genericoGestor('f:' + f));\n  g.docs.forEach(d => {\n    let lista = idxDoc.get(d) || [];\n    if ((usoDoc.get(d) || 0) > 1) lista = lista.filter(temContatoComum);\n    lista.forEach(p => achados.add(p));\n  });\n  if (!achados.size && !(CONFIG.SO_DOCUMENTO && g.docs.length)) {\n    const semConflito = p => !g.docs.length || !p.docs.length;\n    g.emails.filter(e => !genericoGestor('e:' + e)).forEach(e => unicos(idxEmail.get(e)).filter(semConflito).forEach(p => achados.add(p)));\n    if (!achados.size) g.fones.filter(f => !genericoGestor('f:' + f)).forEach(f => unicos(idxFone.get(f)).filter(semConflito).forEach(p => achados.add(p)));\n  }\n  return Array.from(achados);\n}\n\nconst cont = { vermelho: 0, laranja: 0, amarelo: 0, azul: 0, verde: 0 };\nconst linhas = [];\nlet vinculados = 0, semContato = 0, semVenda = 0;\n\nfunction linha(cg, cp, docs, nome, tel, email, vend, uc, uv, emp, tipo) {\n  const ref = uv;                       // só a última compra no Gestor define o status\n  const s = statusDe(ref);\n  cont[s]++;\n  if (uc == null) semContato++;\n  if (uv == null) semVenda++;\n  linhas.push({\n    cg, cp, doc: docs.map(mascara).join(' / '), tp: tipo || '', nome, tel, email,\n    uc: fmt(uc), uv: fmt(uv), emp, vend, st: CONFIG.STATUS[s], _r: ref == null ? -1 : ref\n  });\n}\n\ngrupos.forEach(g => {\n  const pls = vincular(g);\n  let uc = null;\n  const ids = [];\n  pls.forEach(p => { p.usado = true; uc = maior(uc, p.uc); p.ids.forEach(id => add(ids, id)); });\n  if (pls.length) vinculados++;\n  const p0 = pls[0] || {};\n  linha(g.cods.join(' / '), ids.join(' / '), g.docs, g.nome || p0.nome || '',\n    g.tel || p0.tel || '', g.email || p0.email || '', g.vend.join(' / '), uc, g.uv, g.empUv.join(' / '), g.tipo.join(' / '));\n});\n\nif (CONFIG.INCLUIR_SO_PLOOMES) {\n  plMap.forEach(p => { if (!p.usado) linha('', p.ids.join(' / '), p.docs, p.nome, p.tel, p.email, '', p.uc, null, '', ''); });\n}\n\n// Ordem: data da última compra no Gestor, da mais recente para a mais antiga (sem compra ao final); empate por nome\nlinhas.sort((a, b) => b._r - a._r || String(a.nome).localeCompare(String(b.nome), 'pt-BR', { sensitivity: 'base' }));\nlinhas.forEach(l => { delete l._r; });\n\n// ---------- 5) Resumo para o e-mail ----------\nconst ref = { hoje: fmt(HOJE), d15: fmt(HOJE - 15), d30: fmt(HOJE - 30), d60: fmt(HOJE - 60), d90: fmt(HOJE - 90) };\nconst faixas = [\n  ['verde', 'Última compra de ' + ref.d15 + ' até hoje'],\n  ['azul', 'Última compra de ' + ref.d30 + ' a ' + fmt(HOJE - 16)],\n  ['amarelo', 'Última compra de ' + ref.d60 + ' a ' + fmt(HOJE - 31)],\n  ['laranja', 'Última compra de ' + ref.d90 + ' a ' + fmt(HOJE - 61)],\n  ['vermelho', 'Sem compra há mais de 90 dias (antes de ' + ref.d90 + ') ou sem registro']\n];\n// Distribuição por status para o e-mail (o HTML é montado em \"Montar E-mail do Relatório\")\nconst faixasStatus = faixas.map(([k, txt]) => ({ chave: k, status: CONFIG.STATUS[k], texto: txt, qtd: cont[k] }));\n\nif (dlRows.length && grupos.every(g => !g.docs.length)) {\n  console.warn('Nenhum CPF/CNPJ encontrado no Datalab. Campos recebidos: ' + Object.keys(dlRows[0]).join(', ') + ' -> ajuste CONFIG.DL_DOC.');\n}\nif (dlRows.length && grupos.every(g => !g.tipo.length)) {\n  console.warn('Campo tipo_pessoa não encontrado no Datalab. Campos recebidos: ' + Object.keys(dlRows[0]).join(', ') + ' -> ajuste CONFIG.DL_TIPO.');\n}\nif (dlRows.length && grupos.every(g => g.uv == null)) {\n  console.warn('Nenhuma data de venda encontrada no Datalab. Campos recebidos: ' + Object.keys(dlRows[0]).join(', ') + '. Confira se o relatório traz a data da última venda e ajuste CONFIG.DL_DATA_VENDA.');\n}\nif (grupos.some(g => g.uv != null) && grupos.every(g => !g.empUv.length)) {\n  console.warn('Nenhuma empresa encontrada nas linhas de venda do Datalab. Campos recebidos: ' + Object.keys(dlRows[0]).join(', ') + ' -> ajuste CONFIG.DL_EMPRESA.');\n}\nconst tamanho = JSON.stringify(linhas).length;\nif (tamanho > 900000) console.warn('Saída com ' + tamanho + ' bytes: perto do teto de 1 MiB do node Código (CODE_NODE_MAX_OUTPUT_BYTES).');\nconsole.log('Linhas Datalab: ' + dlRows.length + ' | clientes Gestor: ' + grupos.length + ' | contatos Ploomes: ' + plVistos.size +\n  ' | vinculados: ' + vinculados + ' | linhas: ' + linhas.length + ' | status: ' + JSON.stringify(cont));\n\nreturn [{ json: {\n  data_execucao: ref.hoje,\n  referencias: ref,\n  total_clientes: linhas.length,\n  total_registros_gestor: dlRows.length,\n  registros_gestor_fundidos: fundidos,\n  total_contatos_ploomes: plVistos.size,\n  clientes_vinculados_ploomes: vinculados,\n  sem_contato_registrado: semContato,\n  sem_venda_registrada: semVenda,\n  qtd_vermelho: cont.vermelho, qtd_laranja: cont.laranja, qtd_amarelo: cont.amarelo, qtd_azul: cont.azul, qtd_verde: cont.verde,\n  faixas: faixasStatus,\n  linhas\n} }];\n"
+      }
+    },
+    {
+      "id": "13479af6-db36-4bd6-8880-9935d9b3c5d7",
+      "type": "google_sheets",
+      "name": "Criar Planilha do Resultado",
+      "position": {
+        "x": 1630,
+        "y": 240
+      },
+      "parameters": {
+        "credentialId": "",
+        "operation": "create",
+        "spreadsheetSource": "list",
+        "spreadsheetId": "",
+        "spreadsheetIdMode": "expression",
+        "sheetSource": "list",
+        "sheetName": "",
+        "sheetNameMode": "expression",
+        "mappingMode": "manual",
+        "columnMappings": [],
+        "matchingColumn": "",
+        "autoMappingSource": "",
+        "autoMappingSourceMode": "expression",
+        "extraDataHandling": "insert_new_column",
+        "headerRow": 1,
+        "firstDataRow": 2,
+        "title": "Monitoramento Comercial da Carteira - {{ $node[\"Consolidar Clientes e Calcular Status\"].json.data_execucao }}",
+        "titleMode": "expression",
+        "sharing": "anyone_reader",
+        "filters": [],
+        "combineFilters": "and",
+        "returnFirstMatch": false,
+        "limit": 0,
+        "valueRenderOption": "FORMATTED_VALUE",
+        "range": "",
+        "rangeMode": "expression",
+        "values": "",
+        "valuesMode": "expression",
+        "valueInputOption": "USER_ENTERED",
+        "nameFilter": "",
+        "nameFilterMode": "expression",
+        "pageSize": 50,
+        "continueOnError": false
+      }
+    },
+    {
+      "id": "0294c71f-1a06-4234-ac09-bb5eb66e8178",
+      "type": "code",
+      "name": "Preparar Linhas da Planilha",
+      "position": {
+        "x": 1940,
+        "y": 240
+      },
+      "parameters": {
+        "mode": "all_items",
+        "jsCode": "// Recupera as linhas (1 por cliente) que o nó \"Criar Planilha\" não repassa.\n// CONFIG: datas gravadas como AAAA-MM-DD; com valueInputOption USER_ENTERED o Google Sheets reconhece como DATA\n// (independe do idioma da planilha) e o filtro por data funciona. DD/MM/AAAA como texto não vira data.\nconst CONFIG = { CAMPOS_DATA: ['uc', 'uv'] };\nconst iso = v => { const m = String(v || '').match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4})$/); return m ? m[3] + '-' + m[2] + '-' + m[1] : ''; };\nconst origem = $node[\"Consolidar Clientes e Calcular Status\"].json;\nconst linhas = Array.isArray(origem.linhas) ? origem.linhas : [];\nconsole.log('Linhas a gravar: ' + linhas.length);\nreturn linhas.map(l => {\n  const o = Object.assign({}, l);\n  CONFIG.CAMPOS_DATA.forEach(c => { o[c] = iso(o[c]); });\n  return { json: o };\n});"
+      }
+    },
+    {
+      "id": "ee1b85da-e590-4bd9-887c-b2457dadfc0e",
+      "type": "google_sheets",
+      "name": "Preencher Planilha com Clientes",
+      "position": {
+        "x": 2250,
+        "y": 240
+      },
+      "parameters": {
+        "credentialId": "",
+        "operation": "append",
+        "spreadsheetSource": "url",
+        "spreadsheetId": "{{ $node[\"Criar Planilha do Resultado\"].json.spreadsheetId }}",
+        "spreadsheetIdMode": "expression",
+        "sheetSource": "list",
+        "sheetName": "Página1",
+        "sheetNameMode": "fixed",
+        "mappingMode": "manual",
+        "columnMappings": [
+          {
+            "value": "{{ $json.cg }}",
+            "column": "Código do Gestor",
+            "valueMode": "expression"
+          },
+          {
+            "value": "{{ $json.doc }}",
+            "column": "Documento",
+            "valueMode": "expression"
+          },
+          {
+            "value": "{{ $json.tp }}",
+            "column": "Tipo",
+            "valueMode": "expression"
+          },
+          {
+            "value": "{{ $json.nome }}",
+            "column": "Nome/Razão Social",
+            "valueMode": "expression"
+          },
+          {
+            "value": "{{ $json.email }}",
+            "column": "E-mail",
+            "valueMode": "expression"
+          },
+          {
+            "value": "{{ $json.uc }}",
+            "column": "Data do último contato no Ploomes",
+            "valueMode": "expression"
+          },
+          {
+            "value": "{{ $json.uv }}",
+            "column": "Data da última venda no Gestor",
+            "valueMode": "expression"
+          },
+          {
+            "value": "{{ $json.emp }}",
+            "column": "Empresa da última venda",
+            "valueMode": "expression"
+          },
+          {
+            "value": "{{ $json.vend }}",
+            "column": "Vendedor",
+            "valueMode": "expression"
+          },
+          {
+            "value": "{{ $json.st }}",
+            "column": "Status",
+            "valueMode": "expression"
+          }
+        ],
+        "matchingColumn": "",
+        "autoMappingSource": "",
+        "autoMappingSourceMode": "expression",
+        "extraDataHandling": "insert_new_column",
+        "headerRow": 1,
+        "firstDataRow": 2,
+        "title": "",
+        "titleMode": "expression",
+        "sharing": "private",
+        "filters": [],
+        "combineFilters": "and",
+        "returnFirstMatch": false,
+        "limit": 0,
+        "valueRenderOption": "FORMATTED_VALUE",
+        "range": "",
+        "rangeMode": "expression",
+        "values": "",
+        "valuesMode": "expression",
+        "valueInputOption": "USER_ENTERED",
+        "nameFilter": "",
+        "nameFilterMode": "expression",
+        "pageSize": 50,
+        "continueOnError": false
+      }
+    },
+    {
+      "id": "bf52b43a-335d-4498-b93c-77356757f964",
+      "type": "merge_out",
+      "name": "Consolidar Linhas Gravadas",
+      "position": {
+        "x": 2560,
+        "y": 240
+      },
+      "parameters": {
+        "mode": "all_items",
+        "outputFieldName": "linhas",
+        "include": "selected",
+        "fieldsToInclude": "rowNumber",
+        "fieldsToExclude": "",
+        "fields": [],
+        "keepMissing": false,
+        "mergeLists": false,
+        "disableDotNotation": false
+      }
+    },
+    {
+      "id": "8437e78b-2ed5-4f70-ac5f-cb783348db2a",
+      "type": "gmail_send",
+      "name": "Enviar E-mail com o Relatório",
+      "position": {
+        "x": 3170,
+        "y": 240
+      },
+      "parameters": {
+        "credentialId": "",
+        "to": "gestor@exemplo.com",
+        "toMode": "fixed",
+        "cc": "",
+        "ccMode": "fixed",
+        "bcc": "",
+        "bccMode": "fixed",
+        "subject": "{{ $json.assunto }}",
+        "subjectMode": "expression",
+        "bodyType": "html",
+        "body": "{{ $json.corpo_html }}",
+        "bodyMode": "expression",
+        "continueOnError": false
+      }
+    },
+    {
+      "id": "4e6f385d-389e-4e42-861a-342d8101e2c4",
+      "type": "trigger_schedule",
+      "name": "Agendamento",
+      "position": {
+        "x": -20,
+        "y": 222
+      },
+      "parameters": {
+        "scheduleType": "weekly",
+        "interval": 1,
+        "hour": 17,
+        "minute": 0,
+        "weekdays": "5",
+        "monthDays": "1",
+        "cronExpression": "0 9 * * *",
+        "timezone": "America/Sao_Paulo"
+      }
+    },
+    {
+      "id": "cde271ab-191a-5599-9a9a-9f2b631064fc",
+      "type": "code",
+      "name": "Montar E-mail do Relatório",
+      "position": {
+        "x": 2870,
+        "y": 240
+      },
+      "parameters": {
+        "mode": "all_items",
+        "jsCode": "// ============================================================\n// CONFIG - único bloco que deveria precisar de ajuste\n// ============================================================\nconst CONFIG = {\n  nomeEmpresa: \"NOME DA EMPRESA\",\n  titulo: \"Monitoramento comercial da carteira\",\n  assunto: \"Monitoramento comercial da carteira - {data}\",\n  rodape: \"Mensagem automática do sistema comercial NOME DA EMPRESA.\"\n};\n\n// ============================================================\n// PADRÃO DE E-MAIL WAIPE - copie este bloco para o node `code` que monta o e-mail.\n// Desenho de referência: o consolidado do gestor do Guardião da Amostra Padrão (claro, com modo escuro automático).\n// Marca \"waipe\" e empresa no topo, cartão branco com faixa escura, título com eyebrow dourado, indicadores\n// em verde-oliva, tabelas claras e rodapé Londrisoft. Todo e-mail de agente do Waipe usa este kit.\n// As funções devolvem linhas de tabela (<tr>) para dentro do cartão, exceto wpBadge/wpBarra/wpSeta, que devolvem\n// HTML para colocar dentro de uma célula. wpPagina devolve o documento HTML completo.\n// Compatível com o sandbox do Waipe Flow (sem toLocaleString, sem Intl).\n// ============================================================\nconst WP_F = \"font-family:Arial,Helvetica,sans-serif;\";\n\nfunction wpEsc(t) {\n  if (t === null || t === undefined) return \"\";\n  return String(t).replace(/&/g, \"&amp;\").replace(/</g, \"&lt;\").replace(/>/g, \"&gt;\").replace(/'/g, \"&#39;\");\n}\nfunction wpNum(n) { return String(Math.round(Number(n) || 0)).replace(/\\B(?=(\\d{3})+(?!\\d))/g, \".\"); }\nfunction wpMoeda(v) {\n  const n = Math.round((Number(v) || 0) * 100) / 100;\n  const p = Math.abs(n).toFixed(2).split(\".\");\n  return (n < 0 ? \"-R$ \" : \"R$ \") + p[0].replace(/\\B(?=(\\d{3})+(?!\\d))/g, \".\") + \",\" + p[1];\n}\n\n// Estilos de destaque (badge, KPI e aviso): fundo, texto e borda. As cores do modo escuro ficam no <style> de wpPagina.\nconst WP_ESTILOS = {\n  neutro: { bg: \"#F9FAFB\", cor: \"#303030\", borda: \"#E5E7EB\" },\n  medio: { bg: \"#F1F2EC\", cor: \"#5A6344\", borda: \"#E3E6D8\" },\n  forte: { bg: \"#5A6344\", cor: \"#FFFFFF\", borda: \"#5A6344\" },\n  alerta: { bg: \"#FEF3F2\", cor: \"#B42318\", borda: \"#FAD7D3\" },\n  ok: { bg: \"#EEF8F1\", cor: \"#1E7A45\", borda: \"#CDEBD7\" }\n};\n\n// Documento completo: marca e empresa, cartão (eyebrow, título, saudação, destaque), miolo (linhas) e rodapé.\n// o: { preheader, empresa, rotuloDireita, eyebrow, titulo, heroEyebrow, heroValor, heroTam, heroSub, heroBarra,\n//      heroNota, saudacao, subSaudacao, miolo, rodape: [linhas] }\n// eyebrow/titulo são opcionais: sem eles, heroEyebrow vira o eyebrow do cartão.\nfunction wpPagina(o) {\n  const eyebrow = o.eyebrow || o.heroEyebrow || \"\";\n  let h = \"\";\n  h += \"<!DOCTYPE html><html lang='pt-BR'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'>\";\n  h += \"<meta name='color-scheme' content='light dark'><meta name='supported-color-schemes' content='light dark'>\";\n  h += \"<title>\" + wpEsc(o.titulo || eyebrow || o.empresa || \"Waipe\") + \"</title>\";\n  h += \"<style>body{margin:0;padding:0;-webkit-text-size-adjust:100%;}a{color:#303030;}\";\n  h += \"@media only screen and (max-width:620px){.wp-wrap{width:100%!important;max-width:100%!important;}.wp-pad{padding-left:16px!important;padding-right:16px!important;}.wp-kpi{display:block!important;width:100%!important;padding:0 0 8px 0!important;}.wp-hide{display:none!important;}.wp-h1{font-size:24px!important;line-height:30px!important;}.wp-hero{font-size:40px!important;line-height:44px!important;}}\";\n  h += \"@media (prefers-color-scheme: dark){.wp-bg{background:#16181D!important;}.wp-card{background:#1F2229!important;border-color:#323743!important;}.wp-soft{background:#272B33!important;}.wp-t{color:#F3F4F6!important;}.wp-m{color:#A8AEBB!important;}.wp-bd{border-color:#323743!important;}.wp-eb{color:#D4B25A!important;}\";\n  h += \"td[bgcolor='#303030']{background:#E5E7EB!important;}td[bgcolor='#303030'] a{color:#1F2229!important;}\";\n  h += \"td[bgcolor='#F9FAFB']{background:#272B33!important;}td[bgcolor='#F1F2EC']{background:#2A2E24!important;}td[bgcolor='#E3E6D8']{background:#3A4030!important;}\";\n  h += \"td[bgcolor='#FEF3F2']{background:#3A2422!important;}td[bgcolor='#EEF8F1']{background:#1F3A2C!important;}td[bgcolor='#F3F4F6']{background:#272B33!important;}\";\n  h += \".wp-c-medio{color:#C9CFB4!important;}.wp-c-neutro{color:#F3F4F6!important;}.wp-c-alerta{color:#FCA5A5!important;}.wp-c-ok{color:#86EFAC!important;}}\";\n  h += \"</style></head>\";\n  h += \"<body class='wp-bg' style='margin:0;padding:0;background:#F3F4F6;'>\";\n  h += \"<span style='display:none;font-size:1px;color:#F3F4F6;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;'>\" + wpEsc(o.preheader || \"\") + \"</span>\";\n  h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' bgcolor='#F3F4F6' class='wp-bg' style='background:#F3F4F6;'><tr><td align='center' style='padding:32px 12px;'>\";\n  h += \"<!--[if mso]><table role='presentation' width='600' cellpadding='0' cellspacing='0' border='0'><tr><td><![endif]-->\";\n  h += \"<table role='presentation' width='600' cellpadding='0' cellspacing='0' border='0' class='wp-wrap' style='width:600px;max-width:600px;'>\";\n  // Marca\n  h += \"<tr><td class='wp-pad' style='padding:0 8px 16px 8px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr>\";\n  h += \"<td class='wp-t' style='\" + WP_F + \"font-size:22px;font-weight:bold;color:#303030;letter-spacing:-0.5px;mso-line-height-rule:exactly;line-height:28px;'>waipe</td>\";\n  h += \"<td align='right' class='wp-m' style='\" + WP_F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(o.empresa || \"\") + (o.rotuloDireita ? \"<br>\" + o.rotuloDireita : \"\") + \"</td>\";\n  h += \"</tr></table></td></tr>\";\n  // Cartão\n  h += \"<tr><td bgcolor='#FEFEFE' class='wp-card' style='background:#FEFEFE;border:1px solid #E5E7EB;border-radius:12px;overflow:hidden;'>\";\n  h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'>\";\n  h += \"<tr><td height='4' bgcolor='#303030' style='height:4px;font-size:0;line-height:0;background:#303030;border-radius:12px 12px 0 0;'>&nbsp;</td></tr>\";\n  if (eyebrow || o.titulo || o.saudacao) {\n    h += \"<tr><td class='wp-pad' style='padding:32px 32px 8px 32px;'>\";\n    if (eyebrow) h += \"<p class='wp-eb' style='margin:0 0 8px 0;\" + WP_F + \"font-size:12px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#8E6A1F;mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(eyebrow) + \"</p>\";\n    if (o.titulo) h += \"<h1 class='wp-h1 wp-t' style='margin:0 0 12px 0;\" + WP_F + \"font-size:28px;font-weight:bold;color:#303030;letter-spacing:-0.5px;mso-line-height-rule:exactly;line-height:34px;'>\" + wpEsc(o.titulo) + \"</h1>\";\n    if (o.saudacao) h += \"<p class='wp-t' style='margin:0;\" + WP_F + \"font-size:15px;color:#303030;mso-line-height-rule:exactly;line-height:23px;'>\" + o.saudacao + \"</p>\";\n    if (o.subSaudacao) h += \"<p class='wp-m' style='margin:6px 0 0 0;\" + WP_F + \"font-size:15px;color:#5B6170;mso-line-height-rule:exactly;line-height:23px;'>\" + o.subSaudacao + \"</p>\";\n    h += \"</td></tr>\";\n  }\n  if (o.heroValor !== undefined && o.heroValor !== null) {\n    const tam = Math.min(o.heroTam || 44, 48);\n    h += \"<tr><td class='wp-pad' style='padding:20px 32px 8px 32px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td bgcolor='#F1F2EC' style='background:#F1F2EC;border-radius:8px;padding:20px;'>\";\n    if (o.heroEyebrow && o.eyebrow && o.eyebrow !== o.heroEyebrow) h += \"<p class='wp-c-medio' style='margin:0 0 6px 0;\" + WP_F + \"font-size:11px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#5A6344;mso-line-height-rule:exactly;line-height:15px;'>\" + wpEsc(o.heroEyebrow) + \"</p>\";\n    h += \"<p class='wp-hero wp-c-medio' style='margin:0;\" + WP_F + \"font-size:\" + tam + \"px;font-weight:bold;color:#5A6344;letter-spacing:-1px;mso-line-height-rule:exactly;line-height:\" + (tam + 4) + \"px;'>\" + wpEsc(o.heroValor) + \"</p>\";\n    if (o.heroSub) h += \"<p class='wp-c-medio' style='margin:6px 0 0 0;\" + WP_F + \"font-size:14px;color:#5A6344;mso-line-height-rule:exactly;line-height:20px;'>\" + o.heroSub + \"</p>\";\n    if (o.heroBarra !== undefined && o.heroBarra !== null) {\n      const w = Math.max(0, Math.min(100, Math.round(o.heroBarra)));\n      h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='margin-top:14px;'><tr><td bgcolor='#E3E6D8' style='background:#E3E6D8;border-radius:5px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr>\" +\n        \"<td width='\" + w + \"%' height='10' bgcolor='#5A6344' style='height:10px;background:#5A6344;border-radius:5px;font-size:0;line-height:0;'>&nbsp;</td>\" +\n        (w < 100 ? \"<td height='10' style='height:10px;font-size:0;line-height:0;'>&nbsp;</td>\" : \"\") + \"</tr></table></td></tr></table>\";\n    }\n    if (o.heroNota) h += \"<p class='wp-c-medio' style='margin:10px 0 0 0;\" + WP_F + \"font-size:12px;color:#5A6344;mso-line-height-rule:exactly;line-height:18px;'>\" + o.heroNota + \"</p>\";\n    h += \"</td></tr></table></td></tr>\";\n  }\n  h += o.miolo || \"\";\n  h += \"<tr><td style='height:24px;font-size:0;line-height:0;'>&nbsp;</td></tr>\";\n  h += \"</table></td></tr>\";\n  // Rodapé\n  const linhasRodape = o.rodape || [];\n  h += \"<tr><td class='wp-pad' align='center' style='padding:24px 24px 0 24px;'>\";\n  for (let i = 0; i < linhasRodape.length; i++) {\n    h += \"<p class='wp-m' style='margin:\" + (i > 0 ? \"6px\" : \"0\") + \" 0 0 0;\" + WP_F + \"font-size:12px;color:\" + (i === linhasRodape.length - 1 ? \"#8A90A0\" : \"#6B7280\") + \";mso-line-height-rule:exactly;line-height:18px;'>\" + linhasRodape[i] + \"</p>\";\n  }\n  h += \"</td></tr></table>\";\n  h += \"<!--[if mso]></td></tr></table><![endif]-->\";\n  h += \"</td></tr></table></body></html>\";\n  return h;\n}\n\n// Parágrafo livre (HTML já escapado pelo chamador)\nfunction wpTexto(html) {\n  return \"<tr><td class='wp-pad' style='padding:8px 32px;'><p class='wp-m' style='margin:0;\" + WP_F + \"font-size:15px;color:#5B6170;mso-line-height-rule:exactly;line-height:23px;'>\" + html + \"</p></td></tr>\";\n}\n\n// Título de seção com subtítulo\nfunction wpSecao(titulo, sub) {\n  return \"<tr><td class='wp-pad' style='padding:24px 32px 12px 32px;'>\" +\n    \"<p class='wp-t' style='margin:0;\" + WP_F + \"font-size:16px;font-weight:bold;color:#303030;mso-line-height-rule:exactly;line-height:22px;'>\" + wpEsc(titulo) + \"</p>\" +\n    (sub ? \"<p class='wp-m' style='margin:4px 0 0 0;\" + WP_F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:18px;'>\" + sub + \"</p>\" : \"\") + \"</td></tr>\";\n}\n\n// Cartões de indicador lado a lado. lista: [{rotulo, valor, estilo, sub}], titulo (opcional) vira um rótulo pequeno acima.\n// Sem estilo, o primeiro é \"medio\" (verde-oliva) e os outros \"neutro\", como no Guardião.\nfunction wpKpis(lista, titulo) {\n  const n = lista.length;\n  const larg = (100 / n).toFixed(2);\n  let h = \"<tr><td class='wp-pad' style='padding:20px 32px 8px 32px;'>\";\n  if (titulo) h += \"<p class='wp-m' style='margin:0 0 8px 0;\" + WP_F + \"font-size:11px;font-weight:bold;letter-spacing:0.8px;text-transform:uppercase;color:#6B7280;mso-line-height-rule:exactly;line-height:15px;'>\" + wpEsc(titulo) + \"</p>\";\n  h += \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr>\";\n  // Valor longo (ex.: R$ 99.716,16) com 3 ou mais cartões lado a lado: fonte menor para caber numa linha.\n  const maiorValor = lista.reduce(function (m, k) { return Math.max(m, String(k.valor === undefined ? \"\" : k.valor).length); }, 0);\n  const tam = n >= 3 && maiorValor > 9 ? 20 : n >= 2 && maiorValor > 14 ? 20 : 26;\n  for (let i = 0; i < n; i++) {\n    const k = lista[i];\n    const nome = WP_ESTILOS[k.estilo] ? k.estilo : (i === 0 ? \"medio\" : \"neutro\");\n    const e = nome === \"forte\" ? WP_ESTILOS.medio : WP_ESTILOS[nome];\n    const cls = nome === \"forte\" ? \"medio\" : nome;\n    const pad = n === 1 ? \"\" : (i === 0 ? \"padding-right:6px;\" : (i === n - 1 ? \"padding-left:6px;\" : \"padding:0 3px;\"));\n    h += \"<td class='wp-kpi' width='\" + larg + \"%' valign='top' style='width:\" + larg + \"%;\" + pad + \"'>\" +\n      \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td bgcolor='\" + e.bg + \"' style='background:\" + e.bg + \";border-radius:8px;padding:16px;'>\" +\n      \"<p class='wp-c-\" + cls + \"' style='margin:0;\" + WP_F + \"font-size:\" + tam + \"px;font-weight:bold;color:\" + e.cor + \";mso-line-height-rule:exactly;line-height:\" + (tam + 6) + \"px;white-space:nowrap;'>\" + wpEsc(k.valor) + \"</p>\" +\n      \"<p class='wp-c-\" + cls + \"' style='margin:4px 0 0 0;\" + WP_F + \"font-size:13px;color:\" + (nome === \"neutro\" ? \"#5B6170\" : e.cor) + \";mso-line-height-rule:exactly;line-height:18px;'>\" + wpEsc(k.rotulo) + \"</p>\" +\n      (k.sub ? \"<p class='wp-m' style='margin:2px 0 0 0;\" + WP_F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(k.sub) + \"</p>\" : \"\") +\n      \"</td></tr></table></td>\";\n  }\n  return h + \"</tr></table></td></tr>\";\n}\n\n// Tabela. colunas: [{t, a: \"left\"|\"right\"|\"center\", w, oculta}], linhas: [[html da célula, ...], ...]\n// oculta = some em tela pequena. nota (opcional): texto abaixo da tabela.\nfunction wpTabela(colunas, linhas, nota) {\n  let h = \"<tr><td class='wp-pad' style='padding:4px 32px 8px 32px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' class='wp-bd' style='border:1px solid #E5E7EB;border-radius:8px;border-collapse:separate;'><tr>\";\n  for (let c = 0; c < colunas.length; c++) {\n    const col = colunas[c];\n    const canto = c === 0 ? \"border-radius:8px 0 0 0;\" : (c === colunas.length - 1 ? \"border-radius:0 8px 0 0;\" : \"\");\n    h += \"<td bgcolor='#F9FAFB' align='\" + (col.a || \"left\") + \"'\" + (col.w ? \" width='\" + col.w + \"'\" : \"\") + \" class='wp-soft wp-m\" + (col.oculta ? \" wp-hide\" : \"\") + \"'\" +\n      \" style='background:#F9FAFB;padding:10px 12px;\" + WP_F + \"font-size:11px;font-weight:bold;letter-spacing:0.8px;text-transform:uppercase;color:#6B7280;mso-line-height-rule:exactly;line-height:15px;\" + canto + \"'>\" + wpEsc(col.t) + \"</td>\";\n  }\n  h += \"</tr>\";\n  if (linhas.length === 0) {\n    h += \"<tr><td colspan='\" + colunas.length + \"' class='wp-bd wp-m' style='border-top:1px solid #F3F4F6;padding:14px 12px;\" + WP_F + \"font-size:13px;color:#6B7280;'>Nada para mostrar.</td></tr>\";\n  }\n  for (let i = 0; i < linhas.length; i++) {\n    h += \"<tr>\";\n    for (let c = 0; c < colunas.length; c++) {\n      const col = colunas[c];\n      h += \"<td\" + (col.a ? \" align='\" + col.a + \"'\" : \"\") + \" valign='middle' class='wp-bd wp-t\" + (col.oculta ? \" wp-hide\" : \"\") + \"'\" +\n        \" style='border-top:1px solid #F3F4F6;padding:10px 12px;\" + WP_F + \"font-size:13px;color:#303030;mso-line-height-rule:exactly;line-height:18px;'>\" + (linhas[i][c] === undefined ? \"\" : linhas[i][c]) + \"</td>\";\n    }\n    h += \"</tr>\";\n  }\n  h += \"</table>\" + (nota ? \"<p class='wp-m' style='margin:8px 2px 0 2px;\" + WP_F + \"font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:17px;'>\" + nota + \"</p>\" : \"\") + \"</td></tr>\";\n  return h;\n}\n\n// Pílula de destaque (para dentro de uma célula). a: \"left\" | \"right\". Texto curto (até 3 caracteres) vira círculo,\n// como a posição do ranking do Guardião.\nfunction wpBadge(texto, estilo, a) {\n  const nome = WP_ESTILOS[estilo] ? estilo : \"neutro\";\n  const e = nome === \"neutro\" ? { bg: \"#F3F4F6\", cor: \"#5B6170\" } : WP_ESTILOS[nome];\n  const t = String(texto === null || texto === undefined ? \"\" : texto);\n  const alinhar = a === \"right\" ? \" align='right'\" : \"\";\n  if (t.length <= 3) {\n    return \"<table role='presentation' cellpadding='0' cellspacing='0' border='0'\" + alinhar + \"><tr><td width='24' height='24' align='center' valign='middle' bgcolor='\" + e.bg + \"' style='width:24px;height:24px;background:\" + e.bg + \";border-radius:12px;\" + WP_F + \"font-size:12px;font-weight:bold;color:\" + e.cor + \";mso-line-height-rule:exactly;line-height:24px;'>\" + wpEsc(t) + \"</td></tr></table>\";\n  }\n  return \"<table role='presentation' cellpadding='0' cellspacing='0' border='0'\" + alinhar + \"><tr><td bgcolor='\" + e.bg + \"' style='background:\" + e.bg + \";border-radius:20px;padding:3px 10px;\" + WP_F + \"font-size:11px;font-weight:bold;color:\" + e.cor + \";white-space:nowrap;mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(t) + \"</td></tr></table>\";\n}\n\n// Barra proporcional (para dentro de uma célula). pct 0-100; forte = verde-oliva cheio, senão oliva claro\nfunction wpBarra(pct, forte) {\n  const w = Math.max(4, Math.min(100, Math.round(pct)));\n  const cor = forte ? \"#5A6344\" : \"#BFC4AC\";\n  return \"<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='margin-top:6px;'><tr>\" +\n    \"<td width='\" + w + \"%' height='6' bgcolor='\" + cor + \"' style='height:6px;background:\" + cor + \";border-radius:3px;font-size:0;line-height:0;'>&nbsp;</td>\" +\n    (w < 100 ? \"<td width='\" + (100 - w) + \"%' height='6' style='height:6px;font-size:0;line-height:0;'>&nbsp;</td>\" : \"\") + \"</tr></table>\";\n}\n\n// Botão quadrado com seta (para dentro de uma célula): abre a planilha ou lista da linha\nfunction wpSeta(url, titulo) {\n  return \"<table role='presentation' cellpadding='0' cellspacing='0' border='0' align='right'><tr><td width='32' height='32' align='center' valign='middle' bgcolor='#303030' style='width:32px;height:32px;background:#303030;border-radius:8px;'>\" +\n    \"<a href='\" + wpEsc(url) + \"' target='_blank' title='\" + wpEsc(titulo) + \"' aria-label='\" + wpEsc(titulo) + \"' style='display:block;width:32px;\" + WP_F + \"font-size:18px;font-weight:bold;color:#FFFFFF;text-decoration:none;mso-line-height-rule:exactly;line-height:32px;border-radius:8px;'>&rarr;</a></td></tr></table>\";\n}\n\n// Botão de chamada (linha própria)\nfunction wpBotao(url, rotulo) {\n  return \"<tr><td class='wp-pad' align='left' style='padding:16px 32px 8px 32px;'><table role='presentation' cellpadding='0' cellspacing='0' border='0'><tr><td align='center' bgcolor='#303030' style='background:#303030;border-radius:8px;'>\" +\n    \"<a href='\" + wpEsc(url) + \"' target='_blank' style='display:block;padding:12px 24px;\" + WP_F + \"font-size:14px;font-weight:bold;color:#FFFFFF;text-decoration:none;mso-line-height-rule:exactly;line-height:20px;border-radius:8px;'>\" + wpEsc(rotulo) + \"</a></td></tr></table></td></tr>\";\n}\n\n// Caixa de aviso (linha própria): titulo + corpo em HTML\nfunction wpAviso(titulo, corpoHtml, estilo) {\n  const nome = WP_ESTILOS[estilo] ? estilo : \"medio\";\n  const e = nome === \"forte\" ? WP_ESTILOS.medio : WP_ESTILOS[nome];\n  const cls = nome === \"forte\" ? \"medio\" : nome;\n  return \"<tr><td class='wp-pad' style='padding:16px 32px 8px 32px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td bgcolor='\" + e.bg + \"' style='background:\" + e.bg + \";border:1px solid \" + e.borda + \";border-radius:8px;padding:16px 18px;'>\" +\n    \"<p class='wp-c-\" + cls + \"' style='margin:0;\" + WP_F + \"font-size:11px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:\" + e.cor + \";mso-line-height-rule:exactly;line-height:16px;'>\" + wpEsc(titulo) + \"</p>\" +\n    \"<p class='wp-t' style='margin:8px 0 0 0;\" + WP_F + \"font-size:13px;color:#303030;mso-line-height-rule:exactly;line-height:20px;'>\" + corpoHtml + \"</p></td></tr></table></td></tr>\";\n}\n// ============================================================\n// FIM DO PADRÃO DE E-MAIL WAIPE\n// ============================================================\n\nconst c = $node[\"Consolidar Clientes e Calcular Status\"].json;\nconst urlPlanilha = String($node[\"Criar Planilha do Resultado\"].json.spreadsheetUrl || \"\");\nconst faixas = Array.isArray(c.faixas) ? c.faixas : [];\nconst linhas = faixas.map(function (f) {\n  return [wpEsc(f.status), '<span style=\"color:#6B7280;\">' + wpEsc(f.texto) + \"</span>\", \"<b>\" + wpNum(f.qtd) + \"</b>\"];\n});\n\nconst miolo =\n  wpKpis([\n    { rotulo: \"Clientes na planilha\", valor: wpNum(c.total_clientes) },\n    { rotulo: \"Vinculados ao Ploomes\", valor: wpNum(c.clientes_vinculados_ploomes) },\n    { rotulo: \"Sem contato em 18 meses\", valor: wpNum(c.sem_contato_registrado), estilo: c.sem_contato_registrado > 0 ? \"alerta\" : \"neutro\" }\n  ]) +\n  wpSecao(\"Distribuição por status\", \"Pela data da última compra no Gestor.\") +\n  wpTabela([{ t: \"Status\", w: \"120\" }, { t: \"Faixa\", oculta: true }, { t: \"Clientes\", a: \"right\", w: \"80\" }], linhas) +\n  (urlPlanilha ? wpBotao(urlPlanilha, \"Abrir planilha no Google Sheets\") : \"\");\n\nconst html = wpPagina({\n  titulo: CONFIG.titulo,\n  eyebrow: \"Guardião da carteira\",\n  preheader: wpNum(c.qtd_vermelho) + \" clientes sem compra há mais de 90 dias. Veja a carteira por status.\",\n  empresa: CONFIG.nomeEmpresa,\n  rotuloDireita: \"Relatório de \" + wpEsc(c.data_execucao),\n  heroEyebrow: \"Precisam de atenção\",\n  heroValor: wpNum(c.qtd_vermelho),\n  heroSub: \"clientes sem compra há mais de 90 dias ou sem registro de compra\",\n  saudacao: \"Olá!\",\n  subSaudacao: \"A automação cruzou os clientes do Gestor (última compra) com as interações do Ploomes (últimos 18 meses) e classificou cada cliente pela data da última compra.\",\n  miolo: miolo,\n  rodape: [wpEsc(CONFIG.rodape), \"Londrisoft &mdash; Londrina, PR\"]\n});\nreturn [{ json: { assunto: CONFIG.assunto.replace(\"{data}\", c.data_execucao), corpo_html: html } }];\n"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e3",
+      "source": "bd7af8c2-9710-4f7c-9a0c-dc7614632ced",
+      "target": "f5c1dc76-0ab9-4b34-8b24-ed19dc5adc38"
+    },
+    {
+      "id": "e4",
+      "source": "f5c1dc76-0ab9-4b34-8b24-ed19dc5adc38",
+      "target": "74ea59bb-0897-450b-b428-daffe314504b"
+    },
+    {
+      "id": "e5",
+      "source": "74ea59bb-0897-450b-b428-daffe314504b",
+      "target": "dbf0a74c-c135-4bde-8ad8-5e507c3b9a09"
+    },
+    {
+      "id": "e6",
+      "source": "af8337df-3a9b-4519-8c3a-4d09172cce81",
+      "target": "dbf0a74c-c135-4bde-8ad8-5e507c3b9a09"
+    },
+    {
+      "id": "e7",
+      "source": "dbf0a74c-c135-4bde-8ad8-5e507c3b9a09",
+      "target": "13479af6-db36-4bd6-8880-9935d9b3c5d7"
+    },
+    {
+      "id": "e8",
+      "source": "13479af6-db36-4bd6-8880-9935d9b3c5d7",
+      "target": "0294c71f-1a06-4234-ac09-bb5eb66e8178"
+    },
+    {
+      "id": "e9",
+      "source": "0294c71f-1a06-4234-ac09-bb5eb66e8178",
+      "target": "ee1b85da-e590-4bd9-887c-b2457dadfc0e"
+    },
+    {
+      "id": "e10",
+      "source": "ee1b85da-e590-4bd9-887c-b2457dadfc0e",
+      "target": "bf52b43a-335d-4498-b93c-77356757f964"
+    },
+    {
+      "id": "e11",
+      "source": "bf52b43a-335d-4498-b93c-77356757f964",
+      "target": "cde271ab-191a-5599-9a9a-9f2b631064fc"
+    },
+    {
+      "id": "e-4e6f385d-389e-4e42-861a-342d8101e2c4-af8337df-3a9b-4519-8c3a-4d09172cce81-1792179411270",
+      "source": "4e6f385d-389e-4e42-861a-342d8101e2c4",
+      "target": "af8337df-3a9b-4519-8c3a-4d09172cce81"
+    },
+    {
+      "id": "e-4e6f385d-389e-4e42-861a-342d8101e2c4-bd7af8c2-9710-4f7c-9a0c-dc7614632ced-1792179415135",
+      "source": "4e6f385d-389e-4e42-861a-342d8101e2c4",
+      "target": "bd7af8c2-9710-4f7c-9a0c-dc7614632ced"
+    },
+    {
+      "id": "e-cde271ab",
+      "source": "cde271ab-191a-5599-9a9a-9f2b631064fc",
+      "target": "8437e78b-2ed5-4f70-ac5f-cb783348db2a"
+    }
+  ]
+}

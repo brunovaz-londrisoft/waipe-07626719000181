@@ -19,7 +19,15 @@ Comandos do repositório de cliente (branch única: main)
 Comandos do repositório template (o próprio framework)
   release-framework <nivel>    fecha uma versão do framework: VERSION, CHANGELOG, tag vX.Y.Z
   novo-cliente <repo> "<Nome>" cria o repositório de um cliente a partir do template
-  clientes                     lista os repositórios de cliente (tópico waipe-cliente)
+  clientes                     lista os repositórios de cliente que a conta enxerga (próprios, de organização
+                               e compartilhados): waipe-* com o framework
+  atualizar-kit                troca o bloco do kit de e-mail (kit-email-waipe.js) em todos os nodes do catálogo
+  gerar-modelos [modelo ...]   regera os modelos de comunicação do catálogo (gerar_modelos.py de cada modelo)
+  registrar-origem <modelo> <repo> <agente>
+                               grava em catalogo/<modelo>/origem.json o fluxo do agente do cliente que deu origem ao
+                               modelo (a comparação reconhece o agente mesmo depois de o modelo ser adaptado)
+  comparar-catalogo [--json]   compara o fluxo de cada agente publicado nos clientes com os modelos do catálogo
+                               (nome e estrutura) e sugere: já no catálogo, variação (2), (3)... ou modelo novo
 
 Só usa a biblioteca padrão do Python, git e gh.
 """
@@ -804,10 +812,222 @@ def cmd_release_framework(args):
     print(f"Framework {tag} publicado.\nAtualize os clientes com a skill waipe-atualizar-framework.")
 
 
+def repos_clientes():
+    """Repositórios de cliente que a conta do gh enxerga (próprios, de organização e compartilhados):
+    waipe-* com o framework (.claude/waipe/VERSION), sem os templates."""
+    bruto = gh("api", "--paginate", "user/repos?affiliation=owner,collaborator,organization_member&per_page=100",
+               "--jq", '.[] | select(.name | startswith("waipe-")) | select((.is_template | not) and (.name | endswith("-template") | not))'
+               ' | [.full_name, .default_branch, .updated_at] | @tsv')
+    repos = []
+    for linha in bruto.splitlines():
+        nome, ramo, quando = linha.split("\t")
+        tem = subprocess.run(["gh", "api", f"repos/{nome}/contents/.claude/waipe/VERSION?ref={ramo}", "--silent"], capture_output=True)
+        if tem.returncode == 0:
+            repos.append({"repo": nome, "branch": ramo, "atualizado": quando})
+    return repos
+
+
 def cmd_clientes(_args):
-    dono = TEMPLATE.split("/")[0]
-    print(gh("repo", "list", dono, "--topic", TOPICO, "--limit", "200",
-             "--json", "nameWithOwner,updatedAt", "--jq", ".[] | \"\\(.nameWithOwner)\\t\\(.updatedAt)\""))
+    for r in repos_clientes():
+        print(f"{r['repo']}\t{r['atualizado']}")
+
+
+# ---------------------------------------------------------------- comparação com o catálogo
+
+LIMIAR_IGUAL = 0.85  # similaridade de fluxo a partir da qual dois flows são "o mesmo modelo"
+
+
+def assinatura_flow(flow):
+    """Estrutura do flow, sem os dados: quantos nodes de cada tipo e quais ligações (tipo → saída → tipo)."""
+    tipos = {n.get("id"): n.get("type", "?") for n in flow.get("nodes", [])}
+    nodes, arestas = {}, {}
+    for t in tipos.values():
+        nodes[t] = nodes.get(t, 0) + 1
+    for e in flow.get("edges", []):
+        k = f"{tipos.get(e.get('source'), '?')}>{e.get('sourceHandle') or ''}>{tipos.get(e.get('target'), '?')}"
+        arestas[k] = arestas.get(k, 0) + 1
+    return {"nodes": nodes, "arestas": arestas, "gatilho": flow.get("triggerType", "")}
+
+
+def _jaccard(a, b):
+    chaves = set(a) | set(b)
+    if not chaves:
+        return 1.0
+    return sum(min(a.get(k, 0), b.get(k, 0)) for k in chaves) / sum(max(a.get(k, 0), b.get(k, 0)) for k in chaves)
+
+
+def similaridade_flow(a, b):
+    """0 a 1: 40% tipos de node, 60% ligações entre eles."""
+    return round(0.4 * _jaccard(a["nodes"], b["nodes"]) + 0.6 * _jaccard(a["arestas"], b["arestas"]), 3)
+
+
+def _base_slug(slug):
+    return re.sub(r"-\d+$", "", slug)
+
+
+def _codigo_repo(repo):
+    """Identifica o repositório de origem sem gravar o nome do cliente no catálogo."""
+    import hashlib
+    return hashlib.sha1(repo.lower().encode()).hexdigest()[:12]
+
+
+def origens_do_modelo(pasta):
+    arq = pasta / "origem.json"
+    return json.loads(arq.read_text(encoding="utf-8")).get("origens", []) if arq.exists() else []
+
+
+def modelos_catalogo_flows():
+    out = []
+    for p in sorted(CATALOGO.iterdir()) if CATALOGO.exists() else []:
+        js, md = p / f"{p.name}.json", p / f"{p.name}.md"
+        if p.is_dir() and p.name not in RESERVADAS and js.exists():
+            fm = frontmatter(md.read_text(encoding="utf-8")) if md.exists() else {}
+            out.append({"slug": p.name, "nome": (fm or {}).get("nome", p.name), "versao": (fm or {}).get("versao", ""),
+                        "assinatura": assinatura_flow(json.loads(js.read_text(encoding="utf-8"))),
+                        "origens": origens_do_modelo(p)})
+    return out
+
+
+def _sim_modelo(ass, modelo):
+    """Similaridade com o modelo: o fluxo atual dele ou o de qualquer agente que lhe deu origem (o maior)."""
+    return max([similaridade_flow(ass, modelo["assinatura"])] + [similaridade_flow(ass, o["assinatura"]) for o in modelo["origens"]])
+
+
+def cmd_registrar_origem(args):
+    if not modo_template():
+        erro("rode no repositório template.")
+    if len(args) != 3:
+        erro("uso: registrar-origem <modelo-do-catálogo> <dono/repo> <slug-do-agente-no-cliente>")
+    modelo, repo, slug = args
+    pasta = CATALOGO / modelo
+    if not (pasta / f"{modelo}.json").exists():
+        erro(f"modelo '{modelo}' não existe no catálogo.")
+    ramo = gh("api", f"repos/{repo}", "--jq", ".default_branch")
+    texto = _gh_texto(repo, f"agentes/{slug}/{slug}.json", ramo)
+    if not texto:
+        erro(f"não achei agentes/{slug}/{slug}.json em {repo}.")
+    fm = frontmatter(_gh_texto(repo, f"agentes/{slug}/{slug}.md", ramo) or "") or {}
+    origens = [o for o in origens_do_modelo(pasta) if not (o["repo"] == _codigo_repo(repo) and o["agente"] == slug)]
+    origens.append({"repo": _codigo_repo(repo), "agente": slug, "versao": fm.get("versao", ""),
+                    "registrado": datetime.date.today().isoformat(), "assinatura": assinatura_flow(json.loads(texto))})
+    (pasta / "origem.json").write_text(json.dumps({"origens": origens}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(f"origem registrada em {(pasta / 'origem.json').relative_to(RAIZ)}: {slug} v{fm.get('versao', '?')}")
+
+
+def _gh_texto(repo, caminho, ramo):
+    r = subprocess.run(["gh", "api", "-H", "Accept: application/vnd.github.raw+json", f"repos/{repo}/contents/{caminho}?ref={ramo}"],
+                       capture_output=True, text=True)
+    return r.stdout if r.returncode == 0 else None
+
+
+def comparar_catalogo():
+    """Cada agente publicado (versao > 0.0.0) de cada cliente contra os modelos do catálogo."""
+    catalogo = modelos_catalogo_flows()
+    slugs_catalogo = {m["slug"] for m in catalogo}
+    resultado = []
+    for r in repos_clientes():
+        arvore = json.loads(gh("api", f"repos/{r['repo']}/git/trees/{r['branch']}?recursive=1"))
+        caminhos = {t["path"] for t in arvore.get("tree", []) if t.get("type") == "blob"}
+        agentes = sorted({c.split("/")[1] for c in caminhos if re.fullmatch(r"agentes/[^/]+/[^/]+\.json", c)
+                          and c.split("/")[1] not in RESERVADAS and c == f"agentes/{c.split('/')[1]}/{c.split('/')[1]}.json"})
+        for slug in agentes:
+            md = _gh_texto(r["repo"], f"agentes/{slug}/{slug}.md", r["branch"]) or ""
+            fm = frontmatter(md) or {}
+            item = {"repo": r["repo"], "slug": slug, "nome": fm.get("nome", slug), "versao": fm.get("versao", "")}
+            if not item["versao"] or item["versao"] == "0.0.0":
+                resultado.append({**item, "situacao": "rascunho", "sugestao": "ainda sem release: fica de fora"})
+                continue
+            try:
+                ass = assinatura_flow(json.loads(_gh_texto(r["repo"], f"agentes/{slug}/{slug}.json", r["branch"]) or "{}"))
+            except ValueError:
+                resultado.append({**item, "situacao": "erro", "sugestao": "JSON inválido"})
+                continue
+            notas = sorted(({"slug": m["slug"], "sim": _sim_modelo(ass, m)} for m in catalogo), key=lambda x: -x["sim"])
+            # Agente que já deu origem a um modelo: é dele, mesmo que o modelo tenha sido adaptado depois.
+            origem = next(({"slug": m["slug"], "versao": o.get("versao", "")} for m in catalogo for o in m["origens"]
+                           if o["repo"] == _codigo_repo(r["repo"]) and o["agente"] == slug), None)
+            mesmo_nome = [n for n in notas if _base_slug(n["slug"]) == _base_slug(slug)]
+            melhor = notas[0] if notas else {"slug": "", "sim": 0}
+            if origem:
+                novo_no_cliente = origem["versao"] and item["versao"] != origem["versao"]
+                sit = "no catálogo"
+                sug = (f"origem do modelo {origem['slug']}" + (f": o cliente está na v{item['versao']} e o modelo veio da v{origem['versao']}, "
+                       f"avalie melhoria" if novo_no_cliente else " (mesma versão)"))
+            elif mesmo_nome and mesmo_nome[0]["sim"] >= LIMIAR_IGUAL:
+                sit, sug = "no catálogo", f"modelo {mesmo_nome[0]['slug']} (fluxo {mesmo_nome[0]['sim']:.0%} igual): veja se a versão do cliente traz melhoria"
+            elif mesmo_nome:
+                n = 2
+                while f"{_base_slug(slug)}-{n}" in slugs_catalogo:
+                    n += 1
+                sit = "mesmo nome, fluxo diferente"
+                sug = (f"novo modelo {_base_slug(slug)}-{n} \"{item['nome']} ({n})\" (o fluxo de {mesmo_nome[0]['slug']} é só "
+                       f"{mesmo_nome[0]['sim']:.0%} igual)")
+            elif melhor["sim"] >= LIMIAR_IGUAL:
+                sit, sug = "fluxo parecido", f"mesmo fluxo do modelo {melhor['slug']} ({melhor['sim']:.0%}) com outro nome: avalie se é melhoria dele"
+            else:
+                sit = "novo"
+                sug = f"novo modelo {slug}" + (f" (o mais parecido é {melhor['slug']}, {melhor['sim']:.0%})" if melhor["slug"] else "")
+            resultado.append({**item, "situacao": sit, "sugestao": sug, "parecidos": notas[:3]})
+    return resultado
+
+
+KIT_EMAIL = WAIPE / "modelos-comunicacao" / "kit-email-waipe.js"
+BLOCO_KIT = re.compile(r"// =+\n// PADRÃO DE E-MAIL WAIPE.*?// FIM DO PADRÃO DE E-MAIL WAIPE\n// =+", re.S)
+
+
+def cmd_atualizar_kit(_args):
+    """Troca o bloco do kit (do PADRÃO DE E-MAIL WAIPE ao FIM) pelo kit atual em todos os nodes do catálogo."""
+    if not modo_template():
+        erro("rode no repositório template: nos clientes, o node de produção só muda junto com o agente.")
+    kit = KIT_EMAIL.read_text(encoding="utf-8").strip()
+    total = 0
+    for js in sorted(CATALOGO.glob("*/*.json")):
+        texto = js.read_text(encoding="utf-8")
+        flow = json.loads(texto)
+        trocados = 0
+        for n in flow.get("nodes", []):
+            codigo = (n.get("parameters") or {}).get("jsCode")
+            if codigo and BLOCO_KIT.search(codigo):
+                novo = BLOCO_KIT.sub(lambda _: kit, codigo, count=1)
+                if novo != codigo:
+                    n["parameters"]["jsCode"] = novo
+                    trocados += 1
+        if trocados:
+            js.write_text(json.dumps(flow, indent=2, ensure_ascii=False) + ("\n" if texto.endswith("\n") else ""), encoding="utf-8")
+            print(f"{js.relative_to(RAIZ)}: kit trocado em {trocados} node(s)")
+            total += trocados
+    print(f"{total} node(s) atualizados. Agora: waipe.py gerar-modelos")
+
+
+def cmd_gerar_modelos(args):
+    """Roda o gerar_modelos.py de cada modelo do catálogo (ou dos citados): refaz as peças e o modelos.json."""
+    if not modo_template():
+        erro("rode no repositório template.")
+    alvos = args or sorted(p.name for p in CATALOGO.iterdir() if (p / "gerar_modelos.py").exists())
+    falhou = False
+    for slug in alvos:
+        script = CATALOGO / slug / "gerar_modelos.py"
+        if not script.exists():
+            print(f"✗ {slug}: sem gerar_modelos.py")
+            falhou = True
+            continue
+        r = subprocess.run([sys.executable, str(script)], capture_output=True, text=True)
+        print(f"{'✓' if r.returncode == 0 else '✗'} {slug}" + ("" if r.returncode == 0 else f"\n{r.stderr.strip()}"))
+        falhou |= r.returncode != 0
+    sys.exit(1 if falhou else 0)
+
+
+def cmd_comparar_catalogo(args):
+    if not modo_template():
+        erro("rode no repositório template (o catálogo é dele).")
+    res = comparar_catalogo()
+    if "--json" in args:
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+        return
+    for x in res:
+        print(f"{x['repo']:<45} {x['slug']:<38} v{x['versao'] or '?':<7} {x['situacao']:<28} {x['sugestao']}")
+    if not res:
+        print("nenhum agente encontrado nos clientes")
 
 
 def cmd_novo_cliente(args):
@@ -841,7 +1061,8 @@ COMANDOS = {
     "validar": cmd_validar, "hook": cmd_hook, "status": cmd_status, "novo-agente": cmd_novo_agente, "catalogo": cmd_catalogo,
     "salvar": cmd_salvar, "release": cmd_release, "atualizar": cmd_atualizar, "migrar": cmd_migrar,
     "iniciar": cmd_iniciar, "release-framework": cmd_release_framework,
-    "novo-cliente": cmd_novo_cliente, "clientes": cmd_clientes,
+    "novo-cliente": cmd_novo_cliente, "clientes": cmd_clientes, "comparar-catalogo": cmd_comparar_catalogo,
+    "atualizar-kit": cmd_atualizar_kit, "gerar-modelos": cmd_gerar_modelos, "registrar-origem": cmd_registrar_origem,
 }
 
 if __name__ == "__main__":

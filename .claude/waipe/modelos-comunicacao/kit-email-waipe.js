@@ -119,6 +119,9 @@ function wpKpis(lista, titulo) {
   let h = "<tr><td class='wp-pad' style='padding:20px 32px 8px 32px;'>";
   if (titulo) h += "<p class='wp-m' style='margin:0 0 8px 0;" + WP_F + "font-size:11px;font-weight:bold;letter-spacing:0.8px;text-transform:uppercase;color:#6B7280;mso-line-height-rule:exactly;line-height:15px;'>" + wpEsc(titulo) + "</p>";
   h += "<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr>";
+  // Valor longo (ex.: R$ 99.716,16) com 3 ou mais cartões lado a lado: fonte menor para caber numa linha.
+  const maiorValor = lista.reduce(function (m, k) { return Math.max(m, String(k.valor === undefined ? "" : k.valor).length); }, 0);
+  const tam = n >= 3 && maiorValor > 9 ? 20 : n >= 2 && maiorValor > 14 ? 20 : 26;
   for (let i = 0; i < n; i++) {
     const k = lista[i];
     const nome = WP_ESTILOS[k.estilo] ? k.estilo : (i === 0 ? "medio" : "neutro");
@@ -127,7 +130,7 @@ function wpKpis(lista, titulo) {
     const pad = n === 1 ? "" : (i === 0 ? "padding-right:6px;" : (i === n - 1 ? "padding-left:6px;" : "padding:0 3px;"));
     h += "<td class='wp-kpi' width='" + larg + "%' valign='top' style='width:" + larg + "%;" + pad + "'>" +
       "<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'><tr><td bgcolor='" + e.bg + "' style='background:" + e.bg + ";border-radius:8px;padding:16px;'>" +
-      "<p class='wp-c-" + cls + "' style='margin:0;" + WP_F + "font-size:26px;font-weight:bold;color:" + e.cor + ";mso-line-height-rule:exactly;line-height:32px;'>" + wpEsc(k.valor) + "</p>" +
+      "<p class='wp-c-" + cls + "' style='margin:0;" + WP_F + "font-size:" + tam + "px;font-weight:bold;color:" + e.cor + ";mso-line-height-rule:exactly;line-height:" + (tam + 6) + "px;white-space:nowrap;'>" + wpEsc(k.valor) + "</p>" +
       "<p class='wp-c-" + cls + "' style='margin:4px 0 0 0;" + WP_F + "font-size:13px;color:" + (nome === "neutro" ? "#5B6170" : e.cor) + ";mso-line-height-rule:exactly;line-height:18px;'>" + wpEsc(k.rotulo) + "</p>" +
       (k.sub ? "<p class='wp-m' style='margin:2px 0 0 0;" + WP_F + "font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:16px;'>" + wpEsc(k.sub) + "</p>" : "") +
       "</td></tr></table></td>";

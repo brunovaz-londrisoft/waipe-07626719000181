@@ -172,6 +172,29 @@ tr.h td{font-weight:700;background:var(--sel)}td.num{text-align:right;font-varia
 """
 
 
+def ler_planilha(caminho):
+    """Lê de volta uma planilha gerada por pagina_planilha: (titulo, colunas, linhas, aba). Serve de fonte dos dados
+    fictícios ao regerar os modelos (os números voltam como int/float)."""
+    s = open(caminho, encoding='utf-8').read()
+    titulo = _h.unescape(re.search(r'<title>(.*?)</title>', s, re.S).group(1))
+    aba = _h.unescape(re.search(r'<span class="a">(.*?)</span>', s).group(1))
+    corpo = s.split('<tbody>')[1].split('</tbody>')[0]
+    linhas = []
+    for tr in re.findall(r'<tr[^>]*>(.*?)</tr>', corpo, re.S):
+        celulas = re.findall(r'<td([^>]*)>(.*?)</td>', tr, re.S)[1:]
+        linha = []
+        for attr, v in celulas:
+            v = _h.unescape(v)
+            if 'num' in attr:
+                try:
+                    v = int(v) if re.fullmatch(r'-?\d+', v) else float(v)
+                except ValueError:
+                    pass
+            linha.append(v)
+        linhas.append(linha)
+    return titulo, linhas[0], linhas[1:], aba
+
+
 def pagina_planilha(titulo, colunas, linhas, aba='Página1', larguras=None):
     """Só a planilha: título, grade com letras e números e a aba. Números (int/float) ficam alinhados à direita."""
     letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
@@ -188,3 +211,40 @@ def pagina_planilha(titulo, colunas, linhas, aba='Página1', larguras=None):
             '<div class="area"><table><colgroup>%(cols)s</colgroup><thead><tr>%(cab)s</tr></thead><tbody>%(corpo)s</tbody></table></div>'
             '<div class="abas"><span class="a">%(aba)s</span></div></body></html>') % dict(
         t=esc(titulo), css=CSS_PLANILHA, cols=cols, cab=cab, corpo=corpo, aba=esc(aba))
+
+
+# ------------------------------------------------------------------ Geradores por modelo (gerar_modelos.py)
+def modelo_do_arquivo(arquivo):
+    """Para o gerar_modelos.py de um modelo/agente: (slug, caminho do flow, pasta modelos/)."""
+    pasta = os.path.dirname(os.path.abspath(arquivo))
+    slug = os.path.basename(pasta)
+    return slug, os.path.join(pasta, slug + '.json'), os.path.join(pasta, 'modelos')
+
+
+def slug_de(nome):
+    """'Otávio Brandão' -> 'otavio-brandao' (nome de arquivo)."""
+    import unicodedata
+    t = unicodedata.normalize('NFD', nome).encode('ascii', 'ignore').decode().lower()
+    return re.sub(r'[^a-z0-9]+', '-', t).strip('-')
+
+
+def planilhas_salvas(saida):
+    """Relê as planilhas já salvas em <saida>/planilhas/ (a fonte das listas fictícias) e as redesenha com o
+    pagina_planilha atual. Devolve [(arquivo relativo, titulo, colunas, linhas)], em ordem de nome."""
+    pasta = os.path.join(saida, 'planilhas')
+    out = []
+    for nome in sorted(os.listdir(pasta)) if os.path.isdir(pasta) else []:
+        if not nome.endswith('.html'):
+            continue
+        caminho = os.path.join(pasta, nome)
+        larguras = [int(w) for w in re.findall(r'<col style="width:(\d+)px">', open(caminho, encoding='utf-8').read())[1:]]
+        titulo, colunas, linhas, aba = ler_planilha(caminho)
+        gravar(saida, 'planilhas/' + nome, pagina_planilha(titulo, colunas, linhas, aba, larguras))
+        out.append(('planilhas/' + nome, titulo, colunas, linhas))
+    return out
+
+
+def nome_na_planilha(titulo):
+    """'Radar do Primeiro Pedido - Helena Prado - 20-10-2026' -> 'Helena Prado'."""
+    partes = titulo.split(' - ')
+    return partes[1] if len(partes) >= 3 else titulo
