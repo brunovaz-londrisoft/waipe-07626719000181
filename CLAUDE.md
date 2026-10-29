@@ -1,6 +1,6 @@
 # Agentes Waipe
 
-Cliente: PENDENTE
+Cliente: IVAN ALEX MANDUCA
 
 > Se a linha acima diz PENDENTE e este repositório **não** é o template `brunovaz-londrisoft/waipe-agentes-template`,
 > pergunte o nome do cliente e rode `python3 .claude/waipe/waipe.py iniciar "<Nome do cliente>"`.
