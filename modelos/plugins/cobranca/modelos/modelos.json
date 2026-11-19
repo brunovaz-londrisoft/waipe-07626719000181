@@ -1,0 +1,18 @@
+{
+  "versao": 1,
+  "aviso": "Dados fictícios. Desenho e cálculo do plugin no Waipe Páginas.",
+  "pecas": [
+    {
+      "arquivo": "painel.html",
+      "tipo": "pagina",
+      "rotulo": "Indicadores",
+      "quem": "Aba Indicadores da página"
+    },
+    {
+      "arquivo": "relatorio.html",
+      "tipo": "pagina",
+      "rotulo": "Relatório",
+      "quem": "Aba Relatório da página"
+    }
+  ]
+}

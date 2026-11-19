@@ -1,0 +1,218 @@
+[
+ {
+  "tipo": "Venda",
+  "numero_documento": "5000",
+  "data_documento": "2026-09-12",
+  "data_vencimento": "",
+  "cliente_fornecedor": "Condomínio Jardim Exemplo",
+  "vendedor": "Vendedor B",
+  "valor": 1525.17
+ },
+ {
+  "tipo": "Orçamento de Venda",
+  "numero_documento": "5001",
+  "data_documento": "2026-09-15",
+  "data_vencimento": "",
+  "cliente_fornecedor": "Clínica Água Clara",
+  "vendedor": "",
+  "valor": 347.07
+ },
+ {
+  "tipo": "O.S.",
+  "numero_documento": "5002",
+  "data_documento": "2026-10-03",
+  "data_vencimento": "",
+  "cliente_fornecedor": "Piscineiro João (fictício)",
+  "vendedor": "",
+  "valor": 761.22
+ },
+ {
+  "tipo": "Orçamento de O.S.",
+  "numero_documento": "5003",
+  "data_documento": "2026-11-12",
+  "data_vencimento": "",
+  "cliente_fornecedor": "Academia Fictícia",
+  "vendedor": "",
+  "valor": 513.03
+ },
+ {
+  "tipo": "Conta a Receber",
+  "numero_documento": "5004",
+  "data_documento": "",
+  "data_vencimento": "2026-09-02",
+  "cliente_fornecedor": "Cliente Balcão Ltda",
+  "vendedor": "",
+  "valor": 600.63
+ },
+ {
+  "tipo": "Conta a Pagar",
+  "numero_documento": "5005",
+  "data_documento": "",
+  "data_vencimento": "2026-10-03",
+  "cliente_fornecedor": "Condomínio Jardim Exemplo",
+  "vendedor": "Vendedor A",
+  "valor": 2171.55
+ },
+ {
+  "tipo": "Venda",
+  "numero_documento": "5006",
+  "data_documento": "2026-10-09",
+  "data_vencimento": "",
+  "cliente_fornecedor": "Clínica Água Clara",
+  "vendedor": "Vendedor B",
+  "valor": 1603.78
+ },
+ {
+  "tipo": "Orçamento de Venda",
+  "numero_documento": "5007",
+  "data_documento": "2026-10-06",
+  "data_vencimento": "",
+  "cliente_fornecedor": "Piscineiro João (fictício)",
+  "vendedor": "Vendedor B",
+  "valor": 913.97
+ },
+ {
+  "tipo": "O.S.",
+  "numero_documento": "5008",
+  "data_documento": "2026-11-09",
+  "data_vencimento": "",
+  "cliente_fornecedor": "Academia Fictícia",
+  "vendedor": "",
+  "valor": 2344.17
+ },
+ {
+  "tipo": "Orçamento de O.S.",
+  "numero_documento": "5009",
+  "data_documento": "2026-11-03",
+  "data_vencimento": "",
+  "cliente_fornecedor": "Cliente Balcão Ltda",
+  "vendedor": "",
+  "valor": 1602.05
+ },
+ {
+  "tipo": "Conta a Receber",
+  "numero_documento": "5010",
+  "data_documento": "",
+  "data_vencimento": "2026-11-08",
+  "cliente_fornecedor": "Condomínio Jardim Exemplo",
+  "vendedor": "Vendedor A",
+  "valor": 1177.16
+ },
+ {
+  "tipo": "Conta a Pagar",
+  "numero_documento": "5011",
+  "data_documento": "",
+  "data_vencimento": "2026-10-18",
+  "cliente_fornecedor": "Clínica Água Clara",
+  "vendedor": "Vendedor A",
+  "valor": 1724.15
+ },
+ {
+  "tipo": "Venda",
+  "numero_documento": "5012",
+  "data_documento": "2026-09-08",
+  "data_vencimento": "",
+  "cliente_fornecedor": "Piscineiro João (fictício)",
+  "vendedor": "Vendedor A",
+  "valor": 2020.41
+ },
+ {
+  "tipo": "Orçamento de Venda",
+  "numero_documento": "5013",
+  "data_documento": "2026-10-09",
+  "data_vencimento": "",
+  "cliente_fornecedor": "Academia Fictícia",
+  "vendedor": "Vendedor A",
+  "valor": 559.02
+ },
+ {
+  "tipo": "O.S.",
+  "numero_documento": "5014",
+  "data_documento": "2026-11-11",
+  "data_vencimento": "",
+  "cliente_fornecedor": "Cliente Balcão Ltda",
+  "vendedor": "Vendedor A",
+  "valor": 1652.38
+ },
+ {
+  "tipo": "Orçamento de O.S.",
+  "numero_documento": "5015",
+  "data_documento": "2026-10-15",
+  "data_vencimento": "",
+  "cliente_fornecedor": "Condomínio Jardim Exemplo",
+  "vendedor": "Vendedor A",
+  "valor": 691.61
+ },
+ {
+  "tipo": "Conta a Receber",
+  "numero_documento": "5016",
+  "data_documento": "",
+  "data_vencimento": "2026-09-18",
+  "cliente_fornecedor": "Clínica Água Clara",
+  "vendedor": "",
+  "valor": 686.34
+ },
+ {
+  "tipo": "Conta a Pagar",
+  "numero_documento": "5017",
+  "data_documento": "",
+  "data_vencimento": "2026-11-14",
+  "cliente_fornecedor": "Piscineiro João (fictício)",
+  "vendedor": "",
+  "valor": 1022.53
+ },
+ {
+  "tipo": "Venda",
+  "numero_documento": "5018",
+  "data_documento": "2026-09-05",
+  "data_vencimento": "",
+  "cliente_fornecedor": "Academia Fictícia",
+  "vendedor": "",
+  "valor": 1254.05
+ },
+ {
+  "tipo": "Orçamento de Venda",
+  "numero_documento": "5019",
+  "data_documento": "2026-09-04",
+  "data_vencimento": "",
+  "cliente_fornecedor": "Cliente Balcão Ltda",
+  "vendedor": "Vendedor A",
+  "valor": 1583.52
+ },
+ {
+  "tipo": "O.S.",
+  "numero_documento": "5020",
+  "data_documento": "2026-11-14",
+  "data_vencimento": "",
+  "cliente_fornecedor": "Condomínio Jardim Exemplo",
+  "vendedor": "",
+  "valor": 196.28
+ },
+ {
+  "tipo": "Orçamento de O.S.",
+  "numero_documento": "5021",
+  "data_documento": "2026-10-15",
+  "data_vencimento": "",
+  "cliente_fornecedor": "Clínica Água Clara",
+  "vendedor": "",
+  "valor": 658.48
+ },
+ {
+  "tipo": "Conta a Receber",
+  "numero_documento": "5022",
+  "data_documento": "",
+  "data_vencimento": "2026-11-01",
+  "cliente_fornecedor": "Piscineiro João (fictício)",
+  "vendedor": "",
+  "valor": 1812.98
+ },
+ {
+  "tipo": "Conta a Pagar",
+  "numero_documento": "5023",
+  "data_documento": "",
+  "data_vencimento": "2026-11-18",
+  "cliente_fornecedor": "Academia Fictícia",
+  "vendedor": "Vendedor B",
+  "valor": 1930.75
+ }
+]

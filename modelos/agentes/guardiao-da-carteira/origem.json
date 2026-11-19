@@ -1,0 +1,33 @@
+{
+  "origens": [
+    {
+      "repo": "e84d0d46853c",
+      "agente": "guardiao-da-carteira",
+      "versao": "1.0.0",
+      "registrado": "2026-10-23",
+      "assinatura": {
+        "nodes": {
+          "waipe_data": 1,
+          "http_request": 2,
+          "code": 3,
+          "google_sheets": 2,
+          "merge_out": 1,
+          "gmail_send": 1,
+          "trigger_schedule": 1
+        },
+        "arestas": {
+          "http_request>>code": 2,
+          "code>>http_request": 1,
+          "waipe_data>>code": 1,
+          "code>>google_sheets": 2,
+          "google_sheets>>code": 1,
+          "google_sheets>>merge_out": 1,
+          "merge_out>>gmail_send": 1,
+          "trigger_schedule>>waipe_data": 1,
+          "trigger_schedule>>http_request": 1
+        },
+        "gatilho": "schedule"
+      }
+    }
+  ]
+}

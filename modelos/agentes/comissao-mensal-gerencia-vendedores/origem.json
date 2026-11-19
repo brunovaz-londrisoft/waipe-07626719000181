@@ -1,0 +1,35 @@
+{
+  "origens": [
+    {
+      "repo": "e84d0d46853c",
+      "agente": "comissao-mensal-gerencia-vendedores",
+      "versao": "1.0.0",
+      "registrado": "2026-10-23",
+      "assinatura": {
+        "nodes": {
+          "filter": 1,
+          "waipe_data": 2,
+          "code": 5,
+          "merge_out": 3,
+          "google_sheets": 4,
+          "gmail_send": 2,
+          "loop": 1,
+          "trigger_manual": 1
+        },
+        "arestas": {
+          "waipe_data>>code": 2,
+          "code>>code": 1,
+          "code>>merge_out": 1,
+          "merge_out>>waipe_data": 1,
+          "code>>google_sheets": 3,
+          "google_sheets>>code": 2,
+          "google_sheets>>merge_out": 2,
+          "merge_out>>gmail_send": 2,
+          "loop>loop>google_sheets": 1,
+          "trigger_manual>>waipe_data": 1
+        },
+        "gatilho": "manual"
+      }
+    }
+  ]
+}

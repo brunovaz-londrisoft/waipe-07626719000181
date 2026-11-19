@@ -1,0 +1,33 @@
+{
+  "origens": [
+    {
+      "repo": "e84d0d46853c",
+      "agente": "produtos-sem-giro",
+      "versao": "1.0.0",
+      "registrado": "2026-10-23",
+      "assinatura": {
+        "nodes": {
+          "trigger_schedule": 1,
+          "waipe_data": 2,
+          "code": 1,
+          "if": 1,
+          "google_sheets": 3,
+          "merge_out": 1,
+          "gmail_send": 3
+        },
+        "arestas": {
+          "trigger_schedule>>waipe_data": 2,
+          "waipe_data>>code": 2,
+          "code>>if": 1,
+          "if>true>google_sheets": 1,
+          "google_sheets>>merge_out": 1,
+          "merge_out>>gmail_send": 1,
+          "if>false>gmail_send": 1,
+          "code>>gmail_send": 1,
+          "google_sheets>>google_sheets": 2
+        },
+        "gatilho": "schedule"
+      }
+    }
+  ]
+}

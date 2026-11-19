@@ -1,0 +1,43 @@
+{
+  "origens": [
+    {
+      "repo": "52549af1c2d6",
+      "agente": "anjo-do-primeiro-pedido",
+      "versao": "1.0.0",
+      "registrado": "2026-10-23",
+      "assinatura": {
+        "nodes": {
+          "trigger_schedule": 1,
+          "waipe_data": 2,
+          "code": 4,
+          "if": 1,
+          "google_sheets": 5,
+          "loop": 1,
+          "switch": 1,
+          "gmail_send": 2,
+          "edit_fields": 1,
+          "zapi_send": 1
+        },
+        "arestas": {
+          "trigger_schedule>>waipe_data": 1,
+          "waipe_data>>waipe_data": 1,
+          "waipe_data>>code": 1,
+          "code>>if": 1,
+          "if>true>google_sheets": 1,
+          "google_sheets>>loop": 1,
+          "loop>loop>google_sheets": 1,
+          "google_sheets>>google_sheets": 1,
+          "google_sheets>>code": 3,
+          "code>>google_sheets": 1,
+          "code>>switch": 1,
+          "switch>com_telefone>zapi_send": 1,
+          "switch>com_email>gmail_send": 1,
+          "switch>sem_contato>edit_fields": 1,
+          "loop>done>google_sheets": 1,
+          "code>>gmail_send": 1
+        },
+        "gatilho": "schedule"
+      }
+    }
+  ]
+}

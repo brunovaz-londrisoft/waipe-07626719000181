@@ -1,0 +1,24 @@
+{
+  "origens": [
+    {
+      "repo": "4963fe4d6578",
+      "agente": "pendencias-de-ontem",
+      "versao": "1.0.0",
+      "registrado": "2026-10-23",
+      "assinatura": {
+        "nodes": {
+          "trigger_schedule": 1,
+          "waipe_data": 4,
+          "code": 1,
+          "gmail_send": 1
+        },
+        "arestas": {
+          "trigger_schedule>>waipe_data": 4,
+          "waipe_data>>code": 4,
+          "code>>gmail_send": 1
+        },
+        "gatilho": "schedule"
+      }
+    }
+  ]
+}

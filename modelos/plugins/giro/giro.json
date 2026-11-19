@@ -1,0 +1,444 @@
+{
+  "formato": "waipe-paginas/1",
+  "slug": "giro",
+  "nome": "Giro de Estoque",
+  "rotulo": "Giro",
+  "descricao": "Giro, cobertura, curva ABC e sugestão de compra de cada produto, com o que mudou a cada dia.",
+  "icone": "grafico",
+  "categoria": { "nome": "Produtos", "icone": "caixa" },
+  "ordem": 30,
+  "versao": "2.1.0",
+  "itens": "produtos",
+  "abas": { "relatorio": "Relatório de giro", "consolidado": "Fabricantes" },
+  "dataLab": {
+    "relatorio": "Giro de Estoque",
+    "texto": "liste todos os Produtos Ativos:\nCódigo do Produto,\nNome do Produto,\nFabricante do Produto,\nQuantidade vendidos nos {ultimos_90_dias},\nQuantidade de Estoque Atual.",
+    "colunas": "código, nome, fabricante, quantidade vendida e estoque atual. O {ultimos_90_dias} define o período das vendas: se trocar, ajuste o \"Período analisado\" na regra do giro."
+  },
+  "integracao": {
+    "agendamento": {
+      "hora": 7,
+      "minuto": 0
+    },
+    "passos": [
+      {
+        "titulo": "Crie o relatório no Data Lab",
+        "blocos": [
+          {
+            "texto": "No Waipe, abra o **Data Lab**, crie um relatório chamado **{{relatorio}}** com o texto abaixo e salve."
+          },
+          {
+            "ferramenta": "datalab"
+          },
+          {
+            "texto": "Depois de salvar, copie o **ID do relatório** (aparece no Data Lab, na URL ou nos detalhes do relatório) e cole aqui:"
+          },
+          {
+            "ferramenta": "id_relatorio"
+          }
+        ]
+      },
+      {
+        "titulo": "Baixe os dois flows (já configurados para esta empresa)",
+        "blocos": [
+          {
+            "ferramenta": "baixar_flows"
+          }
+        ]
+      },
+      {
+        "titulo": "Importe no Waipe Flow e ative",
+        "blocos": [
+          {
+            "texto": "No Waipe Flow, importe os dois arquivos (o node **Waipe Data** já vem com o relatório **{{relatorio}}**), salve e **ative** os dois flows."
+          }
+        ]
+      },
+      {
+        "titulo": "Cole aqui a URL do webhook",
+        "blocos": [
+          {
+            "texto": "Abra o flow **Atualizar pelo Painel**, clique no gatilho **Atualizar pelo Painel** e copie a URL do webhook."
+          },
+          {
+            "ferramenta": "webhook"
+          }
+        ]
+      },
+      {
+        "titulo": "Teste",
+        "blocos": [
+          {
+            "texto": "Clique em testar: o painel chama o flow, que busca o Data Lab e envia os dados (leva alguns segundos). Depois disso o flow agendado atualiza sozinho todo dia às {{horario}}."
+          },
+          {
+            "ferramenta": "testar"
+          }
+        ]
+      }
+    ]
+  },
+  "parametros": [
+    { "chave": "periodoDias", "tipo": "inteiro", "rotulo": "Período das vendas", "padrao": 90, "min": 1, "max": 730, "sufixo": "dias" },
+    { "chave": "diasProjecaoCompra", "tipo": "inteiro", "rotulo": "Comprar para", "padrao": 45, "min": 1, "max": 365, "sufixo": "dias",
+      "ajuda": "A sugestão é o que falta para o estoque cobrir esses dias no ritmo atual de venda. **Mais dias** = pedidos maiores e menos frequentes (mais capital em estoque); **menos dias** = pedidos menores e mais frequentes. Muda só a coluna \"Sugestão compra\" e o total de unidades a comprar; não muda o status." },
+    { "chave": "abcCorteA", "tipo": "percentual", "rotulo": "Curva A até", "padrao": 0.8, "min": 0.01, "max": 0.99, "sufixo": "% da saída" },
+    { "chave": "abcCorteB", "tipo": "percentual", "rotulo": "Curva B até", "padrao": 0.95, "min": 0.02, "max": 0.999, "sufixo": "% da saída" },
+    { "chave": "tratarNegativoComoZero", "tipo": "booleano", "rotulo": "Tratar estoque negativo como zero na sugestão", "padrao": false,
+      "ajuda": "Estoque negativo costuma ser venda lançada antes da entrada da nota. **Desmarcado** (padrão): a sugestão inclui as unidades que faltam para zerar o negativo. **Marcado**: o negativo é ignorado e a sugestão cobre só a venda futura." },
+    { "chave": "coberturaPorCurva", "tipo": "grade", "rotulo": "Curva", "min": 0, "max": 3650, "crescente": true,
+      "linhas": ["A", "B", "C"],
+      "colunas": [
+        { "chave": "critico", "rotulo": "🟠 Comprar urgente até" },
+        { "chave": "atencao", "rotulo": "🟡 Comprar até" },
+        { "chave": "excesso", "rotulo": "🔵 Excesso a partir de" }
+      ],
+      "padrao": { "A": { "critico": 10, "atencao": 20, "excesso": 90 }, "B": { "critico": 7, "atencao": 15, "excesso": 150 }, "C": { "critico": 5, "atencao": 10, "excesso": 180 } } },
+    { "chave": "fabricanteVazio", "tipo": "texto", "rotulo": "Texto para produto sem fabricante", "padrao": "Sem fabricante", "min": 1,
+      "ajuda": "Aparece no lugar do fabricante quando o cadastro do produto não tem um. Ao salvar, os produtos atuais com o texto antigo passam a usar o novo." },
+    { "chave": "ignorarNomes", "tipo": "lista", "rotulo": "Produtos ignorados (um por linha)", "padrao": ["CONSUMIDOR FINAL"],
+      "ajuda": "Linhas do relatório com exatamente este nome (sem diferenciar maiúsculas) não entram no painel. Vale a partir da próxima atualização." }
+  ],
+  "validacoes": [
+    ["nao (p.abcCorteA > 0 e p.abcCorteA < 1)", "O corte da curva A deve ficar entre 1% e 99%."],
+    ["nao (p.abcCorteB > p.abcCorteA e p.abcCorteB < 1)", "O corte da curva B deve ser maior que o da curva A e menor que 100%."]
+  ],
+  "colunas": {
+    "codigo": { "rotulo": "Código do produto", "nomes": ["codigo", "codproduto", "codigodoproduto", "cod"], "obrigatoria": true, "max": 60 },
+    "nome": { "rotulo": "Nome do produto", "nomes": ["nome", "nomeproduto", "nomedoproduto", "descricao", "produto"] },
+    "fabricante": { "rotulo": "Fabricante", "nomes": ["fabricante", "nomfabricante", "nomefabricante", "fabricantedoproduto", "fabricanteproduto", "nomedofabricante"], "max": 120, "trechos": ["fabric"], "vazioParametro": "fabricanteVazio" },
+    "estoque_atual": { "rotulo": "Estoque atual", "nomes": ["estoqueatual", "estoque", "saldo", "saldoestoque", "quantidadeestoque", "quantidadedeestoqueatual"], "obrigatoria": true, "tipo": "numero" },
+    "quantidade_vendida": { "rotulo": "Quantidade vendida no período", "nomes": ["quantidadevendida", "qtdvendida", "vendido", "quantidadevendidos", "vendas"], "obrigatoria": true, "tipo": "numero" }
+  },
+  "entrada": {
+    "chave": "codigo",
+    "descartar": ["igual(nome, p.ignorarNomes)"]
+  },
+  "banco": {
+    "tabela": "produtos",
+    "campos": {
+      "codigo": "texto",
+      "nome": "texto",
+      "fabricante": "texto",
+      "estoque_atual": "numero",
+      "quantidade_vendida": "numero",
+      "saida_por_dia": "numero",
+      "cobertura_dias": "inteiro",
+      "sugestao_compra": "inteiro",
+      "curva_abc": "texto",
+      "status": "texto",
+      "prioridade": "texto"
+    },
+    "indices": [["fabricante"], ["status"]],
+    "migracoes": []
+  },
+  "calculo": [
+    { "campo": "nome", "formula": "vazio(nome) ? codigo : nome" },
+    { "campo": "saida_bruta", "formula": "quantidade_vendida / p.periodoDias" },
+    { "campo": "cobertura_dias", "casos": [["estoque_atual <= 0", "0"], ["saida_bruta = 0", "nulo"]], "senao": "arred(estoque_atual / saida_bruta)" },
+    { "campo": "sugestao_compra", "formula": "max(0, teto(saida_bruta * p.diasProjecaoCompra - (p.tratarNegativoComoZero e estoque_atual < 0 ? 0 : estoque_atual)))" },
+    { "campo": "saida_por_dia", "formula": "arred(saida_bruta, 2)" },
+    { "pareto": { "campo": "curva_abc", "valor": "quantidade_vendida", "desempate": "codigo", "cortes": [["p.abcCorteA", "A"], ["p.abcCorteB", "B"]], "resto": "C" } },
+    { "campo": "tem_giro", "formula": "saida_por_dia > 0 ou quantidade_vendida > 0" },
+    { "campo": "status", "casos": [
+        ["estoque_atual <= 0 e tem_giro", "'ruptura'"],
+        ["nao tem_giro e estoque_atual > 0", "'parado'"],
+        ["nao tem_giro", "'zerado'"],
+        ["valor(cobertura_dias, 0) <= p.coberturaPorCurva[curva_abc].critico", "'urgente'"],
+        ["valor(cobertura_dias, 0) <= p.coberturaPorCurva[curva_abc].atencao", "'comprar'"],
+        ["valor(cobertura_dias, 0) >= p.coberturaPorCurva[curva_abc].excesso", "'excesso'"]
+      ], "senao": "'saudavel'" },
+    { "campo": "prioridade", "casos": [
+        ["status = 'ruptura'", "curva_abc = 'C' ? 'Média' : 'Alta'"],
+        ["status = 'urgente'", "curva_abc = 'A' ? 'Alta' : 'Média'"],
+        ["status = 'comprar'", "curva_abc = 'A' ? 'Média' : 'Baixa'"],
+        ["status = 'excesso'", "curva_abc = 'A' ? 'Baixa' : 'Média'"]
+      ], "senao": "'Baixa'" }
+  ],
+  "dominios": {
+    "status": { "estilo": "selo", "valores": {
+      "ruptura": { "ordem": 0, "rotulo": "Ruptura, comprar já", "curto": "Ruptura", "icone": "🔴", "cor": "#d03b3b" },
+      "urgente": { "ordem": 1, "rotulo": "Comprar urgente", "icone": "🟠", "cor": "#ec835a" },
+      "comprar": { "ordem": 2, "rotulo": "Comprar", "icone": "🟡", "cor": "#fab219" },
+      "saudavel": { "ordem": 3, "rotulo": "Estoque saudável", "icone": "🟢", "cor": "#0ca30c" },
+      "excesso": { "ordem": 4, "rotulo": "Excesso de estoque", "icone": "🔵", "cor": "#2a78d4" },
+      "parado": { "ordem": 5, "rotulo": "Estoque parado (sem giro)", "curto": "Estoque parado", "icone": "⚫", "cor": "#55555a" },
+      "zerado": { "ordem": 6, "rotulo": "Zerado sem giro", "icone": "⚪", "cor": "#a8a8ad" }
+    } },
+    "curva_abc": { "estilo": "curva", "valores": { "A": { "ordem": 0 }, "B": { "ordem": 1 }, "C": { "ordem": 2 } } },
+    "prioridade": { "valores": { "Alta": { "ordem": 0 }, "Média": { "ordem": 1 }, "Baixa": { "ordem": 2 } } }
+  },
+  "resumo": {
+    "total": "conta()",
+    "porStatus": { "contarPor": "status" },
+    "porCurva": { "contarPor": "curva_abc" },
+    "acaoImediata": "conta(status = 'ruptura' ou status = 'urgente')",
+    "aComprar": "conta(status = 'ruptura' ou status = 'urgente' ou status = 'comprar')",
+    "sugestaoTotal": "soma(sugestao_compra)",
+    "fabricantes": "distintos(fabricante)",
+    "estoqueParadoUn": "soma(max(0, estoque_atual), status = 'parado')",
+    "estoqueUn": "soma(estoque_atual, estoque_atual > 0)",
+    "coberturaMediana": "conta(cobertura_dias <> nulo e estoque_atual > 0) > 0 ? arred(mediana(cobertura_dias, cobertura_dias <> nulo e estoque_atual > 0)) : nulo"
+  },
+  "grupos": {
+    "fabricantes": {
+      "campo": "fabricante",
+      "por": "fabricante",
+      "metricas": {
+        "produtos": "conta()",
+        "acao_imediata": "conta(status = 'ruptura' ou status = 'urgente')",
+        "ruptura": "conta(status = 'ruptura')",
+        "urgente": "conta(status = 'urgente')",
+        "comprar": "conta(status = 'comprar')",
+        "saudavel": "conta(status = 'saudavel')",
+        "excesso": "conta(status = 'excesso')",
+        "parado": "conta(status = 'parado')",
+        "zerado": "conta(status = 'zerado')",
+        "curva_a": "conta(curva_abc = 'A')",
+        "vendido": "soma(quantidade_vendida)",
+        "estoque": "soma(estoque_atual)",
+        "sugestao": "soma(sugestao_compra)"
+      },
+      "ordem": [["acao_imediata", "desc"], ["produtos", "desc"]]
+    }
+  },
+  "historico": {
+    "descricao": "nome",
+    "campos": [
+      { "campo": "fabricante", "titulo": "Fabricante" },
+      { "campo": "estoque_atual", "titulo": "Estoque", "numero": true },
+      { "campo": "quantidade_vendida", "titulo": "Saída", "numero": true },
+      { "campo": "status", "titulo": "Status", "dominio": "status" },
+      { "campo": "curva_abc", "titulo": "Curva" }
+    ]
+  },
+  "painel": {
+    "titulo": "Indicadores do giro de estoque",
+    "texto": "{{atualizacao}}. Vendas dos últimos {{p.periodoDias}} dias, sugestão de compra para {{p.diasProjecaoCompra}} dias. Clique em qualquer número para abrir os produtos.",
+    "exportar": { "excel": true, "imprimir": true, "arquivo": "giro", "abaIndicadores": "Indicadores" },
+    "kpis": [
+      { "chave": "produtos", "rotulo": "Produtos ativos", "valor": "total", "menorMelhor": false, "link": "/giro/relatorio" },
+      { "chave": "acao", "rotulo": "Ação imediata", "nota": "ruptura + comprar urgente", "valor": "acaoImediata", "menorMelhor": true, "link": "/giro/relatorio?status=ruptura&status=urgente", "forte": true },
+      { "chave": "comprar", "rotulo": "Itens a comprar", "nota": "ruptura + urgente + comprar", "valor": "aComprar", "menorMelhor": true, "link": "/giro/relatorio?status=ruptura&status=urgente&status=comprar" },
+      { "chave": "sugestao", "rotulo": "Sugestão de compra", "unidade": "un.", "nota": "para {{p.diasProjecaoCompra}} dias", "valor": "sugestaoTotal", "menorMelhor": true, "link": "/giro/relatorio?sugestao_compra_min=1" },
+      { "chave": "parado", "rotulo": "Estoque parado", "unidade": "un.", "nota": "{{br(porStatus.parado)}} itens sem venda em {{p.periodoDias}} dias", "valor": "estoqueParadoUn", "menorMelhor": true, "link": "/giro/relatorio?status=parado" },
+      { "chave": "cobertura", "rotulo": "Cobertura mediana", "unidade": "dias", "nota": "dos itens com giro e estoque", "valor": "coberturaMediana", "menorMelhor": false }
+    ],
+    "blocos": [
+      { "tipo": "distribuicao", "largura": 8, "titulo": "Saúde do estoque", "sub": "{{br(total)}} produtos", "excel": "Por status",
+        "campo": "status", "dominio": "status", "estilo": "lista", "barra": true, "extra": "soma(max(0, estoque_atual))", "extraTitulo": "Unidades em estoque",
+        "detalhe": "{{br(pct, 1)}}% · {{br(extra)}} un.", "link": "/giro/relatorio?status={{valor}}" },
+      { "tipo": "ultima" },
+      { "tipo": "matriz", "largura": 8, "titulo": "Curva ABC × status", "sub": "clique para ver os produtos", "excel": "Curva x Status",
+        "linhas": { "campo": "curva_abc", "dominio": "curva_abc" }, "colunas": { "campo": "status", "dominio": "status" },
+        "link": "/giro/relatorio?curva_abc={{linha}}&status={{coluna}}",
+        "nota": "Atenção maior para as células do alto à esquerda: produtos A em ruptura ou urgentes são os que mais pesam na venda." },
+      { "tipo": "participacao", "largura": 4, "titulo": "Curva ABC", "campo": "curva_abc", "dominio": "curva_abc",
+        "soma": "max(0, quantidade_vendida)", "acao": "status = 'ruptura' ou status = 'urgente'", "acaoTitulo": "Ação imediata (ruptura + urgente)",
+        "rotulos": ["{{br(pctItens, 1)}}% dos produtos ({{br(qtd)}})", "{{br(pctSoma, 1)}}% da saída"],
+        "link": "/giro/relatorio?curva_abc={{valor}}", "nota": "Poucos produtos A fazem a maior parte da saída: são os que não podem faltar." },
+      { "tipo": "evolucao", "largura": 12, "titulo": "Evolução diária", "excel": "Evolução",
+        "series": [
+          { "chave": "acao", "rotulo": "Ação imediata", "cor": "#d03b3b", "valor": "acaoImediata" },
+          { "chave": "comprar", "rotulo": "Comprar", "cor": "#c98a00", "valor": "porStatus.comprar" },
+          { "chave": "parado", "rotulo": "Estoque parado", "cor": "#55555a", "valor": "porStatus.parado" }
+        ] },
+      { "tipo": "tabela", "largura": 8, "titulo": "Comprar agora", "sub": "ruptura e urgente, curva A primeiro", "excel": "Comprar agora", "classe": "comprar",
+        "filtro": "status = 'ruptura' ou status = 'urgente'", "ordem": [["curva_abc", "asc"], ["saida_por_dia", "desc"]], "limite": 12,
+        "colunas": [
+          { "titulo": "Produto", "valor": "{{nome}}", "negrito": true, "link": "/giro/item/{{url(codigo)}}", "sub": "{{codigo}} · {{fabricante}}" },
+          { "titulo": "Curva", "campo": "curva_abc", "dominio": "curva_abc", "valor": "{{curva_abc}}" },
+          { "titulo": "Status", "campo": "status", "dominio": "status", "valor": "{{rotulo('status', status)}}" },
+          { "titulo": "Estoque", "valor": "{{br(estoque_atual)}}", "numero": true },
+          { "titulo": "Saída/dia", "valor": "{{br(saida_por_dia, 2)}}", "numero": true },
+          { "titulo": "Comprar ({{p.diasProjecaoCompra}}d)", "valor": "{{br(sugestao_compra)}}", "numero": true, "negrito": true }
+        ],
+        "mais": { "link": "/giro/relatorio?status=ruptura&status=urgente", "texto": "Ver todos os {{br(total)}} produtos →" },
+        "vazio": "Nada em ruptura ou urgente. 🎉" },
+      { "tipo": "faixas", "largura": 4, "titulo": "Cobertura do estoque", "sub": "itens com giro", "excel": "Cobertura",
+        "valor": "cobertura_dias", "filtro": "cobertura_dias <> nulo e estoque_atual > 0", "cor": "var(--azul)",
+        "faixas": [["Até 7 dias", 0, 7], ["8 a 15", 8, 15], ["16 a 30", 16, 30], ["31 a 60", 31, 60], ["61 a 90", 61, 90], ["91 a 180", 91, 180], ["181 a 365", 181, 365], ["Mais de 1 ano", 366, null]],
+        "formato": "{{br(v)}}", "dica": "{{rotulo}}: {{br(v)}} produtos",
+        "link": "/giro/relatorio?cobertura_dias_min={{de}}{{ate <> nulo ? '&cobertura_dias_max=' & ate : ''}}",
+        "nota": "Quantos dias o estoque dura no ritmo de venda atual. Sem venda no período não entra aqui (é estoque parado)." },
+      { "tipo": "ranking", "largura": 6, "titulo": "Fabricantes com mais ação imediata", "excel": "Fabricantes ação",
+        "por": "fabricante", "a": "conta(status = 'ruptura')", "b": "conta(status = 'urgente')", "total": "conta(status = 'ruptura' ou status = 'urgente')",
+        "manter": "total > 0", "ordem": [["total", "desc"], ["nome", "asc"]], "limite": 10,
+        "cores": ["#d03b3b", "#ec835a"], "legendas": ["Ruptura", "Comprar urgente"], "valor": "{{br(total)}}",
+        "link": "/giro/relatorio?fabricante={{url(nome)}}&status=ruptura&status=urgente", "vazio": "Nenhum fabricante com ação imediata." },
+      { "tipo": "ranking", "largura": 6, "titulo": "Fabricantes com mais estoque parado", "sub": "unidades sem venda em {{p.periodoDias}} dias", "excel": "Fabricantes parado",
+        "por": "fabricante", "a": "soma(max(0, estoque_atual), status = 'parado')", "total": "conta(status = 'parado')",
+        "manter": "a > 0", "ordem": [["a", "desc"]], "limite": 10,
+        "cores": ["#55555a"], "legendas": [], "valor": "{{br(a)}} un. · {{br(total)}} itens",
+        "link": "/giro/relatorio?fabricante={{url(nome)}}&status=parado", "vazio": "Nenhum estoque parado." }
+    ]
+  },
+  "relatorio": {
+    "titulo": "Relatório de giro de estoque",
+    "texto": "{{atualizacao}}. Vendas dos últimos {{p.periodoDias}} dias, sugestão de compra para {{p.diasProjecaoCompra}} dias.",
+    "tabela": {
+      "titulo": "Relatório de giro de estoque",
+      "arquivo": "giro-de-estoque",
+      "colunas": [
+        { "campo": "codigo", "titulo": "Código", "filtro": "texto", "larguraExcel": 10, "link": "/giro/item/{{url(codigo)}}" },
+        { "campo": "nome", "titulo": "Produto", "filtro": "texto", "largura": 260, "larguraExcel": 48 },
+        { "campo": "fabricante", "titulo": "Fabricante", "filtro": "multi", "destaque": true, "largura": 150, "larguraExcel": 26 },
+        { "campo": "curva_abc", "titulo": "Curva ABC", "dominio": "curva_abc", "filtro": "multi", "destaque": true, "larguraExcel": 10 },
+        { "campo": "status", "titulo": "Status", "dominio": "status", "filtro": "multi", "destaque": true, "largura": 190, "larguraExcel": 28 },
+        { "campo": "prioridade", "titulo": "Prioridade", "dominio": "prioridade", "filtro": "multi", "destaque": true, "larguraExcel": 11 },
+        { "campo": "estoque_atual", "titulo": "Estoque atual", "tipo": "numero", "filtro": "faixa", "casas": 0 },
+        { "campo": "cobertura_dias", "titulo": "Cobertura (dias)", "tipo": "numero", "filtro": "faixa", "vazio": "Sem giro" },
+        { "campo": "quantidade_vendida", "titulo": "Saída {{p.periodoDias}}d", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "saida_por_dia", "titulo": "Saída/dia", "tipo": "numero", "filtro": "faixa", "casas": 2 },
+        { "campo": "sugestao_compra", "titulo": "Sugestão compra {{p.diasProjecaoCompra}}d", "tipo": "numero", "filtro": "faixa", "larguraExcel": 16 }
+      ],
+      "busca": ["codigo", "nome", "fabricante"],
+      "ordem": { "campo": "status", "desc": false },
+      "cartoes": [
+        { "rotulo": "Produtos", "valor": "{{br(conta())}}" },
+        { "rotulo": "Fabricantes", "valor": "{{br(distintos(fabricante))}}" },
+        { "rotulo": "Ação imediata", "valor": "{{br(conta(status = 'ruptura' ou status = 'urgente'))}}", "nota": "ruptura + comprar urgente", "forte": true },
+        { "rotulo": "Itens a comprar", "valor": "{{br(conta(status = 'ruptura' ou status = 'urgente' ou status = 'comprar'))}}" },
+        { "rotulo": "Sugestão de compra", "valor": "{{br(soma(sugestao_compra))}} un." }
+      ],
+      "distribuicao": { "campo": "status", "dominio": "status" },
+      "abaResumo": { "nome": "Resumo por status", "campo": "status", "dominio": "status", "colunas": [
+        { "titulo": "Produtos", "valor": "conta()" },
+        { "titulo": "Sugestão de compra (un.)", "valor": "soma(sugestao_compra)" }
+      ] },
+      "exportar": { "excel": true, "csv": true, "imprimir": true },
+      "vazio": "Nenhum produto com esses filtros."
+    }
+  },
+  "consolidado": {
+    "titulo": "Fabricantes",
+    "texto": "{{atualizacao}}. Ordenado por ação imediata (ruptura + comprar urgente). Clique no fabricante para ver os produtos dele no relatório.",
+    "grupo": "fabricantes",
+    "tabela": {
+      "titulo": "Ranking de fabricantes",
+      "arquivo": "giro-fabricantes",
+      "posicao": true,
+      "colunas": [
+        { "campo": "fabricante", "titulo": "Fabricante", "filtro": "multi", "destaque": true, "largura": 200, "larguraExcel": 30, "link": "/giro/relatorio?fabricante={{url(fabricante)}}" },
+        { "campo": "produtos", "titulo": "Produtos", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "acao_imediata", "titulo": "Ação imediata", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "ruptura", "titulo": "🔴 Ruptura", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "urgente", "titulo": "🟠 Urgente", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "comprar", "titulo": "🟡 Comprar", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "saudavel", "titulo": "🟢 Saudável", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "excesso", "titulo": "🔵 Excesso", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "parado", "titulo": "⚫ Parado", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "zerado", "titulo": "⚪ Zerado", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "curva_a", "titulo": "Curva A", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "vendido", "titulo": "Saída {{p.periodoDias}}d", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "estoque", "titulo": "Estoque", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "sugestao", "titulo": "Sugestão {{p.diasProjecaoCompra}}d", "tipo": "numero", "filtro": "faixa" }
+      ],
+      "busca": ["fabricante"],
+      "cartoes": [
+        { "rotulo": "Fabricantes", "valor": "{{br(conta())}}" },
+        { "rotulo": "Produtos", "valor": "{{br(soma(produtos))}}" },
+        { "rotulo": "Ação imediata", "valor": "{{br(soma(acao_imediata))}}", "nota": "ruptura + comprar urgente", "forte": true },
+        { "rotulo": "Sugestão de compra", "valor": "{{br(soma(sugestao))}} un." }
+      ],
+      "exportar": { "excel": true, "csv": true, "imprimir": true },
+      "vazio": "Nenhum fabricante com esses filtros."
+    }
+  },
+  "detalhe": {
+    "titulo": "{{nome}}",
+    "sub": "Código {{codigo}}",
+    "voltar": { "texto": "← Produtos de {{fabricante}}", "link": "/giro/relatorio?fabricante={{url(fabricante)}}" },
+    "selo": { "campo": "status", "dominio": "status" },
+    "fatos": [
+      ["Fabricante", "{{fabricante}}"],
+      ["Curva ABC", "{{curva_abc}}"],
+      ["Prioridade", "{{prioridade}}"],
+      ["Estoque atual", "{{br(estoque_atual)}}"],
+      ["Saída {{p.periodoDias}} dias", "{{br(quantidade_vendida)}}"],
+      ["Saída por dia", "{{br(saida_por_dia, 2)}}"],
+      ["Cobertura", "{{cobertura_dias = nulo ? 'Sem giro' : br(cobertura_dias) & ' dias'}}"],
+      ["Sugestão de compra ({{p.diasProjecaoCompra}} dias)", "{{br(sugestao_compra)}}"],
+      ["Situação", "{{ativo ? 'No relatório' : 'Saiu do relatório do Data Lab'}}"]
+    ]
+  },
+  "configuracao": {
+    "titulo": "Regra do giro",
+    "ajuda": "Ao salvar, o painel recalcula todos os produtos com os dados atuais, sem esperar a próxima atualização.",
+    "explicacao": {
+      "titulo": "Como o giro é calculado",
+      "passos": [
+        "**Saída por dia** = quantidade vendida no período ÷ [[{{p.periodoDias}} dias]].",
+        "**Cobertura** = estoque atual ÷ saída por dia. Diz quantos dias o estoque dura no ritmo de venda atual.",
+        "**Curva ABC**: os produtos são ordenados pela quantidade vendida. Os que somam os primeiros [[{{pct(p.abcCorteA)}}%]] da saída são A; até [[{{pct(p.abcCorteB)}}%]], B; o resto, C.",
+        "**Status**: compara a cobertura com os limites da curva do produto (tabela abaixo).",
+        "**Sugestão de compra** = saída por dia × [[{{p.diasProjecaoCompra}} dias]] − estoque atual (nunca negativa, arredondada para cima)."
+      ],
+      "exemplo": {
+        "titulo": "Exemplo com um produto real, com a regra desta tela",
+        "maior": "quantidade_vendida",
+        "filtro": "estoque_atual > 0",
+        "linhas": [
+          "**{{nome}}** ({{codigo}}) vendeu **{{br(quantidade_vendida)}}** em {{p.periodoDias}} dias e tem **{{br(estoque_atual)}}** em estoque.",
+          "Saída por dia: {{br(quantidade_vendida)}} ÷ {{p.periodoDias}} = **{{br(saida_por_dia, 2)}}** · Cobertura: **{{cobertura_dias = nulo ? 'sem giro' : br(cobertura_dias) & ' dias'}}** · Curva **{{curva_abc}}** · {{rotulo('status', status)}} · Sugestão para {{p.diasProjecaoCompra}} dias: **{{br(sugestao_compra)}}**"
+        ]
+      }
+    },
+    "secoes": [
+      { "titulo": "Período analisado", "sub": "Quantos dias de venda o relatório do Data Lab traz.", "itens": [
+        { "tipo": "trava", "chave": "periodoDias",
+          "aviso": [
+            "**Este número precisa ser igual ao período do relatório do Data Lab.** Ele não muda o que o Data Lab busca: só diz ao painel por quantos dias dividir a quantidade vendida. Se ficar diferente, a saída por dia, a cobertura, o status e a sugestão de compra ficam errados.",
+            "**Para analisar mais (ou menos) dias:**"
+          ],
+          "passos": [
+            "No Waipe, abra o **Data Lab** e edite o relatório **Giro de Estoque**.",
+            "No texto, troque `{ultimos_90_dias}` pelo período novo (ex.: `{ultimos_180_dias}`) e salve.",
+            "Aqui, marque a opção abaixo, informe o mesmo número de dias e clique em **Salvar e recalcular**.",
+            "Clique em **Atualizar agora** (no topo) para trazer as vendas do período novo."
+          ],
+          "confirmar": "Já alterei o período no relatório do Data Lab" }
+      ] },
+      { "titulo": "Sugestão de compra", "sub": "Para quantos dias de venda o painel sugere comprar.", "itens": [
+        { "tipo": "parametros", "chaves": ["diasProjecaoCompra"] },
+        { "tipo": "parametros", "chaves": ["tratarNegativoComoZero"] }
+      ] },
+      { "titulo": "Curva ABC", "sub": "Separa os produtos pela importância na venda (Pareto).", "itens": [
+        { "tipo": "cortes", "chaves": ["abcCorteA", "abcCorteB"], "rotulos": ["A", "B", "C"] },
+        { "tipo": "texto", "texto": "Os produtos que vendem mais vêm primeiro. Os que juntos somam até **{{pct(p.abcCorteA)}}%** da quantidade vendida são **A** (poucos itens, a maior parte da venda); até **{{pct(p.abcCorteB)}}%**, **B**; o restante, **C**. A curva define quais limites de cobertura cada produto usa e a prioridade. Subir o corte da A coloca mais produtos na A (com mais folga de estoque)." },
+        { "tipo": "texto", "texto": "A curva é pela **quantidade vendida**, porque o relatório do Data Lab não traz o valor em R$. Para uma curva por faturamento, seria preciso incluir o valor vendido no relatório." }
+      ] },
+      { "titulo": "Cobertura por curva", "sub": "Quantos dias de estoque cada curva deve ter. É o que define o status de cada produto.", "itens": [
+        { "tipo": "grade", "chave": "coberturaPorCurva", "dominio": "curva_abc", "cores": ["#ec835a", "#fab219", "#0ca30c", "#2a78d4"] },
+        { "tipo": "regras", "itens": [
+          { "dominio": "status", "valor": "urgente", "texto": "cobertura até o 1º número: o estoque acaba antes de uma reposição normal chegar." },
+          { "dominio": "status", "valor": "comprar", "texto": "cobertura até o 2º número: já é hora de pedir." },
+          { "dominio": "status", "valor": "saudavel", "texto": "entre o 2º e o 3º número." },
+          { "dominio": "status", "valor": "excesso", "texto": "a partir do 3º número: capital parado na prateleira." }
+        ] },
+        { "tipo": "texto", "texto": "A curva A costuma ter mais folga (falta de um item A pesa mais na venda) e excesso menor (giram rápido); a C tolera menos folga e mais excesso. **Aumentar** os dias de \"comprar\" faz mais produtos pedirem compra; **diminuir** o excesso marca mais produtos como excesso. Os status sem cobertura não dependem desta tabela: **🔴 Ruptura** (vende e está com estoque zero ou negativo), **⚫ Estoque parado** (tem estoque e não vendeu no período) e **⚪ Zerado sem giro** (sem estoque e sem venda)." }
+      ] },
+      { "titulo": "Prioridade", "sub": "Regra fixa, mostrada para referência.", "itens": [
+        { "tipo": "tabela", "cabecalho": ["Status", "Curva A", "Curva B", "Curva C"], "linhas": [
+          ["🔴 Ruptura", "Alta", "Alta", "Média"],
+          ["🟠 Comprar urgente", "Alta", "Média", "Média"],
+          ["🟡 Comprar", "Média", "Baixa", "Baixa"],
+          ["🔵 Excesso de estoque", "Baixa", "Média", "Média"],
+          ["🟢 Saudável, ⚫ Parado, ⚪ Zerado", "Baixa", "Baixa", "Baixa"]
+        ] }
+      ] },
+      { "titulo": "Cadastro", "sub": "Como os produtos do relatório entram no painel.", "itens": [
+        { "tipo": "parametros", "chaves": ["fabricanteVazio", "ignorarNomes"] }
+      ] },
+      { "titulo": "Colunas do relatório do Data Lab", "sub": "Como o painel reconhece cada coluna, mesmo que o Data Lab mude o nome.", "itens": [
+        { "tipo": "colunas" }
+      ] }
+    ],
+    "previa": { "campo": "status", "dominio": "status", "rotulo": "de status", "outros": [{ "campo": "curva_abc", "rotulo": "de curva" }], "extra": { "rotulo": "Sugestão total", "valor": "{{br(soma(sugestao_compra))}} un." } },
+    "fora": [
+      "**Horário da atualização automática**: todo dia às 07:00, no flow agendado do Giro de Estoque no Waipe Flow.",
+      "**Quem pode entrar**: usuários do Waipe com o aplicativo IA Waipe, da empresa (CNPJ) deste painel.",
+      "**Relatório e período das vendas**: relatório \"Giro de Estoque\" no Data Lab do Waipe."
+    ]
+  }
+}

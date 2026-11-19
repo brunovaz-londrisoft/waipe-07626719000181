@@ -1,0 +1,53 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>WhatsApp do vendedor</title><style>
+:root{--bg:#efeae2;--head:#f0f2f5;--headtx:#111b21;--bub:#fff;--tx:#111b21;--mut:#667781;--card:#f0f2f5;--data:#fff;--link:#027eb5;--pad:rgba(0,0,0,.035)}
+@media (prefers-color-scheme: dark){:root{--bg:#0b141a;--head:#202c33;--headtx:#e9edef;--bub:#202c33;--tx:#e9edef;--mut:#8696a0;--card:#182229;--data:#182229;--link:#53bdeb;--pad:rgba(255,255,255,.025)}}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--tx);font-family:"Segoe UI",Helvetica,Arial,sans-serif;display:flex;flex-direction:column}
+.zh{background:var(--head);color:var(--headtx);display:flex;align-items:center;gap:12px;padding:10px 16px;flex:none}
+.zh .av{width:40px;height:40px;border-radius:50%;background:#25d366;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:15px}
+.zh .nm{font-weight:600;font-size:16px;line-height:20px}.zh .st{font-size:13px;color:var(--mut)}
+.zc{flex:1;overflow:auto;padding:16px 6% 24px;background-image:radial-gradient(var(--pad) 1.2px,transparent 1.2px);background-size:16px 16px}
+.zdata{margin:4px auto 14px;width:max-content;background:var(--data);color:var(--mut);font-size:12.5px;padding:5px 12px;border-radius:8px;box-shadow:0 1px .5px rgba(0,0,0,.13);text-transform:uppercase}
+.zmsg{max-width:min(560px,86%);background:var(--bub);color:var(--tx);border-radius:0 8px 8px 8px;padding:6px 9px 6px;margin:0 0 10px;font-size:14.5px;line-height:20px;box-shadow:0 1px .5px rgba(0,0,0,.13);animation:zin .3s ease both;overflow-wrap:anywhere}
+.zmsg .hr{font-size:11px;color:var(--mut);text-align:right;margin-top:2px}
+.zmsg .hr i{color:#53bdeb;font-style:normal;margin-left:3px}
+.zdoc{display:flex;gap:10px;align-items:center;background:var(--card);border-radius:6px;padding:10px;margin-bottom:6px;cursor:pointer;border:0;width:100%;text-align:left;font:inherit;color:inherit;text-decoration:none}
+.zdoc .pdf{width:36px;height:42px;border-radius:4px;background:#e5463d;color:#fff;font-weight:700;font-size:11px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:5px;flex:none}
+.zdoc .n{font-size:14px;line-height:18px;font-weight:600;overflow-wrap:anywhere}.zdoc .m{font-size:12px;color:var(--mut)}
+.zlink{display:block;text-decoration:none;color:inherit;background:var(--card);border-radius:6px;overflow:hidden;margin-bottom:6px}
+.zlink .th{height:70px;background:linear-gradient(135deg,#1e8e3e,#34a853);display:flex;align-items:center;justify-content:center;color:#fff;font-size:30px}
+.zlink .tx{padding:8px 10px}.zlink .t{font-weight:600;font-size:14px;line-height:18px}.zlink .h{font-size:12px;color:var(--mut)}
+.zmsg a.url{color:var(--link)}
+.ztype{display:flex;gap:4px;background:var(--bub);border-radius:0 8px 8px 8px;padding:12px 14px;width:max-content;margin:0 0 10px;box-shadow:0 1px .5px rgba(0,0,0,.13)}
+.ztype i{width:7px;height:7px;border-radius:50%;background:var(--mut);animation:zt 1s infinite}.ztype i:nth-child(2){animation-delay:.15s}.ztype i:nth-child(3){animation-delay:.3s}
+@keyframes zt{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
+@keyframes zin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){.zmsg{animation:none}.ztype i{animation:none}}
+</style></head><body><div class="zh"><div class="av">EE</div><div><div class="nm">Empresa Exemplo · Comercial</div><div class="st">online</div></div></div><div class="zc" id="chat"></div><script>
+var MSGS=[{"texto": "Olá, Helena Prado! Tenha um ótimo dia.\nEstamos começando mais uma semana, graças a Deus. Deus abençoe nossa semana!\nAqui está o seu resumo de performance atualizado:\n━━━━━━━━━━━━━━\n💰 Faturamento Atual no Mês\nR$ 117.432,50\n🎯 Meta do Mês\nR$ 180.000,00\n📈 % de Atingimento da Meta\n▰▰▰▰▰▰▰▱▱▱ 65.2%\n💵 Comissão Estimada do Mês\nR$ 3.522,97 (3.0% sobre o faturamento)\n━━━━━━━━━━━━━━\n✅ Clientes Atendidos no Mês: 16\n⏳ Clientes Pendentes (Sem Compra): 14\n🔔 Clientes da sua carteira sem comprar\n(os mais urgentes primeiro)\n🔴 1. Casa de Doces Aurora\ncód. 10231 · última compra 19/03/2026 · 214 dias sem comprar\n🔴 2. Confeitaria Ouro Verde\ncód. 10238 · última compra 15/04/2026 · 187 dias sem comprar\n🔴 3. Confeitaria Nova Era\ncód. 10245 · última compra 09/05/2026 · 163 dias sem comprar\n🔴 4. Doceria Beira Rio\ncód. 10252 · última compra 31/05/2026 · 141 dias sem comprar\n🔴 5. Sacolão Ouro Verde\ncód. 10259 · última compra 23/06/2026 · 118 dias sem comprar\n🔴 6. Panificadora Estrela\ncód. 10266 · última compra 15/07/2026 · 96 dias sem comprar\n🟡 7. Panificadora Tio Zé\ncód. 10273 · última compra 23/07/2026 · 88 dias sem comprar\n🟡 8. Mercadinho Bom Preço\ncód. 10280 · última compra 06/08/2026 · 74 dias sem comprar\n🟡 9. Minimercado Beira Rio\ncód. 10287 · última compra 19/08/2026 · 61 dias sem comprar\n🟡 10. Minimercado Pão Dourado\ncód. 10294 · última compra 28/08/2026 · 52 dias sem comprar\n➕ ...e mais 4 cliente(s) pendente(s) não exibido(s) aqui — lista completa no PDF em anexo.\n━━━━━━━━━━━━━━\n_Esta é uma mensagem automática do sistema comercial NOME DA EMPRESA. Não é preciso respondê-la._\n_Se tiver alguma dúvida, fale com o Nome do Responsável pelo WhatsApp (00) 00000-0000._", "doc": {"nome": "Relatorio-Helena-Prado.pdf", "meta": "PDF · 1 página · 73 KB", "href": "documento/Relatorio-Helena-Prado.pdf"}}], HORA="07:00", DATA="SEGUNDA-FEIRA", LINKS={};
+function formata(t){
+  t=t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  t=t.replace(/(https?:\/\/[^\s<]+)/g,function(u){return '<a class="url" href="'+(LINKS[u]||u)+'" target="_blank" rel="noopener">'+u+'</a>';});
+  t=t.replace(/\*([^*\n]+)\*/g,'<b>$1</b>').replace(/(^|[\s(])_([^_\n]+)_(?=[\s).,]|$)/g,'$1<i>$2</i>').replace(/~([^~\n]+)~/g,'<s>$1</s>');
+  return t.replace(/\n/g,'<br>');
+}
+function balao(m){
+  var h='';
+  if(m.doc){h+='<a class="zdoc" href="'+m.doc.href+'" target="_blank" rel="noopener"><span class="pdf">PDF</span><span><div class="n">'+m.doc.nome+'</div><div class="m">'+(m.doc.meta||'PDF')+'</div></span></a>';}
+  if(m.link){h+='<a class="zlink" href="'+m.link.href+'" target="_blank" rel="noopener"><div class="th">&#9638;</div><div class="tx"><div class="t">'+m.link.titulo+'</div><div class="h">'+m.link.host+'</div></div></a>';}
+  return h+formata(m.texto||'')+'<div class="hr">'+HORA+'<i>&#10003;&#10003;</i></div>';
+}
+var chat=document.getElementById('chat'), animando=0;
+function tocar(animar){
+  var id=++animando;chat.innerHTML='<div class="zdata">'+DATA+'</div>';var i=0;
+  if(!animar){MSGS.forEach(function(m){var b=document.createElement('div');b.className='zmsg';b.style.animation='none';b.innerHTML=balao(m);chat.appendChild(b);});return;}
+  (function prox(){
+    if(id!==animando||i>=MSGS.length)return;var m=MSGS[i++];
+    var d=document.createElement('div');d.className='ztype';d.innerHTML='<i></i><i></i><i></i>';chat.appendChild(d);chat.scrollTop=chat.scrollHeight;
+    setTimeout(function(){if(id!==animando)return;d.remove();var b=document.createElement('div');b.className='zmsg';b.innerHTML=balao(m);chat.appendChild(b);setTimeout(prox,600);},900);
+  })();
+}
+window.addEventListener('message',function(e){if(e.data&&e.data.waipe==='repetir')tocar(true);});
+tocar(!/[?&]estatico\b/.test(location.search));
+</script></body></html>

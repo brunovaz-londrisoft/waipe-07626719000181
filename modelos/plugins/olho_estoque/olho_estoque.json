@@ -1,0 +1,342 @@
+{
+  "formato": "waipe-paginas/1",
+  "slug": "olho_estoque",
+  "nome": "Olho no Estoque",
+  "rotulo": "Olho no Estoque",
+  "descricao": "O que repor antes de faltar (mínimo projetado pela venda dos últimos dias) e o que está parado ocupando dinheiro.",
+  "icone": "olho",
+  "categoria": { "nome": "Produtos", "icone": "caixa" },
+  "ordem": 31,
+  "versao": "2.1.0",
+  "itens": "produtos",
+  "abas": { "relatorio": "Produtos", "consolidado": "Por grupo" },
+  "dataLab": {
+    "relatorio": "Olho no Estoque",
+    "texto": "liste todos os Produtos Ativos:\nCódigo do Produto,\nNome do Produto,\nGrupo do Produto,\nQuantidade de Estoque Total,\nCusto Unitário,\nQuantidade vendida nos {ultimos_90_dias},\nData da Última Venda.",
+    "colunas": "código, nome, grupo, estoque total, custo, quantidade vendida e data da última venda (o estoque mínimo não é usado: o painel projeta pela venda). O {ultimos_90_dias} define o período das vendas: se trocar, ajuste o \"Período das vendas\" nesta tela."
+  },
+  "integracao": {
+    "agendamento": {
+      "hora": 7,
+      "minuto": 0
+    },
+    "passos": [
+      {
+        "titulo": "Crie o relatório no Data Lab",
+        "blocos": [
+          {
+            "texto": "No Waipe, abra o **Data Lab**, crie um relatório chamado **{{relatorio}}** com o texto abaixo e salve."
+          },
+          {
+            "ferramenta": "datalab"
+          },
+          {
+            "texto": "Depois de salvar, copie o **ID do relatório** (aparece no Data Lab, na URL ou nos detalhes do relatório) e cole aqui:"
+          },
+          {
+            "ferramenta": "id_relatorio"
+          }
+        ]
+      },
+      {
+        "titulo": "Baixe os dois flows (já configurados para esta empresa)",
+        "blocos": [
+          {
+            "ferramenta": "baixar_flows"
+          }
+        ]
+      },
+      {
+        "titulo": "Importe no Waipe Flow e ative",
+        "blocos": [
+          {
+            "texto": "No Waipe Flow, importe os dois arquivos (o node **Waipe Data** já vem com o relatório **{{relatorio}}**), salve e **ative** os dois flows."
+          }
+        ]
+      },
+      {
+        "titulo": "Cole aqui a URL do webhook",
+        "blocos": [
+          {
+            "texto": "Abra o flow **Atualizar pelo Painel**, clique no gatilho **Atualizar pelo Painel** e copie a URL do webhook."
+          },
+          {
+            "ferramenta": "webhook"
+          }
+        ]
+      },
+      {
+        "titulo": "Teste",
+        "blocos": [
+          {
+            "texto": "Clique em testar: o painel chama o flow, que busca o Data Lab e envia os dados (leva alguns segundos). Depois disso o flow agendado atualiza sozinho todo dia às {{horario}}."
+          },
+          {
+            "ferramenta": "testar"
+          }
+        ]
+      }
+    ]
+  },
+  "parametros": [
+    { "chave": "periodoDias", "tipo": "inteiro", "rotulo": "Período das vendas", "padrao": 90, "min": 1, "max": 730, "sufixo": "dias" },
+    { "chave": "diasAlerta", "tipo": "inteiro", "rotulo": "Vai faltar com até", "padrao": 7, "min": 1, "max": 365, "sufixo": "dias de venda" },
+    { "chave": "diasParado", "tipo": "inteiro", "rotulo": "Parado sem venda há", "padrao": 365, "min": 1, "max": 3650, "sufixo": "dias" },
+    { "chave": "diasCompra", "tipo": "inteiro", "rotulo": "Mínimo e reposição para", "padrao": 30, "min": 1, "max": 365, "sufixo": "dias de venda" },
+    { "chave": "grupoVazio", "tipo": "texto", "rotulo": "Texto para produto sem grupo", "padrao": "Sem grupo", "min": 1 },
+    { "chave": "ignorar", "tipo": "lista", "rotulo": "Produtos ignorados (trecho do nome, um por linha)", "padrao": [],
+      "ajuda": "Ex.: serviços e mão de obra cadastrados como produto. Vale a partir da próxima atualização." }
+  ],
+  "validacoes": [
+    ["p.diasAlerta >= p.diasCompra", "Os dias de \"vai faltar\" precisam ser menores que os dias da sugestão de reposição (o mínimo projetado)."]
+  ],
+  "colunas": {
+    "codigo": { "rotulo": "Código do produto", "nomes": ["codigo", "codproduto", "codigodoproduto", "cod"], "obrigatoria": true, "max": 60 },
+    "nome": { "rotulo": "Nome do produto", "nomes": ["nome", "nomeproduto", "nomedoproduto", "descricao", "produto"] },
+    "grupo": { "rotulo": "Grupo do produto", "nomes": ["grupo", "gruponome", "nomegrupo", "nomedogrupo", "grupodoproduto", "grupoproduto", "categoria", "familia", "linha"], "max": 120, "vazioParametro": "grupoVazio" },
+    "estoque": { "rotulo": "Estoque atual", "nomes": ["estoqueatual", "estoquetotal", "estoque", "saldo", "saldoestoque", "quantidadeestoque", "quantidadedeestoqueatual"], "obrigatoria": true, "tipo": "numero" },
+    "custo": { "rotulo": "Custo unitário", "nomes": ["custo", "custounitario", "precocusto", "precodecusto", "customedio"], "tipo": "numero" },
+    "vendido": { "rotulo": "Quantidade vendida no período", "nomes": ["quantidadevendida", "qtdvendida", "qtdvendidaperiodo", "quantidadevendidaperiodo", "quantidadevendidanoperiodo", "vendido", "quantidadevendidos", "vendas"], "obrigatoria": true, "tipo": "numero" },
+    "ultima_venda": { "rotulo": "Data da última venda", "nomes": ["ultimavenda", "dataultimavenda", "datadaultimavenda", "ultimasaida", "dataultimasaida"], "tipo": "data" }
+  },
+  "entrada": {
+    "chave": "codigo",
+    "campos": [["nome", "vazio(nome) ? codigo : nome"]],
+    "descartar": ["contem(nome, p.ignorar)"]
+  },
+  "banco": {
+    "tabela": "produtos",
+    "campos": {
+      "codigo": "texto",
+      "nome": "texto",
+      "grupo": "texto",
+      "estoque": "numero",
+      "custo": "numero",
+      "vendido": "numero",
+      "ultima_venda": "data",
+      "minimo": "inteiro",
+      "saida_dia": "numero",
+      "cobertura_dias": "inteiro",
+      "dias_sem_venda": "inteiro",
+      "sugestao": "inteiro",
+      "valor_estoque": "numero",
+      "situacao": "texto"
+    },
+    "indices": [["grupo"], ["situacao"]],
+    "migracoes": []
+  },
+  "calculo": [
+    { "campo": "saida_bruta", "formula": "max(0, vendido) / p.periodoDias" },
+    { "campo": "minimo", "formula": "teto(saida_bruta * p.diasCompra)" },
+    { "campo": "cobertura_dias", "casos": [["estoque <= 0", "0"], ["saida_bruta > 0", "arred(estoque / saida_bruta)"]], "senao": "nulo" },
+    { "campo": "dias_sem_venda", "formula": "dias(ultima_venda, hoje)" },
+    { "campo": "vai_faltar", "formula": "saida_bruta > 0 e cobertura_dias <> nulo e cobertura_dias <= p.diasAlerta" },
+    { "campo": "abaixo_minimo", "formula": "nao vai_faltar e minimo > 0 e estoque <= minimo" },
+    { "campo": "sem_giro", "formula": "nao vai_faltar e nao abaixo_minimo e estoque > 0 e (dias_sem_venda <> nulo ? dias_sem_venda >= p.diasParado : saida_bruta = 0)" },
+    { "campo": "situacao", "casos": [["vai_faltar", "'vai_faltar'"], ["abaixo_minimo", "'repor'"], ["sem_giro", "'parado'"], ["saida_bruta = 0", "'sem_venda'"]], "senao": "'ok'" },
+    { "campo": "sugestao", "formula": "situacao = 'vai_faltar' ou situacao = 'repor' ? max(0, teto(minimo - max(0, estoque))) : 0" },
+    { "campo": "saida_dia", "formula": "arred(saida_bruta, 2)" },
+    { "campo": "valor_estoque", "formula": "arred(max(0, estoque) * custo, 2)" }
+  ],
+  "dominios": {
+    "situacao": { "valores": {
+      "vai_faltar": { "ordem": 0, "rotulo": "Vai faltar", "icone": "🔴", "cor": "#d03b3b" },
+      "repor": { "ordem": 1, "rotulo": "Repor", "icone": "🟠", "cor": "#ec835a" },
+      "parado": { "ordem": 2, "rotulo": "Parado", "icone": "💤", "cor": "#55555a" },
+      "sem_venda": { "ordem": 3, "rotulo": "Sem venda no período", "icone": "⚪", "cor": "#a8a8ad" },
+      "ok": { "ordem": 4, "rotulo": "OK", "icone": "🟢", "cor": "#0ca30c" }
+    } }
+  },
+  "resumo": {
+    "total": "conta()",
+    "porSituacao": { "contarPor": "situacao" },
+    "valorEstoque": "arred(soma(valor_estoque), 2)",
+    "valorParado": "arred(soma(valor_estoque, situacao = 'parado'), 2)",
+    "comVenda": "conta(minimo > 0)",
+    "sugestaoItens": "conta(sugestao > 0)"
+  },
+  "grupos": {
+    "porGrupo": {
+      "campo": "grupo",
+      "por": "grupo",
+      "metricas": {
+        "produtos": "conta()",
+        "vai_faltar": "conta(situacao = 'vai_faltar')",
+        "repor": "conta(situacao = 'repor')",
+        "parado": "conta(situacao = 'parado')",
+        "sem_venda": "conta(situacao = 'sem_venda')",
+        "ok": "conta(situacao = 'ok')",
+        "valor_parado": "soma(valor_estoque, situacao = 'parado')",
+        "valor_estoque": "soma(valor_estoque)",
+        "sugestao": "soma(sugestao)"
+      },
+      "ordem": [["vai_faltar", "desc"], ["repor", "desc"], ["produtos", "desc"]]
+    }
+  },
+  "historico": {
+    "descricao": "nome",
+    "campos": [
+      { "campo": "grupo", "titulo": "Grupo" },
+      { "campo": "estoque", "titulo": "Estoque", "numero": true },
+      { "campo": "minimo", "titulo": "Mínimo projetado", "numero": true },
+      { "campo": "vendido", "titulo": "Vendido", "numero": true },
+      { "campo": "situacao", "titulo": "Situação", "dominio": "situacao" }
+    ]
+  },
+  "painel": {
+    "titulo": "Olho no estoque",
+    "texto": "{{atualizacao}}. Vendas dos últimos {{p.periodoDias}} dias. O que repor antes de faltar e o que está parado. Clique em qualquer número para abrir os produtos.",
+    "exportar": { "excel": false, "imprimir": true, "arquivo": "olho_estoque", "abaIndicadores": "Indicadores" },
+    "kpis": [
+      { "chave": "faltar", "rotulo": "Vai faltar", "valor": "valor(porSituacao.vai_faltar, 0)", "menorMelhor": true, "forte": true, "nota": "zerado ou até {{p.diasAlerta}} dias de venda", "link": "/olho_estoque/relatorio?situacao=vai_faltar" },
+      { "chave": "repor", "rotulo": "Repor", "valor": "valor(porSituacao.repor, 0)", "menorMelhor": true, "nota": "abaixo do mínimo de {{p.diasCompra}} dias", "link": "/olho_estoque/relatorio?situacao=repor" },
+      { "chave": "parado", "rotulo": "Parados", "valor": "valor(porSituacao.parado, 0)", "menorMelhor": true, "link": "/olho_estoque/relatorio?situacao=parado" },
+      { "chave": "valorParado", "rotulo": "Dinheiro parado (R$)", "valor": "arred(valorParado)", "menorMelhor": true, "link": "/olho_estoque/relatorio?situacao=parado" },
+      { "chave": "semVenda", "rotulo": "Sem venda no período", "valor": "valor(porSituacao.sem_venda, 0)", "menorMelhor": true, "nota": "sem venda em {{p.periodoDias}} dias e sem estoque parado", "link": "/olho_estoque/relatorio?situacao=sem_venda" },
+      { "chave": "valorEstoque", "rotulo": "Valor em estoque (R$)", "valor": "arred(valorEstoque)", "menorMelhor": false }
+    ],
+    "blocos": [
+      { "tipo": "distribuicao", "largura": 8, "titulo": "Situação do estoque", "sub": "{{br(total)}} produtos", "excel": "Por situação",
+        "campo": "situacao", "dominio": "situacao", "estilo": "legenda", "barra": true, "link": "/olho_estoque/relatorio?situacao={{valor}}",
+        "nota": "Mínimo projetado de cada produto = venda média por dia nos últimos {{p.periodoDias}} dias × {{p.diasCompra}} dias. 🔴 Vai faltar: zerado com venda ou acaba em até {{p.diasAlerta}} dias. 🟠 Repor: estoque igual ou abaixo do mínimo projetado." },
+      { "tipo": "ultima" },
+      { "tipo": "tabela", "largura": 12, "titulo": "Repor agora", "sub": "🔴 vai faltar e 🟠 repor", "excel": "Repor agora", "classe": "comprar",
+        "filtro": "situacao = 'vai_faltar' ou situacao = 'repor'", "ordem": [["ordem('situacao', situacao)", "asc"], ["valor(cobertura_dias, 0)", "asc"], ["saida_dia", "desc"]], "limite": 15,
+        "colunas": [
+          { "titulo": "Produto", "valor": "{{nome}}", "negrito": true, "link": "/olho_estoque/item/{{url(codigo)}}", "sub": "{{codigo}} · {{grupo}}" },
+          { "titulo": "Situação", "valor": "{{rotulo('situacao', situacao)}}" },
+          { "titulo": "Estoque", "valor": "{{br(estoque)}}", "numero": true },
+          { "titulo": "Mínimo ({{p.diasCompra}}d)", "valor": "{{minimo > 0 ? br(minimo) : '—'}}", "numero": true },
+          { "titulo": "Dias de venda", "valor": "{{cobertura_dias = nulo ? '—' : br(cobertura_dias)}}", "numero": true },
+          { "titulo": "Repor ({{p.diasCompra}}d)", "valor": "{{br(sugestao)}}", "numero": true, "negrito": true }
+        ],
+        "mais": { "link": "/olho_estoque/relatorio?situacao=vai_faltar&situacao=repor", "texto": "Ver todos os {{br(total)}} produtos →" },
+        "vazio": "Nada para repor. 🎉" },
+      { "tipo": "ranking", "largura": 6, "titulo": "Grupos com mais para repor", "excel": "Grupos repor",
+        "por": "grupo", "a": "conta(situacao = 'vai_faltar')", "b": "conta(situacao = 'repor')", "total": "conta(situacao = 'vai_faltar' ou situacao = 'repor')",
+        "manter": "total > 0", "ordem": [["a", "desc"], ["b", "desc"]], "limite": 10,
+        "cores": ["#d03b3b", "#ec835a"], "legendas": ["Vai faltar", "Repor"], "valor": "{{br(total)}}",
+        "link": "/olho_estoque/relatorio?grupo={{url(nome)}}&situacao=repor&situacao=vai_faltar", "vazio": "Nenhum grupo com produto para repor." },
+      { "tipo": "ranking", "largura": 6, "titulo": "Grupos com mais dinheiro parado", "excel": "Grupos parado",
+        "por": "grupo", "a": "soma(valor_estoque, situacao = 'parado')", "total": "conta(situacao = 'parado')",
+        "manter": "a > 0", "ordem": [["a", "desc"]], "limite": 10,
+        "cores": ["#55555a"], "legendas": [], "valor": "{{brl(a)}} · {{br(total)}} itens",
+        "link": "/olho_estoque/relatorio?grupo={{url(nome)}}&situacao=parado", "vazio": "Nenhum produto parado." }
+    ]
+  },
+  "relatorio": {
+    "titulo": "Produtos",
+    "texto": "{{atualizacao}}. Vendas dos últimos {{p.periodoDias}} dias; sugestão de reposição para {{p.diasCompra}} dias.",
+    "tabela": {
+      "titulo": "Olho no estoque",
+      "arquivo": "olho-no-estoque",
+      "colunas": [
+        { "campo": "codigo", "titulo": "Código", "filtro": "texto", "larguraExcel": 10, "link": "/olho_estoque/item/{{url(codigo)}}" },
+        { "campo": "nome", "titulo": "Produto", "filtro": "texto", "largura": 260, "larguraExcel": 44 },
+        { "campo": "grupo", "titulo": "Grupo", "filtro": "multi", "destaque": true, "larguraExcel": 24 },
+        { "campo": "situacao", "titulo": "Situação", "dominio": "situacao", "filtro": "multi", "destaque": true, "largura": 170, "larguraExcel": 24 },
+        { "campo": "estoque", "titulo": "Estoque", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "minimo", "titulo": "Mínimo {{p.diasCompra}}d", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "cobertura_dias", "titulo": "Dias de venda", "tipo": "numero", "filtro": "faixa", "vazio": "Sem venda" },
+        { "campo": "vendido", "titulo": "Vendido {{p.periodoDias}}d", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "saida_dia", "titulo": "Venda/dia", "tipo": "numero", "filtro": "faixa", "casas": 2 },
+        { "campo": "sugestao", "titulo": "Repor {{p.diasCompra}}d", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "ultima_venda", "titulo": "Última venda", "filtro": "texto", "larguraExcel": 12, "data": true },
+        { "campo": "valor_estoque", "titulo": "Valor em estoque (R$)", "tipo": "numero", "filtro": "faixa", "casas": 2 }
+      ],
+      "busca": ["codigo", "nome", "grupo"],
+      "ordem": { "campo": "situacao", "desc": false },
+      "cartoes": [
+        { "rotulo": "Produtos", "valor": "{{br(conta())}}" },
+        { "rotulo": "Vai faltar", "valor": "{{br(conta(situacao = 'vai_faltar'))}}", "forte": true },
+        { "rotulo": "Repor", "valor": "{{br(conta(situacao = 'repor'))}}" },
+        { "rotulo": "Dinheiro parado", "valor": "R$ {{br(soma(valor_estoque, situacao = 'parado'), 2)}}", "nota": "{{br(conta(situacao = 'parado'))}} produtos" }
+      ],
+      "abaResumo": { "nome": "Resumo por situação", "campo": "situacao", "dominio": "situacao", "colunas": [
+        { "titulo": "Produtos", "valor": "conta()" },
+        { "titulo": "Valor em estoque (R$)", "valor": "soma(valor_estoque)", "casas": 2 }
+      ] },
+      "exportar": { "excel": true, "csv": true, "imprimir": true },
+      "vazio": "Nenhum produto com esses filtros."
+    }
+  },
+  "consolidado": {
+    "titulo": "Por grupo",
+    "texto": "{{atualizacao}}. Grupos com mais produtos para repor primeiro. Clique no grupo para ver os produtos.",
+    "grupo": "porGrupo",
+    "tabela": {
+      "titulo": "Estoque por grupo",
+      "arquivo": "olho-no-estoque-grupos",
+      "colunas": [
+        { "campo": "grupo", "titulo": "Grupo", "filtro": "multi", "destaque": true, "largura": 200, "larguraExcel": 30, "link": "/olho_estoque/relatorio?grupo={{url(grupo)}}" },
+        { "campo": "produtos", "titulo": "Produtos", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "vai_faltar", "titulo": "🔴 Vai faltar", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "repor", "titulo": "🟠 Repor", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "parado", "titulo": "💤 Parado", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "sem_venda", "titulo": "⚪ Sem venda", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "ok", "titulo": "🟢 OK", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "sugestao", "titulo": "Repor (un.)", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "valor_parado", "titulo": "Dinheiro parado (R$)", "tipo": "numero", "filtro": "faixa", "casas": 2 },
+        { "campo": "valor_estoque", "titulo": "Valor em estoque (R$)", "tipo": "numero", "filtro": "faixa", "casas": 2 }
+      ],
+      "busca": ["grupo"],
+      "exportar": { "excel": true, "csv": true, "imprimir": true },
+      "vazio": "Nenhum grupo com esses filtros."
+    }
+  },
+  "detalhe": {
+    "titulo": "{{nome}}",
+    "sub": "Código {{codigo}}",
+    "voltar": { "texto": "← Produtos de {{grupo}}", "link": "/olho_estoque/relatorio?grupo={{url(grupo)}}" },
+    "selo": { "campo": "situacao", "dominio": "situacao" },
+    "fatos": [
+      ["Grupo", "{{grupo}}"],
+      ["Estoque atual", "{{br(estoque)}}"],
+      ["Mínimo projetado ({{p.diasCompra}} dias de venda)", "{{minimo > 0 ? br(minimo) : 'Sem venda no período'}}"],
+      ["Vendido em {{p.periodoDias}} dias", "{{br(vendido)}}"],
+      ["Venda por dia", "{{br(saida_dia, 2)}}"],
+      ["Dias de venda no estoque", "{{cobertura_dias = nulo ? 'Sem venda' : br(cobertura_dias)}}"],
+      ["Última venda", "{{valor(data(ultima_venda), '—')}}"],
+      ["Custo unitário", "{{brl(custo)}}"],
+      ["Valor em estoque", "{{brl(valor_estoque)}}"],
+      ["Sugestão de reposição ({{p.diasCompra}} dias)", "{{br(sugestao)}}"],
+      ["Situação", "{{ativo ? 'No relatório' : 'Saiu do relatório do Data Lab'}}"]
+    ]
+  },
+  "configuracao": {
+    "titulo": "Regra do estoque",
+    "ajuda": "Ao salvar, o painel recalcula todos os produtos com os dados atuais, sem esperar a próxima atualização.",
+    "explicacao": {
+      "titulo": "Como cada produto é marcado",
+      "passos": [
+        "**Venda por dia** = quantidade vendida ÷ [[{{p.periodoDias}} dias]]. **Dias de venda** = estoque ÷ venda por dia.",
+        "**Mínimo projetado** = venda por dia × [[{{p.diasCompra}} dias]] (arredondado para cima). Não usa o mínimo cadastrado no Gestor: acompanha a venda real de cada produto.",
+        "🔴 **Vai faltar**: zerado com venda, ou o estoque dura [[{{p.diasAlerta}} dias]] de venda ou menos.",
+        "🟠 **Repor**: estoque igual ou abaixo do mínimo projetado.",
+        "💤 **Parado**: tem estoque e não vende há [[{{p.diasParado}} dias]] (sem a data da última venda no relatório: não vendeu nada no período).",
+        "⚪ **Sem venda no período**: não vendeu em {{p.periodoDias}} dias e não entrou em parado (sem mínimo projetado).",
+        "**Repor (sugestão)** = mínimo projetado − estoque atual."
+      ]
+    },
+    "secoes": [
+      { "titulo": "Período das vendas", "sub": "Quantos dias de venda o relatório do Data Lab traz.", "itens": [
+        { "tipo": "trava", "chave": "periodoDias",
+          "aviso": ["**Este número precisa ser igual ao período do relatório do Data Lab** (`{ultimos_90_dias}` no texto). Para mudar, edite o relatório \"Olho no Estoque\" no Data Lab, marque a opção abaixo, informe o mesmo número e clique em Atualizar agora."],
+          "confirmar": "Já alterei o período no relatório do Data Lab" }
+      ] },
+      { "titulo": "Alertas", "sub": "Quando o produto entra em cada situação.", "itens": [
+        { "tipo": "parametros", "chaves": ["diasAlerta", "diasParado", "diasCompra"] }
+      ] },
+      { "titulo": "Cadastro", "sub": "Como os produtos do relatório entram no painel.", "itens": [
+        { "tipo": "parametros", "chaves": ["grupoVazio", "ignorar"] }
+      ] },
+      { "titulo": "Colunas do relatório do Data Lab", "sub": "Como o painel reconhece cada coluna, mesmo que o Data Lab mude o nome.", "itens": [
+        { "tipo": "colunas" }
+      ] }
+    ],
+    "fora": [
+      "**Saldo certo**: depende do inventário feito no Gestor.",
+      "**Horário da atualização automática**: todo dia às 07:00, no flow agendado do Olho no Estoque no Waipe Flow."
+    ]
+  }
+}

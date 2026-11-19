@@ -1,0 +1,142 @@
+[
+ {
+  "Código do Produto": "P100",
+  "Nome do Produto": "Cloro granulado 10 kg",
+  "Fabricante": "Fábrica Azul",
+  "Estoque Atual": 2,
+  "Quantidade Vendida": 0
+ },
+ {
+  "Código do Produto": "P101",
+  "Nome do Produto": "Algicida choque 1 L",
+  "Fabricante": "Hidro Sul",
+  "Estoque Atual": 30,
+  "Quantidade Vendida": 0
+ },
+ {
+  "Código do Produto": "P102",
+  "Nome do Produto": "Clarificante 1 L",
+  "Fabricante": "AquaMais",
+  "Estoque Atual": 12,
+  "Quantidade Vendida": 0
+ },
+ {
+  "Código do Produto": "P103",
+  "Nome do Produto": "Barrilha leve 2 kg",
+  "Fabricante": "Fábrica Azul",
+  "Estoque Atual": 2,
+  "Quantidade Vendida": 150
+ },
+ {
+  "Código do Produto": "P104",
+  "Nome do Produto": "Kit teste pH e cloro",
+  "Fabricante": "Hidro Sul",
+  "Estoque Atual": 2,
+  "Quantidade Vendida": 60
+ },
+ {
+  "Código do Produto": "P105",
+  "Nome do Produto": "Bomba 1/2 cv",
+  "Fabricante": "Fábrica Azul",
+  "Estoque Atual": 150,
+  "Quantidade Vendida": 0
+ },
+ {
+  "Código do Produto": "P106",
+  "Nome do Produto": "Filtro areia 50 cm",
+  "Fabricante": "Hidro Sul",
+  "Estoque Atual": 0,
+  "Quantidade Vendida": 0
+ },
+ {
+  "Código do Produto": "P107",
+  "Nome do Produto": "Aspirador manual",
+  "Fabricante": "AquaMais",
+  "Estoque Atual": 12,
+  "Quantidade Vendida": 0
+ },
+ {
+  "Código do Produto": "P108",
+  "Nome do Produto": "Mangueira 10 m",
+  "Fabricante": "Fábrica Azul",
+  "Estoque Atual": 0,
+  "Quantidade Vendida": 60
+ },
+ {
+  "Código do Produto": "P109",
+  "Nome do Produto": "Peneira cata-folha",
+  "Fabricante": "Hidro Sul",
+  "Estoque Atual": 12,
+  "Quantidade Vendida": 150
+ },
+ {
+  "Código do Produto": "P110",
+  "Nome do Produto": "Escova parede",
+  "Fabricante": "Fábrica Azul",
+  "Estoque Atual": 150,
+  "Quantidade Vendida": 0
+ },
+ {
+  "Código do Produto": "P111",
+  "Nome do Produto": "Pastilha cloro 200 g",
+  "Fabricante": "Hidro Sul",
+  "Estoque Atual": -3,
+  "Quantidade Vendida": 60
+ },
+ {
+  "Código do Produto": "P112",
+  "Nome do Produto": "Redutor de pH 1 kg",
+  "Fabricante": "AquaMais",
+  "Estoque Atual": 30,
+  "Quantidade Vendida": 300
+ },
+ {
+  "Código do Produto": "P113",
+  "Nome do Produto": "Elevador de alcalinidade",
+  "Fabricante": "Fábrica Azul",
+  "Estoque Atual": 0,
+  "Quantidade Vendida": 300
+ },
+ {
+  "Código do Produto": "P114",
+  "Nome do Produto": "Areia filtrante 25 kg",
+  "Fabricante": "Hidro Sul",
+  "Estoque Atual": 5,
+  "Quantidade Vendida": 150
+ },
+ {
+  "Código do Produto": "P115",
+  "Nome do Produto": "Refletor LED",
+  "Fabricante": "Fábrica Azul",
+  "Estoque Atual": 150,
+  "Quantidade Vendida": 4
+ },
+ {
+  "Código do Produto": "P116",
+  "Nome do Produto": "Dispositivo de retorno",
+  "Fabricante": "Hidro Sul",
+  "Estoque Atual": 30,
+  "Quantidade Vendida": 0
+ },
+ {
+  "Código do Produto": "P117",
+  "Nome do Produto": "Skimmer",
+  "Fabricante": "AquaMais",
+  "Estoque Atual": 12,
+  "Quantidade Vendida": 300
+ },
+ {
+  "Código do Produto": "P118",
+  "Nome do Produto": "Capa térmica",
+  "Fabricante": "Fábrica Azul",
+  "Estoque Atual": 80,
+  "Quantidade Vendida": 0
+ },
+ {
+  "Código do Produto": "P119",
+  "Nome do Produto": "Floculante 1 L",
+  "Fabricante": "Hidro Sul",
+  "Estoque Atual": 2,
+  "Quantidade Vendida": 20
+ }
+]

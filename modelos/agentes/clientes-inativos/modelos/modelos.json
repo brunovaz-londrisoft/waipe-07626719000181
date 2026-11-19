@@ -1,0 +1,26 @@
+{
+  "versao": 1,
+  "aviso": "Dados fictícios. O layout, os textos e a ordem seguem o que o fluxo envia.",
+  "pecas": [
+    {
+      "arquivo": "email-cliente.html",
+      "tipo": "email",
+      "rotulo": "E-mail ao cliente",
+      "assunto": "Olá, aqui é da NOME DA EMPRESA",
+      "de": "Empresa Exemplo <vendas@empresa.exemplo.com.br>",
+      "para": "Roberto Lima <roberto.lima@exemplo.com.br>",
+      "data": "qui., 1 out. 08:00",
+      "quem": "Cada cliente inativo com e-mail"
+    },
+    {
+      "arquivo": "consolidado-gestor.html",
+      "tipo": "email",
+      "rotulo": "Resumo do gestor",
+      "assunto": "Resumo de clientes notificados: 12 cliente(s) em 01/10/2026",
+      "de": "Relatórios Waipe <relatorios@empresa.exemplo.com.br>",
+      "para": "Nome do Gestor <gestor@empresa.exemplo.com.br>",
+      "data": "qui., 1 out. 08:12",
+      "quem": "Gestor"
+    }
+  ]
+}

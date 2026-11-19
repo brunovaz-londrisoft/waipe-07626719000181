@@ -1,0 +1,225 @@
+{
+  "waipe_flow_version": "2",
+  "name": "Adicionar Vendedores em Metas - Coach dos Representantes",
+  "description": "Busca os vendedores cadastrados no ERP (Data Lab) e acrescenta à planilha 'Metas por Vendedor' do Coach dos Representantes só os que ainda não estão nela, comparando pelo código. As linhas que já existem (código, nome e meta) nunca são lidas para escrita nem alteradas; os vendedores novos entram no fim com meta 0.",
+  "triggerType": "manual",
+  "nodes": [
+    {
+      "id": "33023f27-0476-4ca7-ac94-d817f57e1875",
+      "name": "Manual",
+      "type": "trigger_manual",
+      "position": {
+        "x": 130,
+        "y": 240
+      },
+      "parameters": {}
+    },
+    {
+      "id": "n2",
+      "name": "Vendedores",
+      "type": "waipe_data",
+      "position": {
+        "x": 390,
+        "y": 80
+      },
+      "parameters": {
+        "message": "",
+        "companyIds": [],
+        "dataSource": "data_lab",
+        "messageMode": "fixed",
+        "expertModelId": "",
+        "dataLabReportId": "SUBSTITUA_PELO_ID_DO_RELATORIO_DE_VENDEDORES"
+      }
+    },
+    {
+      "id": "n6",
+      "type": "google_sheets",
+      "name": "Planilha Atual",
+      "position": {
+        "x": 700,
+        "y": 80
+      },
+      "parameters": {
+        "credentialId": "",
+        "spreadsheetSource": "url",
+        "spreadsheetId": "SUBSTITUA_PELA_URL_DA_PLANILHA_DE_METAS",
+        "spreadsheetIdMode": "fixed",
+        "sheetSource": "name",
+        "sheetName": "Página1",
+        "sheetNameMode": "fixed",
+        "mappingMode": "manual",
+        "columnMappings": [],
+        "matchingColumn": "",
+        "autoMappingSource": "",
+        "autoMappingSourceMode": "expression",
+        "extraDataHandling": "insert_new_column",
+        "headerRow": 1,
+        "firstDataRow": 2,
+        "title": "",
+        "titleMode": "expression",
+        "sharing": "private",
+        "filters": [],
+        "combineFilters": "and",
+        "returnFirstMatch": false,
+        "limit": 0,
+        "valueRenderOption": "FORMATTED_VALUE",
+        "range": "Página1!A1:Z",
+        "rangeMode": "fixed",
+        "values": "",
+        "valuesMode": "expression",
+        "valueInputOption": "USER_ENTERED",
+        "nameFilter": "",
+        "nameFilterMode": "expression",
+        "pageSize": 50,
+        "continueOnError": false,
+        "operation": "read"
+      }
+    },
+    {
+      "id": "n3",
+      "type": "code",
+      "name": "Montar Linhas Novas",
+      "position": {
+        "x": 1010,
+        "y": 80
+      },
+      "parameters": {
+        "mode": "all_items",
+        "jsCode": "// ================== CONFIG ==================\nvar COLUNAS_CODIGO = [\"codigo\", \"vendedor\"];   // cabeçalhos aceitos para a coluna do código na planilha\nvar META_INICIAL = 0;                          // meta das linhas novas\n// ==============================================\n\nfunction pegarRegistros(nodeJson) {\n  if (!nodeJson) return [];\n  if (!nodeJson.dados) return [];\n  if (!Array.isArray(nodeJson.dados) || nodeJson.dados.length === 0) return [];\n  var bloco = nodeJson.dados[0];\n  if (!bloco || !Array.isArray(bloco.dados)) return [];\n  return bloco.dados;\n}\n\n// Nomes vindos do ERP às vezes chegam com entidades HTML (ex.: \"BEBIDAS &amp; ALIMENTOS\").\nfunction decodificarEntidadesHtml(texto) {\n  if (texto === null || texto === undefined) return \"\";\n  return String(texto)\n    .replace(/&amp;/g, \"&\")\n    .replace(/&lt;/g, \"<\")\n    .replace(/&gt;/g, \">\")\n    .replace(/&quot;/g, \"\\\"\")\n    .replace(/&#39;/g, \"'\")\n    .replace(/&apos;/g, \"'\");\n}\n\n// Compara códigos sem diferenciar \"12\", \" 12 \" e \"12.0\"\nfunction chaveCodigo(valor) {\n  if (valor === null || valor === undefined) return \"\";\n  var texto = String(valor).trim();\n  if (texto === \"\") return \"\";\n  if (/^-?\\d+(\\.\\d+)?$/.test(texto)) {\n    var numero = Number(texto);\n    if (!isNaN(numero)) return String(numero);\n  }\n  return texto.toUpperCase();\n}\n\n// Códigos que JÁ estão na planilha (a leitura vem do node Planilha Atual, intervalo A1:Z)\nvar valores = $node[\"Planilha Atual\"].json.values;\nif (!Array.isArray(valores)) valores = [];\n\nvar jaNaPlanilha = {};\nif (valores.length > 0) {\n  var cabecalho = valores[0].map(function (c) { return String(c).trim().toLowerCase(); });\n  var indice = -1;\n  for (var i = 0; i < COLUNAS_CODIGO.length && indice < 0; i++) {\n    indice = cabecalho.indexOf(COLUNAS_CODIGO[i]);\n  }\n  if (indice < 0) {\n    throw new Error(\"Não achei a coluna do código (\" + COLUNAS_CODIGO.join(\" ou \") + \") na linha 1 da planilha. Nada foi alterado.\");\n  }\n  for (var r = 1; r < valores.length; r++) {\n    var chave = chaveCodigo(valores[r][indice]);\n    if (chave !== \"\") jaNaPlanilha[chave] = true;\n  }\n}\n\n// Só entram vendedores do ERP cujo código ainda não está na planilha. Nada que já existe é lido para escrita.\nvar vendedoresCad = pegarRegistros($node[\"Vendedores\"].json);\nvar novas = [];\nvar vistos = {};\nvendedoresCad.forEach(function (v) {\n  var chave = chaveCodigo(v.codigo);\n  if (chave === \"\" || jaNaPlanilha[chave] || vistos[chave]) return;\n  vistos[chave] = true;\n  novas.push({\n    codigo: String(v.codigo).trim(),\n    nome: decodificarEntidadesHtml(v.nome),\n    meta: META_INICIAL\n  });\n});\n\nreturn [{\n  json: {\n    total: novas.length,\n    jaExistentes: Object.keys(jaNaPlanilha).length,\n    novas: novas\n  }\n}];\n"
+      }
+    },
+    {
+      "id": "n7",
+      "type": "if",
+      "name": "Tem Vendedor Novo?",
+      "position": {
+        "x": 1320,
+        "y": 80
+      },
+      "parameters": {
+        "combine": "and",
+        "conditions": [
+          {
+            "left": "{{ $json.total }}",
+            "leftMode": "expression",
+            "operator": "number:gt",
+            "right": "0",
+            "rightMode": "fixed"
+          }
+        ],
+        "caseInsensitive": true,
+        "typeValidation": "loose",
+        "nullAsEmpty": true
+      }
+    },
+    {
+      "id": "n4",
+      "type": "google_sheets",
+      "name": "Adicionar Vendedores Novos",
+      "position": {
+        "x": 1630,
+        "y": 0
+      },
+      "parameters": {
+        "credentialId": "",
+        "spreadsheetSource": "url",
+        "spreadsheetId": "SUBSTITUA_PELA_URL_DA_PLANILHA_DE_METAS",
+        "spreadsheetIdMode": "fixed",
+        "sheetSource": "name",
+        "sheetName": "Página1",
+        "sheetNameMode": "fixed",
+        "mappingMode": "auto",
+        "columnMappings": [],
+        "matchingColumn": "",
+        "autoMappingSource": "{{ $node[\"Montar Linhas Novas\"].json.novas }}",
+        "autoMappingSourceMode": "expression",
+        "extraDataHandling": "error",
+        "headerRow": 1,
+        "firstDataRow": 2,
+        "title": "",
+        "titleMode": "expression",
+        "sharing": "private",
+        "filters": [],
+        "combineFilters": "and",
+        "returnFirstMatch": false,
+        "limit": 0,
+        "valueRenderOption": "FORMATTED_VALUE",
+        "range": "",
+        "rangeMode": "expression",
+        "values": "",
+        "valuesMode": "expression",
+        "valueInputOption": "USER_ENTERED",
+        "nameFilter": "",
+        "nameFilterMode": "expression",
+        "pageSize": 50,
+        "continueOnError": false,
+        "operation": "append"
+      }
+    },
+    {
+      "id": "n5",
+      "name": "Responder Webhook",
+      "type": "webhook_respond",
+      "position": {
+        "x": 1940,
+        "y": 80
+      },
+      "parameters": {
+        "body": "{{ JSON.stringify({ sucesso: true, vendedores_adicionados: $node[\"Montar Linhas Novas\"].json.total, ja_estavam_na_planilha: $node[\"Montar Linhas Novas\"].json.jaExistentes }) }}",
+        "headers": [
+          {
+            "name": "Content-Type",
+            "value": "application/json",
+            "valueMode": "fixed"
+          },
+          {
+            "name": "Access-Control-Allow-Origin",
+            "value": "*",
+            "valueMode": "fixed"
+          }
+        ],
+        "bodyMode": "expression",
+        "statusCode": 200
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "33023f27-0476-4ca7-ac94-d817f57e1875",
+      "target": "n2"
+    },
+    {
+      "id": "e2",
+      "source": "n2",
+      "target": "n6"
+    },
+    {
+      "id": "e3",
+      "source": "n6",
+      "target": "n3"
+    },
+    {
+      "id": "e4",
+      "source": "n3",
+      "target": "n7"
+    },
+    {
+      "id": "e5",
+      "source": "n7",
+      "target": "n4",
+      "sourceHandle": "true"
+    },
+    {
+      "id": "e6",
+      "source": "n7",
+      "target": "n5",
+      "sourceHandle": "false"
+    },
+    {
+      "id": "e7",
+      "source": "n4",
+      "target": "n5"
+    }
+  ]
+}

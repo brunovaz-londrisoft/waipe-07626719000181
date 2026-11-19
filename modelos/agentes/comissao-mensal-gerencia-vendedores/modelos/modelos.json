@@ -1,0 +1,56 @@
+{
+  "versao": 1,
+  "aviso": "Dados fictícios. O layout, os textos e a ordem seguem o que o fluxo envia.",
+  "pecas": [
+    {
+      "arquivo": "email-vendedor.html",
+      "tipo": "email",
+      "rotulo": "E-mail do vendedor",
+      "assunto": "Sua comissão de outubro/2026",
+      "de": "Relatórios Waipe <relatorios@empresa.exemplo.com.br>",
+      "para": "Helena Prado <helena.prado@empresa.exemplo.com.br>",
+      "data": "sáb., 31 out. 23:30",
+      "quem": "Cada vendedor com e-mail"
+    },
+    {
+      "arquivo": "consolidado-gerencia.html",
+      "tipo": "email",
+      "rotulo": "Ranking da gerência",
+      "assunto": "Comissões de outubro/2026 - ranking de vendedores",
+      "de": "Relatórios Waipe <relatorios@empresa.exemplo.com.br>",
+      "para": "Gerência <gerencia@empresa.exemplo.com.br>",
+      "data": "sáb., 31 out. 23:30",
+      "quem": "Gerência"
+    },
+    {
+      "arquivo": "planilhas/geral.html",
+      "tipo": "planilha",
+      "rotulo": "Planilha geral da gerência",
+      "quem": "Gerência"
+    },
+    {
+      "arquivo": "planilhas/helena-prado.html",
+      "tipo": "planilha",
+      "rotulo": "Planilha de Helena Prado",
+      "quem": "Helena Prado"
+    },
+    {
+      "arquivo": "planilhas/larissa-nunes.html",
+      "tipo": "planilha",
+      "rotulo": "Planilha de Larissa Nunes",
+      "quem": "Larissa Nunes"
+    },
+    {
+      "arquivo": "planilhas/otavio-brandao.html",
+      "tipo": "planilha",
+      "rotulo": "Planilha de Otávio Brandão",
+      "quem": "Otávio Brandão"
+    },
+    {
+      "arquivo": "planilhas/davi-calheiros.html",
+      "tipo": "planilha",
+      "rotulo": "Planilha de Davi Calheiros",
+      "quem": "Davi Calheiros"
+    }
+  ]
+}
