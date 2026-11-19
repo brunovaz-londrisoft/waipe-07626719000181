@@ -172,6 +172,10 @@ def validar_pasta(pasta):
                 erros.append(f"{md.name}: falta a seção \"{s}\".")
     if md.exists() and fm:
         avisos += dependencias_md(md.name, fm, texto)
+        if fm.get("url") and not fm["url"].startswith("https://"):
+            avisos.append(f"{md.name}: url do cabeçalho deve começar com https:// (endereço da página em produção)")
+        if fm.get("url") and "## Em produção" not in texto:
+            avisos.append(f"{md.name}: página em produção (url no cabeçalho): descreva na seção '## Em produção'")
     if not ex.exists():
         erros.append("falta exemplo.json (linhas fictícias do Data Lab para validar e mostrar o plugin).")
     else:

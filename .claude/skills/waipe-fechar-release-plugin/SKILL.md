@@ -18,4 +18,6 @@ description: Fecha a versão de um plugin do Waipe Páginas (prévia para o simu
 6. **No template** (plugin do catálogo em `modelos/plugins/`): o mesmo comando só grava versão, histórico e prévia e faz
    o commit; escreva a linha em `## Não publicado` do `.claude/waipe/CHANGELOG.md` e publique com
    `waipe.py release-framework <nivel>`.
-7. Responda com a tag, o link do Release, o que entrou e a versão mínima da plataforma.
+7. A página foi para produção no cliente? Preencha `url` e `acesso` no cabeçalho do `.md` e a seção `## Em produção`
+   (endereço, quem acessa, onde roda, atendimento). Antes de ir para produção, sem `url` (o portal não mostra link).
+8. Responda com a tag, o link do Release, o que entrou e a versão mínima da plataforma.

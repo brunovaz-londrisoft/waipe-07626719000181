@@ -6,6 +6,8 @@ plataforma: 2.1.0
 categoria: Produtos
 modelo_base: nenhum
 dependencias: nenhuma
+url:
+acesso:
 atualizado: {{data}}
 ---
 
@@ -75,6 +77,16 @@ Ao instalar, o Waipe Páginas cria o schema `{{slug}}` com as tabelas padrão e 
    os dois flows, ative e cole a URL do webhook.
 3. Clique em Atualizar agora e confira: ...
 4. `exemplo.json` traz linhas fictícias no formato do Data Lab (a validação roda o plugin com elas).
+
+## Em produção
+
+Só quando a página já está no ar no cliente (senão apague esta seção e deixe `url` e `acesso` vazios no cabeçalho).
+Com `url` preenchida, o portal de modelos mostra o botão "Abrir o painel do cliente".
+
+- Endereço: `url` do cabeçalho, menu em que a página está e endereços antigos que ainda funcionam.
+- Quem acessa (`acesso`): login do Waipe, CNPJ e aplicativo exigido.
+- Onde roda: projeto Vercel e banco (de quem é a conta), versão do Waipe Páginas.
+- Atendimento: tabela "O cliente diz | O que conferir" com as dúvidas comuns.
 
 ## Dependências
 

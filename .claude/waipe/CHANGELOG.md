@@ -4,6 +4,10 @@ Cada versão do `waipe-template` (antes `waipe-agentes-template`). Versão maior
 alguma ação, descrita na seção. A atualização nunca toca em `agentes/`, `plugins/`, `CLAUDE.md`, `README.md` nem em
 `.claude/settings.local.json`.
 
+## v4.2.0 (2026-11-19)
+- Páginas em produção: cabeçalho `url` e `acesso` e seção `## Em produção` (endereço, quem acessa, onde roda,
+  atendimento) no modelo de `.md` do plugin. O portal mostra "Abrir o painel do cliente" só quando há `url`.
+
 ## v4.1.0 (2026-11-19)
 - **Simulação completa das páginas:** `plugins.py gerar-modelos` gera o flow que alimenta a página (`fluxo.json`, o mesmo
   da Integração) e as peças Data Lab, Indicadores, Relatório, Consolidado e Configurações, cada uma ligada ao node do
