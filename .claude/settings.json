@@ -2,6 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(python3 .claude/waipe/waipe.py:*)",
+      "Bash(python3 .claude/waipe/plugins.py:*)",
+      "Bash(node .claude/waipe/plugin/validar.mjs:*)",
+      "Bash(node .claude/waipe/plugin/previa.mjs:*)",
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
@@ -21,7 +24,14 @@
       {
         "matcher": "Write|Edit",
         "hooks": [
-          { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/waipe/waipe.py\" hook" }
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/waipe/waipe.py\" hook"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/waipe/plugins.py\" hook"
+          }
         ]
       }
     ]

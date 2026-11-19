@@ -8,10 +8,11 @@ description: Atualiza o framework Waipe num repositório de cliente (ou em todos
 ## Num repositório de cliente
 
 1. `python3 .claude/waipe/waipe.py status` (versão atual) e
-   `gh release view -R brunovaz-londrisoft/waipe-agentes-template` (versão nova e notas).
+   `gh release view -R brunovaz-londrisoft/waipe-template` (versão nova e notas).
 2. Mostre ao usuário o que muda (CHANGELOG entre as duas). Versão maior pode pedir ação: diga qual.
 3. Com o ok, `python3 .claude/waipe/waipe.py atualizar` (ou `atualizar vX.Y.Z`). O script troca só os arquivos do
-   framework, aborta se algo fora de `.claude/` e `.github/` mudar e grava direto na `main`.
+   framework (inclusive o catálogo `modelos/`), aborta se algo fora de `.claude/`, `.github/` e `modelos/` mudar e
+   grava direto na `main`. `--forcar` recopia os arquivos mesmo já estando na versão.
 4. Se o repositório ainda tem `develop` (vindo de antes da v2.0.0), rode `python3 .claude/waipe/waipe.py migrar`
    depois de atualizar: apaga `develop` e deixa só a `main`.
 5. Se a versão maior pedir outra ação no cliente, faça na `main` e `salvar`.
@@ -21,6 +22,12 @@ description: Atualiza o framework Waipe num repositório de cliente (ou em todos
    o WhatsApp vira `pagina_whatsapp` com o mesmo texto, as planilhas viram `pagina_planilha` e o PDF é copiado. Grave o
    `modelos.json`, apague a pasta antiga (com o `index.html` e o `README.md`), rode `validar`, commit
    `docs: modelos de comunicação no formato v3` e `salvar`. Os dados e o desenho continuam os do cliente.
+
+7. **Vindo de antes da v4.0.0**: o catálogo saiu de `.claude/waipe/catalogo/` para `modelos/agentes/` e chegaram os
+   plugins (`plugins/`, `modelos/plugins/`, `.claude/waipe/plugins.py`). O `atualizar` de antes da v4 não conhece a
+   pasta `modelos/`: rode `atualizar` e depois `atualizar --forcar` (já com o script novo). Confira que existem
+   `plugins/` e `modelos/`; ajuste o `README.md` do cliente para citar as páginas (veja o texto do `iniciar` em
+   `waipe.py`) e, se o cliente já tem páginas, traga cada uma para `plugins/<slug>/` com `.md` e `exemplo.json`.
 
 ## No template (todos os clientes)
 

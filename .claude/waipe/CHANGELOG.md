@@ -1,7 +1,38 @@
 # Changelog do framework
 
-Cada versão do `waipe-agentes-template`. Versão maior = o repositório do cliente precisa de alguma ação, descrita na seção.
-A atualização nunca toca em `agentes/`, `CLAUDE.md`, `README.md` nem em `.claude/settings.local.json`.
+Cada versão do `waipe-template` (antes `waipe-agentes-template`). Versão maior = o repositório do cliente precisa de
+alguma ação, descrita na seção. A atualização nunca toca em `agentes/`, `plugins/`, `CLAUDE.md`, `README.md` nem em
+`.claude/settings.local.json`.
+
+## v4.0.0 (2026-11-19)
+- **Agentes e plugins num repositório só.** O template passa a se chamar `waipe-template` e recebe o antigo
+  `waipe-paginas-plugins` (histórico mantido): os clientes `waipe-<cnpj>` criam agentes (flows do Waipe Flow) em
+  `agentes/` e páginas (plugins do Waipe Páginas) em `plugins/`, cada um com o seu `.md`.
+- Catálogo unificado em `modelos/`: `modelos/agentes/` (antes `.claude/waipe/catalogo/`) e `modelos/plugins/` (cobranca,
+  giro, olho_estoque, pendencias). A pasta `modelos/` é do framework e vem na atualização.
+- Ferramenta de plugins `python3 .claude/waipe/plugins.py` (status, validar, catalogo, novo, gerar-modelos, release),
+  validação com o motor do `waipe-paginas` ao lado (`.claude/waipe/plugin/validar.mjs`) e prévia para o simulador do
+  portal (`.claude/waipe/plugin/previa.mjs`: `plugins/<slug>/modelos/painel.html`, `relatorio.html`, `modelos.json`).
+- Release de página: tag `plugins/<slug>/vX.Y.Z` com o `.json`, o `.md`, o exemplo e as prévias anexados.
+- `waipe.py validar` e `salvar` validam também os plugins; hook e CI validam os dois.
+- Regras `waipe-plugins.md` e `waipe-plugins-fluxo.md`; skills `waipe-criar-plugin`, `waipe-fechar-release-plugin` e
+  `waipe-plugin-formato`. `waipe-revisar-modelos` também revisa plugins.
+- `waipe.py atualizar --forcar` recopia o framework mesmo já na versão. `salvar` não refaz merges locais com rebase.
+- **Ação no cliente:** rode `atualizar` e depois `atualizar --forcar` (o script antigo não conhece `modelos/`); ajuste o
+  `README.md` para citar as páginas. A pasta antiga `.claude/waipe/catalogo/` some sozinha.
+
+## v3.5.0 (2026-10-29)
+- Kit de e-mail Waipe: função nova `wpRanking` (ranking com o estilo em classes do `<style>` do `wpPagina`), para listas
+  longas não passarem dos 102 KB que o Gmail mostra sem cortar. Kit trocado em todos os modelos do catálogo; os e-mails
+  dos outros modelos só ganham as classes novas no `<style>`.
+- Catálogo: `giro-estoque` 1.4.0, com o ranking em `wpRanking` (232 KB → 61 KB com 90 fabricantes).
+
+## v3.4.0 (2026-10-29)
+- Catálogo: `giro-estoque` 1.3.0, com planilha consolidada de todos os fabricantes e botão dela no e-mail.
+
+## v3.3.0 (2026-10-29)
+- Catálogo: `giro-estoque` 1.2.0, com pausa de 3 s entre fabricantes (erro 429 do Google Sheets) e e-mail que avisa e
+  lista os fabricantes sem planilha.
 
 ## v3.2.0 (2026-10-23)
 - Catálogo: modelos novos `cmv-mensal` (CMV do período por webhook) e `produtos-sem-giro` (produtos parados e mais

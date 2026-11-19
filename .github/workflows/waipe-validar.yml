@@ -1,5 +1,6 @@
-# Gerado pelo framework Waipe. Valida todo agente e modelo do catálogo.
-name: Validar agentes
+# Gerado pelo framework Waipe. Valida todo agente, plugin e modelo do catálogo (agentes e plugins).
+# Sem o waipe-paginas na CI, os plugins passam pela validação estrutural; a completa roda na máquina (salvar).
+name: Validar agentes e plugins
 on:
   pull_request:
   push:
@@ -12,4 +13,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
       - run: python3 .claude/waipe/waipe.py validar

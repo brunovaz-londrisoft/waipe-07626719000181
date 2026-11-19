@@ -40,12 +40,17 @@ function wpPagina(o) {
   h += "<meta name='color-scheme' content='light dark'><meta name='supported-color-schemes' content='light dark'>";
   h += "<title>" + wpEsc(o.titulo || eyebrow || o.empresa || "Waipe") + "</title>";
   h += "<style>body{margin:0;padding:0;-webkit-text-size-adjust:100%;}a{color:#303030;}";
+  // Classes do wpRanking (listas longas): o estilo fica aqui, uma vez, e não repetido em cada célula
+  h += ".wp-rk td{border-top:1px solid #F3F4F6;vertical-align:middle;font-family:Arial,Helvetica,sans-serif;}.wp-rk .wp-r1{width:36px;padding:9px 0 9px 12px;}.wp-rk .wp-r2{padding:9px 8px;}.wp-rk .wp-r3{width:64px;padding:9px 8px;text-align:right;font-size:18px;font-weight:bold;color:#303030;}.wp-rk .wp-r4{width:48px;padding:9px 12px 9px 8px;text-align:right;}";
+  h += ".wp-pos{display:inline-block;width:24px;height:24px;line-height:24px;border-radius:12px;text-align:center;font-size:12px;font-weight:bold;background:#F3F4F6;color:#5B6170;}.wp-pos.wp-top{background:#5A6344;color:#FFFFFF;}.wp-nm{display:block;font-size:13px;line-height:18px;font-weight:bold;color:#303030;}.wp-sb{display:block;font-size:12px;line-height:16px;color:#6B7280;margin:2px 0 6px 0;}";
+  h += ".wp-br{height:6px;border-radius:3px;background:#BFC4AC;font-size:0;line-height:0;}.wp-br.wp-on{background:#5A6344;}.wp-bt{display:inline-block;width:32px;height:32px;line-height:32px;border-radius:8px;background:#303030;color:#FFFFFF!important;font-size:18px;font-weight:bold;text-decoration:none;text-align:center;}";
   h += "@media only screen and (max-width:620px){.wp-wrap{width:100%!important;max-width:100%!important;}.wp-pad{padding-left:16px!important;padding-right:16px!important;}.wp-kpi{display:block!important;width:100%!important;padding:0 0 8px 0!important;}.wp-hide{display:none!important;}.wp-h1{font-size:24px!important;line-height:30px!important;}.wp-hero{font-size:40px!important;line-height:44px!important;}}";
   h += "@media (prefers-color-scheme: dark){.wp-bg{background:#16181D!important;}.wp-card{background:#1F2229!important;border-color:#323743!important;}.wp-soft{background:#272B33!important;}.wp-t{color:#F3F4F6!important;}.wp-m{color:#A8AEBB!important;}.wp-bd{border-color:#323743!important;}.wp-eb{color:#D4B25A!important;}";
   h += "td[bgcolor='#303030']{background:#E5E7EB!important;}td[bgcolor='#303030'] a{color:#1F2229!important;}";
   h += "td[bgcolor='#F9FAFB']{background:#272B33!important;}td[bgcolor='#F1F2EC']{background:#2A2E24!important;}td[bgcolor='#E3E6D8']{background:#3A4030!important;}";
   h += "td[bgcolor='#FEF3F2']{background:#3A2422!important;}td[bgcolor='#EEF8F1']{background:#1F3A2C!important;}td[bgcolor='#F3F4F6']{background:#272B33!important;}";
-  h += ".wp-c-medio{color:#C9CFB4!important;}.wp-c-neutro{color:#F3F4F6!important;}.wp-c-alerta{color:#FCA5A5!important;}.wp-c-ok{color:#86EFAC!important;}}";
+  h += ".wp-c-medio{color:#C9CFB4!important;}.wp-c-neutro{color:#F3F4F6!important;}.wp-c-alerta{color:#FCA5A5!important;}.wp-c-ok{color:#86EFAC!important;}";
+  h += ".wp-rk td{border-color:#323743!important;}.wp-rk .wp-r3,.wp-nm{color:#F3F4F6!important;}.wp-sb{color:#A8AEBB!important;}.wp-pos{background:#272B33!important;color:#A8AEBB!important;}.wp-pos.wp-top{background:#5A6344!important;color:#FFFFFF!important;}.wp-bt{background:#E5E7EB!important;color:#1F2229!important;}}";
   h += "</style></head>";
   h += "<body class='wp-bg' style='margin:0;padding:0;background:#F3F4F6;'>";
   h += "<span style='display:none;font-size:1px;color:#F3F4F6;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;'>" + wpEsc(o.preheader || "") + "</span>";
@@ -160,6 +165,33 @@ function wpTabela(colunas, linhas, nota) {
         " style='border-top:1px solid #F3F4F6;padding:10px 12px;" + WP_F + "font-size:13px;color:#303030;mso-line-height-rule:exactly;line-height:18px;'>" + (linhas[i][c] === undefined ? "" : linhas[i][c]) + "</td>";
     }
     h += "</tr>";
+  }
+  h += "</table>" + (nota ? "<p class='wp-m' style='margin:8px 2px 0 2px;" + WP_F + "font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:17px;'>" + nota + "</p>" : "") + "</td></tr>";
+  return h;
+}
+
+// Ranking compacto para listas longas (dezenas de linhas): mesmo desenho do ranking do Guardião (círculo, nome, barra,
+// valor e seta), mas com o estilo nas classes do <style> de wpPagina, para o e-mail não passar dos 102 KB que o Gmail
+// mostra sem cortar. rotulos: [coluna do nome, coluna do valor, coluna do botão].
+// itens: [{nome, sub, pct (0-100), forte, valor, url, titulo}], na ordem do ranking; as 3 primeiras posições ficam em verde-oliva.
+function wpRanking(rotulos, itens, nota) {
+  const cab = "background:#F9FAFB;padding:10px 12px;" + WP_F + "font-size:11px;font-weight:bold;letter-spacing:0.8px;text-transform:uppercase;color:#6B7280;mso-line-height-rule:exactly;line-height:15px;";
+  let h = "<tr><td class='wp-pad' style='padding:4px 32px 8px 32px;'><table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' class='wp-bd' style='border:1px solid #E5E7EB;border-radius:8px;border-collapse:separate;'><tr>";
+  h += "<td bgcolor='#F9FAFB' width='36' class='wp-soft wp-m' style='" + cab + "border-radius:8px 0 0 0;'>#</td>";
+  h += "<td bgcolor='#F9FAFB' class='wp-soft wp-m' style='" + cab + "'>" + wpEsc(rotulos[0]) + "</td>";
+  h += "<td bgcolor='#F9FAFB' width='64' align='right' class='wp-soft wp-m' style='" + cab + "'>" + wpEsc(rotulos[1]) + "</td>";
+  h += "<td bgcolor='#F9FAFB' width='48' align='right' class='wp-soft wp-m' style='" + cab + "border-radius:0 8px 0 0;'>" + wpEsc(rotulos[2]) + "</td></tr>";
+  if (itens.length === 0) {
+    h += "<tr class='wp-rk'><td colspan='4' class='wp-r2 wp-m' style='font-size:13px;color:#6B7280;'>Nada para mostrar.</td></tr>";
+  }
+  for (let i = 0; i < itens.length; i++) {
+    const it = itens[i];
+    const w = Math.max(4, Math.min(100, Math.round(it.pct || 0)));
+    h += "<tr class='wp-rk'><td class='wp-r1'><span class='wp-pos" + (i < 3 ? " wp-top" : "") + "'>" + (i + 1) + "</span></td>";
+    h += "<td class='wp-r2'><span class='wp-nm'>" + wpEsc(it.nome) + "</span>" + (it.sub ? "<span class='wp-sb'>" + it.sub + "</span>" : "");
+    h += "<div class='wp-br" + (it.forte ? " wp-on" : "") + "' style='width:" + w + "%'></div></td>";
+    h += "<td class='wp-r3'>" + wpEsc(it.valor) + "</td>";
+    h += "<td class='wp-r4'>" + (it.url ? "<a class='wp-bt' href='" + wpEsc(it.url) + "' target='_blank' title='" + wpEsc(it.titulo || "") + "'>&rarr;</a>" : "-") + "</td></tr>";
   }
   h += "</table>" + (nota ? "<p class='wp-m' style='margin:8px 2px 0 2px;" + WP_F + "font-size:12px;color:#6B7280;mso-line-height-rule:exactly;line-height:17px;'>" + nota + "</p>" : "") + "</td></tr>";
   return h;

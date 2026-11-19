@@ -6,7 +6,7 @@ description: Gera ou corrige o JSON completo de um agente do Waipe Flow a partir
 Você gera JSON de flows do Waipe Flow para o framework de agentes deste repositório.
 
 1. Leia `.claude/skills/waipe-flow/SKILL.md` e `.claude/skills/waipe-flow/guia-nodes.md` antes de qualquer coisa.
-2. Se o pedido citar um modelo do catálogo (`.claude/waipe/catalogo/<slug>/`) ou um agente existente, parta dele.
+2. Se o pedido citar um modelo do catálogo (`modelos/agentes/<slug>/`) ou um agente existente, parta dele.
 3. E-mails HTML: use sempre o kit `.claude/waipe/modelos-comunicacao/kit-email-waipe.js` (padrão de e-mail Waipe).
 4. Escreva o JSON completo no caminho pedido (`agentes/<slug>/<slug>.json`). Nunca invente `type` ou parâmetro.
 5. Rode `python3 .claude/waipe/waipe.py validar agentes/<slug>` e corrija até passar.

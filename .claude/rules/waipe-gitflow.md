@@ -31,13 +31,15 @@ Decisão do dono do framework (v2.0.0): **uma branch só, `main`**. Não existem
 
 ## Repositório template (o próprio framework)
 
-Vale só em `brunovaz-londrisoft/waipe-agentes-template`:
+Vale só em `brunovaz-londrisoft/waipe-template`:
 
-- `agentes/` fica vazio. O trabalho é no framework: `.claude/`, `.github/`, `README.md`, `CLAUDE.md`.
+- `agentes/` e `plugins/` ficam vazios. O trabalho é no framework: `.claude/`, `.github/`, `modelos/` (catálogo de
+  agentes e de plugins), `README.md`, `CLAUDE.md`.
 - Mesma branch única: commit na `main` e `salvar`. Cada mudança ganha uma linha em `## Não publicado` no topo do
   `.claude/waipe/CHANGELOG.md`.
 - Para os clientes receberem: `waipe.py release-framework <patch|minor|major>` (maior = cliente precisa agir). O
   script fecha o CHANGELOG, sobe a `VERSION`, cria a tag `vX.Y.Z` e o Release. Feche a versão logo depois de
   mudanças no framework, a não ser que o usuário peça para esperar.
-- Novos modelos de catálogo vêm da skill `waipe-revisar-modelos`. Novos clientes, da skill `waipe-novo-cliente`.
+- Novos modelos de catálogo (agentes e plugins) vêm da skill `waipe-revisar-modelos`; plugin do catálogo novo ou
+  alterado também pode vir da skill `waipe-criar-plugin` (cria em `modelos/plugins/`). Novos clientes, da skill `waipe-novo-cliente`.
 - O `CLAUDE.md` e o `README.md` do template viram ponto de partida dos clientes: mude-os com cuidado.

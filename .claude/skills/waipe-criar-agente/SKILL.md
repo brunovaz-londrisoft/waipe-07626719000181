@@ -15,7 +15,7 @@ Ferramenta: `python3 .claude/waipe/waipe.py` (abaixo, só `waipe`).
    `waipe catalogo vendedor radar whatsapp`; sem palavras, lista tudo) e leia o `.md` dos modelos que combinam (gatilho,
    fonte de dados, saída, palavras-chave). Olhe também `agentes/` do cliente: um agente parecido daqui pode servir de base.
    Cada modelo tem os **modelos de comunicação** (WhatsApp, e-mail, documento, consolidado, planilhas) em
-   `.claude/waipe/catalogo/<modelo>/modelos/` (lista em `modelos.json`): abra as peças para mostrar ao usuário como fica.
+   `modelos/agentes/<modelo>/modelos/` (lista em `modelos.json`): abra as peças para mostrar ao usuário como fica.
 3. **Sugira o modelo mais parecido ao usuário** (até 3 candidatos: o que cada um faz e o que teria que mudar) e deixe
    **ele decidir**: usar um modelo como base ou criar do zero (AskUserQuestion). Não escolha sozinho. Se nenhum
    combina, diga que não há modelo parecido e siga do zero.

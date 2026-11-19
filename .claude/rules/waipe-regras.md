@@ -6,16 +6,18 @@
 |---|---|---|
 | `agentes/<slug>/<slug>.json` | cliente | O flow, pronto para importar no Waipe Flow. |
 | `agentes/<slug>/<slug>.md` | cliente | Documentação e versão do agente (cabeçalho `versao: X.Y.Z`). |
+| `plugins/<slug>/` | cliente | Páginas do Waipe Páginas (`.json`, `.md`, `exemplo.json`): regras em `waipe-plugins.md`. |
 | `CLAUDE.md`, `README.md`, `.claude/settings.local.json` | cliente | Particularidades e ajustes locais. |
-| `.claude/waipe/`, `.claude/rules/waipe-*`, `.claude/skills/waipe-*`, `.claude/agents/waipe-*`, `.claude/settings.json`, `.github/workflows/waipe-*` | framework | Substituídos inteiros por `waipe atualizar`. |
+| `modelos/` (catálogo de agentes e de plugins), `.claude/waipe/`, `.claude/rules/waipe-*`, `.claude/skills/waipe-*`, `.claude/agents/waipe-*`, `.claude/settings.json`, `.github/workflows/waipe-*` | framework | Substituídos inteiros por `waipe atualizar`. |
 
 No repositório de cliente, **nunca edite arquivos do framework**. Melhoria no framework se faz no template e chega
 aos clientes por atualização. Ajuste local de permissão vai em `.claude/settings.local.json`.
 
 ## Ferramenta
 
-Tudo passa por `python3 .claude/waipe/waipe.py <comando>` (`status`, `validar`, `novo-agente`, `salvar`, `release`,
-`atualizar`, `migrar`). Não reproduza à mão o que um comando já faz.
+Agentes: `python3 .claude/waipe/waipe.py <comando>` (`status`, `validar`, `catalogo`, `novo-agente`, `salvar`,
+`release`, `atualizar`). Plugins: `python3 .claude/waipe/plugins.py <comando>` (`status`, `validar`, `catalogo`,
+`novo`, `gerar-modelos`, `release`). Não reproduza à mão o que um comando já faz.
 
 ## Regras de ferro
 

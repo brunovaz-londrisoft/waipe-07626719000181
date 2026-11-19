@@ -5,7 +5,7 @@ WhatsApp, a planilha e o documento. Eles ficam **dentro da pasta do agente** e s
 apresentação. Quem desenha a moldura (cliente de e-mail, celular, claro/escuro) é o **portal de modelos**.
 
 ```
-agentes/<slug>/                       (no catálogo: .claude/waipe/catalogo/<slug>/)
+agentes/<slug>/                       (no catálogo: modelos/agentes/<slug>/)
 ├── <slug>.md
 ├── <slug>.json
 └── modelos/
@@ -27,11 +27,14 @@ ranking (círculo, barra e seta) e rodapé Londrisoft. É claro e tem modo escur
 
 - No **node** do flow: copie o bloco de `kit-email-waipe.js` (do `PADRÃO DE E-MAIL WAIPE` ao `FIM DO PADRÃO`) para o node
   `code` que monta o e-mail e use `wpPagina`, `wpKpis`, `wpSecao`, `wpTabela`, `wpBadge`, `wpBarra`, `wpSeta`, `wpBotao`,
-  `wpAviso` e `wpTexto`. `wpPagina` devolve o documento HTML completo.
+  `wpAviso`, `wpTexto` e `wpRanking`. `wpPagina` devolve o documento HTML completo.
 - Não escreva cores nem estilos soltos no node: use as funções do kit. Texto dentro de `wpTexto`/`wpAviso` vai sem `<div>`
   (use `<span style="display:block;">` para quebrar linha), porque o kit monta parágrafos.
+- **Limite de 102 KB do Gmail:** acima disso o Gmail corta o e-mail ("Mensagem cortada"). `wpTabela` repete o estilo em
+  cada célula; para ranking ou lista com dezenas de linhas use `wpRanking`, que põe o estilo em classes no `<style>` do
+  `wpPagina` (com ~90 linhas o e-mail do Giro de Estoque caiu de 232 KB para 61 KB).
 - Ao mudar o kit, troque o bloco em todos os nodes que o usam (o bloco é sempre o mesmo, entre os marcadores).
-- Referência pronta: os modelos de `.claude/waipe/catalogo/<modelo>/modelos/`.
+- Referência pronta: os modelos de `modelos/agentes/<modelo>/modelos/`.
 
 ## Quando gerar
 
@@ -43,7 +46,7 @@ ranking (círculo, barra e seta) e rodapé Londrisoft. É claro e tem modo escur
 ## Base: modelos do catálogo
 
 Se o agente nasceu de um modelo do catálogo (`modelo_base` no `.md`), os modelos de comunicação daquele modelo existem em
-`.claude/waipe/catalogo/<modelo>/modelos/`: use-os como ponto de partida, trocando os dados fictícios, os textos e as
+`modelos/agentes/<modelo>/modelos/`: use-os como ponto de partida, trocando os dados fictícios, os textos e as
 peças pelo que **este** agente envia.
 
 ## O que gerar por agente (só o que o agente de fato envia)
@@ -80,7 +83,7 @@ peças pelo que **este** agente envia.
    (`--blink-settings=preferredColorScheme=1` força o claro) e na largura de celular. Rode `waipe.py validar`.
 
 `exemplo_gerar.py` (nesta pasta) tem um gerador mínimo: copie para a pasta temporária, adapte e rode de lá. No catálogo,
-cada modelo guarda o seu gerador em `catalogo/<slug>/gerar_modelos.py` (com os dados fictícios embutidos), e
+cada modelo guarda o seu gerador em `modelos/agentes/<slug>/gerar_modelos.py` (com os dados fictícios embutidos), e
 `waipe.py gerar-modelos` regera todos, por exemplo depois de `waipe.py atualizar-kit`.
 
 ## Dados fictícios (obrigatório)

@@ -24,7 +24,7 @@ Comandos do repositório template (o próprio framework)
   atualizar-kit                troca o bloco do kit de e-mail (kit-email-waipe.js) em todos os nodes do catálogo
   gerar-modelos [modelo ...]   regera os modelos de comunicação do catálogo (gerar_modelos.py de cada modelo)
   registrar-origem <modelo> <repo> <agente>
-                               grava em catalogo/<modelo>/origem.json o fluxo do agente do cliente que deu origem ao
+                               grava em modelos/agentes/<modelo>/origem.json o fluxo do agente do cliente que deu origem ao
                                modelo (a comparação reconhece o agente mesmo depois de o modelo ser adaptado)
   comparar-catalogo [--json]   compara o fluxo de cada agente publicado nos clientes com os modelos do catálogo
                                (nome e estrutura) e sugere: já no catálogo, variação (2), (3)... ou modelo novo
@@ -43,16 +43,21 @@ import tempfile
 import time
 from pathlib import Path
 
-TEMPLATE = os.environ.get("WAIPE_TEMPLATE", "brunovaz-londrisoft/waipe-agentes-template")
+TEMPLATE = os.environ.get("WAIPE_TEMPLATE", "brunovaz-londrisoft/waipe-template")
+# Nome antigo do template (o GitHub redireciona; clientes antigos ainda apontam para ele).
+TEMPLATES_ANTIGOS = ("brunovaz-londrisoft/waipe-agentes-template",)
 TOPICO = "waipe-cliente"
 RAIZ = Path(__file__).resolve().parents[2]
 WAIPE = RAIZ / ".claude" / "waipe"
 AGENTES = RAIZ / "agentes"
-CATALOGO = WAIPE / "catalogo"
+CATALOGO = RAIZ / "modelos" / "agentes"
+PLUGINS = RAIZ / "plugins"
 
-# Tudo que pertence ao framework. A atualização apaga e recopia exatamente isto.
-# O resto (agentes/, CLAUDE.md, README.md, settings.local.json) é do cliente e nunca é tocado.
+# Tudo que pertence ao framework. A atualização apaga e recopia exatamente isto (inclui o catálogo de modelos de
+# agentes e de plugins, em modelos/). O resto (agentes/, plugins/, CLAUDE.md, README.md, settings.local.json) é do
+# cliente e nunca é tocado.
 FRAMEWORK = [
+    "modelos",
     ".claude/waipe",
     ".claude/settings.json",
     ".claude/rules/waipe-*",
@@ -111,7 +116,8 @@ def gh(*args, **kw):
 
 def modo_template():
     url = git("remote", "get-url", "origin", checar=False)
-    return url.rstrip("/").removesuffix(".git").endswith(TEMPLATE)
+    url = url.rstrip("/").removesuffix(".git")
+    return any(url.endswith(t) or url.endswith(t.split("/")[1]) for t in (TEMPLATE, *TEMPLATES_ANTIGOS))
 
 
 def versao_framework(raiz=RAIZ):
@@ -417,7 +423,17 @@ def cmd_validar(args):
         falhou |= bool(e)
     if not pastas:
         print("nenhum agente para validar")
+    if not args:
+        falhou |= not validar_plugins()
     sys.exit(1 if falhou else 0)
+
+
+def validar_plugins():
+    """Valida os plugins do Waipe Páginas (plugins/ e modelos/plugins/) com plugins.py. True se passou."""
+    if not any(p.is_dir() for base in (PLUGINS, RAIZ / "modelos" / "plugins") if base.exists() for p in base.iterdir()):
+        return True
+    print("Plugins:", flush=True)
+    return subprocess.run([sys.executable, str(WAIPE / "plugins.py"), "validar"], cwd=RAIZ).returncode == 0
 
 
 def cmd_hook(_args):
@@ -470,7 +486,10 @@ def exigir_main():
 
 def puxar_main():
     git("fetch", "origin", "--tags")
-    git("pull", "--rebase", "-q", "origin", "main")
+    # Já contém a main remota: nada a puxar (e não refaz merges locais com rebase).
+    if subprocess.run(["git", "merge-base", "--is-ancestor", "origin/main", "HEAD"], cwd=RAIZ).returncode == 0:
+        return
+    git("pull", "--rebase=merges", "-q", "origin", "main")
 
 
 def envia_mensagens(pasta):
@@ -526,7 +545,7 @@ def _semacento(t):
 
 
 def modelos_do_catalogo():
-    """Linhas da tabela de catalogo/INDICE.md: [{slug, versao, gatilho, serve, palavras, pasta}]"""
+    """Linhas da tabela de modelos/agentes/INDICE.md: [{slug, versao, gatilho, serve, palavras, pasta}]"""
     indice = CATALOGO / "INDICE.md"
     linhas = []
     if not indice.exists():
@@ -634,6 +653,8 @@ def cmd_salvar(_args):
     erros = [f"{p.name}: {x}" for p in pastas_padrao() for x in validar_pasta(p, modelo=CATALOGO in p.parents)[0]]
     if erros:
         erro("não passou na validação:\n- " + "\n- ".join(erros))
+    if not validar_plugins():
+        erro("plugin com erro (veja acima).")
     puxar_main()
     if not git("log", "origin/main..HEAD", "--oneline"):
         print("Nada novo para enviar: a main local já está igual ao GitHub.")
@@ -720,11 +741,13 @@ def cmd_atualizar(args):
         erro("este é o template. Atualização é para repositórios de cliente.")
     exigir_main()
     exigir_limpo()
+    forcar = "--forcar" in args
+    args = [a for a in args if a != "--forcar"]
     alvo = args[0] if args else gh("api", f"repos/{TEMPLATE}/releases/latest", "--jq", ".tag_name")
     alvo = "v" + alvo.lstrip("v")
     atual = "v" + versao_framework()
-    if alvo == atual:
-        print(f"Já está na versão {atual}.")
+    if alvo == atual and not forcar:
+        print(f"Já está na versão {atual}. (Use --forcar para recopiar os arquivos do framework.)")
         return
     puxar_main()
     with tempfile.TemporaryDirectory() as tmp:
@@ -741,11 +764,17 @@ def cmd_atualizar(args):
                 destino = RAIZ / item.relative_to(novo)
                 destino.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copytree(item, destino) if item.is_dir() else shutil.copy2(item, destino)
-        git("add", "-A", "--", ".claude", ".github")
+        # Pastas de trabalho do cliente (padrão desde a v4): agentes/ e plugins/.
+        for pasta in (AGENTES, PLUGINS):
+            pasta.mkdir(exist_ok=True)
+            if not any(pasta.iterdir()):
+                (pasta / ".gitkeep").touch()
+        git("add", "-A", "--", ".claude", ".github", "modelos", "agentes/.gitkeep", "plugins/.gitkeep")
     if not git("status", "--porcelain"):
         print("Nada mudou nos arquivos do framework.")
         return
-    alteracoes = [l for l in git("status", "--porcelain").splitlines() if not l[3:].startswith((".claude/", ".github/"))]
+    alteracoes = [l for l in git("status", "--porcelain").splitlines()
+                  if not l[3:].startswith((".claude/", ".github/", "modelos/", "agentes/.gitkeep", "plugins/.gitkeep"))]
     if alteracoes:
         git("reset", "-q", "--hard", "HEAD")
         erro("a atualização tocou fora do framework, abortando:\n" + "\n".join(alteracoes))
@@ -765,11 +794,14 @@ def cmd_iniciar(args):
     if "Cliente: PENDENTE" in texto:
         claude.write_text(texto.replace("Cliente: PENDENTE", f"Cliente: {nome}"), encoding="utf-8")
         (RAIZ / "README.md").write_text(
-            f"# Agentes Waipe · {nome}\n\n"
-            "Flows do Waipe Flow deste cliente, versionados com o framework `waipe-agentes-template`.\n\n"
+            f"# Waipe · {nome}\n\n"
+            "Agentes (flows do Waipe Flow) e páginas (plugins do Waipe Páginas) deste cliente, versionados com o framework "
+            "`waipe-template`.\n\n"
             "- Cada agente fica em `agentes/<slug>/` com o `.json` (para importar) e o `.md` (documentação).\n"
+            "- Cada página fica em `plugins/<slug>/` com o `.json` (para instalar no Waipe Páginas), o `.md` e o `exemplo.json`.\n"
+            "- Modelos para começar: `modelos/agentes/` e `modelos/plugins/` (vêm do framework).\n"
             "- Uma branch só, `main`: o que está nela é a versão em trabalho, que você importa e testa.\n"
-            "- Versões fechadas: aba **Releases** (tag `<slug>/vX.Y.Z`, com os arquivos do agente anexados).\n"
+            "- Versões fechadas: aba **Releases** (agente: tag `<slug>/vX.Y.Z`; página: tag `plugins/<slug>/vX.Y.Z`).\n"
             "- Como trabalhar: `.claude/waipe/LEIAME.md`.\n", encoding="utf-8")
         git("add", "CLAUDE.md", "README.md")
         git("commit", "-q", "-m", f"chore: iniciar repositório de {nome}")

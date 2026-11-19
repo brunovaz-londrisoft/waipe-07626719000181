@@ -65,9 +65,10 @@ cliente ficam no `CLAUDE.md` dele.
 - HTML gerado **inteiramente dentro do node `code`** (isento da blocklist de expressões); o node `gmail_send` recebe só expressões simples tipo `{{ $json.field }}`.
 - **Padrão de e-mail Waipe (obrigatório):** todo e-mail HTML usa o kit `.claude/waipe/modelos-comunicacao/kit-email-waipe.js`: cole o
   bloco no node `code` e monte o e-mail com `wpPagina`, `wpKpis`, `wpSecao`, `wpTabela`, `wpBadge`, `wpBarra`, `wpSeta`, `wpBotao`
-  , `wpAviso` e `wpTexto`. O desenho (claro com modo escuro automático, eyebrow dourado, destaque e indicadores em
+  , `wpAviso`, `wpTexto` e `wpRanking` (ranking com dezenas de linhas: estilo em classes, para o e-mail não passar dos
+  102 KB que o Gmail mostra sem cortar). O desenho (claro com modo escuro automático, eyebrow dourado, destaque e indicadores em
   verde-oliva, tabelas com ranking) é o do consolidado do Guardião da Amostra Padrão. Não escreva cores soltas no node.
-  Exemplos: os e-mails em `.claude/waipe/catalogo/<modelo>/modelos/`.
+  Exemplos: os e-mails em `modelos/agentes/<modelo>/modelos/`.
 - Layout baseado em tabelas com estilos inline, para compatibilidade ampla entre clientes de email.
 - Logo SVG inline funciona em Gmail/Apple Mail; Outlook desktop exige uma tag `<img>` com PNG hospedado.
 - Ordem das colunas na saída para Google Sheets deve ser fixada por um array explícito `ORDEMCOLUNAS` — nunca derivada da ordem de chaves do objeto.
