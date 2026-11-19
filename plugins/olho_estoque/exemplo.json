@@ -1,0 +1,182 @@
+[
+ {
+  "codigo": "P100",
+  "nome": "Cloro granulado 10 kg",
+  "grupo_nome": "Químicos",
+  "estoque_total": 3,
+  "custo_unitario": 254.24,
+  "qtd_vendida_periodo": 45,
+  "data_ultima_venda": "2024-08-15"
+ },
+ {
+  "codigo": "P101",
+  "nome": "Algicida choque 1 L",
+  "grupo_nome": "Equipamentos",
+  "estoque_total": 60,
+  "custo_unitario": 123.42,
+  "qtd_vendida_periodo": 90,
+  "data_ultima_venda": "2026-11-10"
+ },
+ {
+  "codigo": "P102",
+  "nome": "Clarificante 1 L",
+  "grupo_nome": "Acessórios",
+  "estoque_total": 3,
+  "custo_unitario": 707.23,
+  "qtd_vendida_periodo": 45,
+  "data_ultima_venda": "2024-08-15"
+ },
+ {
+  "codigo": "P103",
+  "nome": "Barrilha leve 2 kg",
+  "grupo_nome": "Químicos",
+  "estoque_total": 0,
+  "custo_unitario": 91.75,
+  "qtd_vendida_periodo": 45,
+  "data_ultima_venda": "2026-10-20"
+ },
+ {
+  "codigo": "P104",
+  "nome": "Kit teste pH e cloro",
+  "grupo_nome": "Equipamentos",
+  "estoque_total": 25,
+  "custo_unitario": 372.94,
+  "qtd_vendida_periodo": 270,
+  "data_ultima_venda": ""
+ },
+ {
+  "codigo": "P105",
+  "nome": "Bomba 1/2 cv",
+  "grupo_nome": "Acessórios",
+  "estoque_total": 120,
+  "custo_unitario": 589.84,
+  "qtd_vendida_periodo": 270,
+  "data_ultima_venda": ""
+ },
+ {
+  "codigo": "P106",
+  "nome": "Filtro areia 50 cm",
+  "grupo_nome": "Químicos",
+  "estoque_total": 0,
+  "custo_unitario": 365.35,
+  "qtd_vendida_periodo": 9,
+  "data_ultima_venda": ""
+ },
+ {
+  "codigo": "P107",
+  "nome": "Aspirador manual",
+  "grupo_nome": "Equipamentos",
+  "estoque_total": 3,
+  "custo_unitario": 176.47,
+  "qtd_vendida_periodo": 90,
+  "data_ultima_venda": "2026-11-10"
+ },
+ {
+  "codigo": "P108",
+  "nome": "Mangueira 10 m",
+  "grupo_nome": "Acessórios",
+  "estoque_total": 3,
+  "custo_unitario": 382.58,
+  "qtd_vendida_periodo": 9,
+  "data_ultima_venda": "2026-11-10"
+ },
+ {
+  "codigo": "P109",
+  "nome": "Peneira cata-folha",
+  "grupo_nome": "Químicos",
+  "estoque_total": 3,
+  "custo_unitario": 787.66,
+  "qtd_vendida_periodo": 0,
+  "data_ultima_venda": "2026-11-10"
+ },
+ {
+  "codigo": "P110",
+  "nome": "Escova parede",
+  "grupo_nome": "Equipamentos",
+  "estoque_total": 60,
+  "custo_unitario": 92.63,
+  "qtd_vendida_periodo": 270,
+  "data_ultima_venda": ""
+ },
+ {
+  "codigo": "P111",
+  "nome": "Pastilha cloro 200 g",
+  "grupo_nome": "Acessórios",
+  "estoque_total": 0,
+  "custo_unitario": 834.1,
+  "qtd_vendida_periodo": 0,
+  "data_ultima_venda": "2024-08-15"
+ },
+ {
+  "codigo": "P112",
+  "nome": "Redutor de pH 1 kg",
+  "grupo_nome": "Químicos",
+  "estoque_total": 25,
+  "custo_unitario": 439.65,
+  "qtd_vendida_periodo": 0,
+  "data_ultima_venda": "2026-11-10"
+ },
+ {
+  "codigo": "P113",
+  "nome": "Elevador de alcalinidade",
+  "grupo_nome": "Equipamentos",
+  "estoque_total": 0,
+  "custo_unitario": 152.35,
+  "qtd_vendida_periodo": 0,
+  "data_ultima_venda": "2026-11-10"
+ },
+ {
+  "codigo": "P114",
+  "nome": "Areia filtrante 25 kg",
+  "grupo_nome": "Acessórios",
+  "estoque_total": 8,
+  "custo_unitario": 834.23,
+  "qtd_vendida_periodo": 45,
+  "data_ultima_venda": "2026-10-20"
+ },
+ {
+  "codigo": "P115",
+  "nome": "Refletor LED",
+  "grupo_nome": "Químicos",
+  "estoque_total": 25,
+  "custo_unitario": 628.45,
+  "qtd_vendida_periodo": 270,
+  "data_ultima_venda": "2026-11-10"
+ },
+ {
+  "codigo": "P116",
+  "nome": "Dispositivo de retorno",
+  "grupo_nome": "Equipamentos",
+  "estoque_total": 3,
+  "custo_unitario": 174.96,
+  "qtd_vendida_periodo": 0,
+  "data_ultima_venda": ""
+ },
+ {
+  "codigo": "P117",
+  "nome": "Skimmer",
+  "grupo_nome": "Acessórios",
+  "estoque_total": 60,
+  "custo_unitario": 663.48,
+  "qtd_vendida_periodo": 0,
+  "data_ultima_venda": "2026-10-20"
+ },
+ {
+  "codigo": "P118",
+  "nome": "Capa térmica",
+  "grupo_nome": "Químicos",
+  "estoque_total": 0,
+  "custo_unitario": 49.88,
+  "qtd_vendida_periodo": 45,
+  "data_ultima_venda": "2024-08-15"
+ },
+ {
+  "codigo": "P119",
+  "nome": "Floculante 1 L",
+  "grupo_nome": "Equipamentos",
+  "estoque_total": 0,
+  "custo_unitario": 864.9,
+  "qtd_vendida_periodo": 0,
+  "data_ultima_venda": "2024-08-15"
+ }
+]

@@ -1,0 +1,328 @@
+{
+  "formato": "waipe-paginas/1",
+  "slug": "pendencias",
+  "nome": "Pendências de Ontem",
+  "rotulo": "Pendências",
+  "descricao": "O que ficou em aberto até ontem: vendas não faturadas, O.S. abertas, orçamentos e contas vencidas.",
+  "icone": "relogio",
+  "categoria": { "nome": "Rotina", "icone": "relogio" },
+  "ordem": 10,
+  "versao": "2.1.0",
+  "itens": "pendências",
+  "abas": { "relatorio": "Lista de pendências", "consolidado": "Por cliente" },
+  "dataLab": {
+    "relatorio": "Pendências de Ontem",
+    "texto": "liste as pendências em aberto, uma linha por documento, juntando:\n1) Vendas com status VENDA sem nota fiscal emitida e Orçamentos de venda não finalizados dos {ultimos_90_dias};\n2) Ordens de Serviço sem nota fiscal emitida e Orçamentos de O.S. não finalizados dos {ultimos_90_dias};\n3) Contas a Receber em aberto (com saldo) com vencimento até hoje;\n4) Contas a Pagar em aberto (sem pagamento) com vencimento até hoje.\nColunas:\nTipo (Venda, Orçamento de Venda, O.S., Orçamento de O.S., Conta a Receber ou Conta a Pagar),\nNúmero do Documento,\nData do Documento,\nData de Vencimento,\nCliente ou Fornecedor,\nVendedor,\nValor.",
+    "colunas": "tipo, número do documento, data do documento, data de vencimento, cliente ou fornecedor, vendedor e valor. O Tipo define o grupo de cada linha (os trechos aceitos ficam mais abaixo, nesta tela)."
+  },
+  "integracao": {
+    "agendamento": {
+      "hora": 7,
+      "minuto": 0
+    },
+    "passos": [
+      {
+        "titulo": "Crie o relatório no Data Lab",
+        "blocos": [
+          {
+            "texto": "No Waipe, abra o **Data Lab**, crie um relatório chamado **{{relatorio}}** com o texto abaixo e salve."
+          },
+          {
+            "ferramenta": "datalab"
+          },
+          {
+            "texto": "Depois de salvar, copie o **ID do relatório** (aparece no Data Lab, na URL ou nos detalhes do relatório) e cole aqui:"
+          },
+          {
+            "ferramenta": "id_relatorio"
+          }
+        ]
+      },
+      {
+        "titulo": "Baixe os dois flows (já configurados para esta empresa)",
+        "blocos": [
+          {
+            "ferramenta": "baixar_flows"
+          }
+        ]
+      },
+      {
+        "titulo": "Importe no Waipe Flow e ative",
+        "blocos": [
+          {
+            "texto": "No Waipe Flow, importe os dois arquivos (o node **Waipe Data** já vem com o relatório **{{relatorio}}**), salve e **ative** os dois flows."
+          }
+        ]
+      },
+      {
+        "titulo": "Cole aqui a URL do webhook",
+        "blocos": [
+          {
+            "texto": "Abra o flow **Atualizar pelo Painel**, clique no gatilho **Atualizar pelo Painel** e copie a URL do webhook."
+          },
+          {
+            "ferramenta": "webhook"
+          }
+        ]
+      },
+      {
+        "titulo": "Teste",
+        "blocos": [
+          {
+            "texto": "Clique em testar: o painel chama o flow, que busca o Data Lab e envia os dados (leva alguns segundos). Depois disso o flow agendado atualiza sozinho todo dia às {{horario}}."
+          },
+          {
+            "ferramenta": "testar"
+          }
+        ]
+      }
+    ]
+  },
+  "parametros": [
+    { "chave": "diasAtrasado", "tipo": "inteiro", "rotulo": "Atrasada depois de", "padrao": 7, "min": 1, "max": 365, "sufixo": "dias",
+      "ajuda": "Conta os dias desde a data do documento (vendas, O.S. e orçamentos) ou desde o vencimento (contas). 🔵 De hoje = 0 dia, 🟠 De ontem = 1 dia, 🟡 Recente = de 2 até {{p.diasAtrasado}} dias, 🔴 Atrasada = mais de {{p.diasAtrasado}} dias." },
+    { "chave": "semNotaDeProposito", "tipo": "lista", "rotulo": "Vendas e O.S. sem nota de propósito (trecho do nome, um por linha)", "padrao": [],
+      "ajuda": "Clientes com contrato cuja nota é uma só no mês (ex.: prefeitura, autarquia, condomínio): as retiradas são pedidos fechados sem nota e não são pendência. Valem só para vendas e O.S.; os títulos deles continuam aparecendo. Vale a partir da próxima atualização." },
+    { "chave": "ignorar", "tipo": "lista", "rotulo": "Ignorar sempre (trecho do nome, um por linha)", "padrao": ["CONSUMIDOR FINAL"],
+      "ajuda": "Clientes ou fornecedores que nunca entram na lista. Vale a partir da próxima atualização." },
+    { "chave": "palavrasReceber", "tipo": "lista", "rotulo": "Conta a receber vencida", "padrao": ["receber"] },
+    { "chave": "palavrasPagar", "tipo": "lista", "rotulo": "Conta a pagar vencida", "padrao": ["pagar"] },
+    { "chave": "palavrasOrcamentoOs", "tipo": "lista", "rotulo": "Orçamento de O.S.", "padrao": ["orcamentodeos", "orcamentoos", "orcamentodeordem", "orcamentodeservico"] },
+    { "chave": "palavrasOs", "tipo": "lista", "rotulo": "O.S. em aberto", "padrao": ["os", "ordemdeservico", "ordem"] },
+    { "chave": "palavrasOrcamentoVenda", "tipo": "lista", "rotulo": "Orçamento de venda", "padrao": ["orcamento"] },
+    { "chave": "palavrasVenda", "tipo": "lista", "rotulo": "Venda não faturada", "padrao": ["venda", "pedido"] }
+  ],
+  "validacoes": [
+    ["tamanho(p.colunas.data) = 0 e tamanho(p.colunas.vencimento) = 0", "Informe nomes aceitos para a data do documento ou para o vencimento."]
+  ],
+  "colunas": {
+    "tipo": { "rotulo": "Tipo do documento", "nomes": ["tipo", "tipodocumento", "tipodedocumento", "origem", "grupo"], "obrigatoria": true, "max": 80 },
+    "documento": { "rotulo": "Número do documento", "nomes": ["documento", "numero", "numerodocumento", "numerododocumento", "nrdocumento", "codigo", "pedido", "titulo"], "obrigatoria": true, "max": 40 },
+    "data": { "rotulo": "Data do documento", "nomes": ["data", "datadocumento", "datadodocumento", "dataemissao", "datadeemissao", "emissao", "datalancamento"], "tipo": "data" },
+    "vencimento": { "rotulo": "Data de vencimento", "nomes": ["vencimento", "datavencimento", "datadevencimento"], "tipo": "data" },
+    "pessoa": { "rotulo": "Cliente ou fornecedor", "nomes": ["cliente", "fornecedor", "clientefornecedor", "clienteoufornecedor", "pessoa", "nomecliente", "razaosocial", "nome"], "max": 160 },
+    "vendedor": { "rotulo": "Vendedor", "nomes": ["vendedor", "nomevendedor"], "max": 120 },
+    "valor": { "rotulo": "Valor", "nomes": ["valor", "valortotal", "total", "saldo", "valoremaberto"], "tipo": "numero" }
+  },
+  "exigirUma": [["data", "vencimento"]],
+  "entrada": {
+    "chave": "grupo & ':' & documento",
+    "campos": [
+      ["pessoa", "vazio(pessoa) ? '(sem nome)' : pessoa"],
+      ["grupo", "casa(tipo, p.palavrasReceber) ? 'receber' : casa(tipo, p.palavrasPagar) ? 'pagar' : casa(tipo, p.palavrasOrcamentoOs) ? 'orcamento_os' : casa(tipo, p.palavrasOs) ? 'os' : casa(tipo, p.palavrasOrcamentoVenda) ? 'orcamento_venda' : casa(tipo, p.palavrasVenda) ? 'venda' : 'outro'"]
+    ],
+    "descartar": [
+      "vazio(documento)",
+      "contem(pessoa, p.ignorar)",
+      "(grupo = 'venda' ou grupo = 'os') e contem(pessoa, p.semNotaDeProposito)"
+    ]
+  },
+  "banco": {
+    "tabela": "pendencias",
+    "campos": {
+      "tipo": "texto",
+      "documento": "texto",
+      "data": "data",
+      "vencimento": "data",
+      "pessoa": "texto",
+      "vendedor": "texto",
+      "valor": "numero",
+      "grupo": "texto",
+      "referencia": "data",
+      "dias": "inteiro",
+      "situacao": "texto"
+    },
+    "indices": [["pessoa"], ["situacao"]],
+    "migracoes": []
+  },
+  "calculo": [
+    { "campo": "referencia", "formula": "texto(grupo = 'receber' ou grupo = 'pagar' ? valor(vencimento, data) : valor(data, vencimento))" },
+    { "campo": "dias", "formula": "dias(referencia, hoje)" },
+    { "descartar": "dias <> nulo e dias < 0" },
+    { "campo": "situacao", "casos": [["dias = nulo", "'sem_data'"], ["dias = 0", "'hoje'"], ["dias = 1", "'ontem'"], ["dias > p.diasAtrasado", "'atrasado'"]], "senao": "'recente'" }
+  ],
+  "dominios": {
+    "situacao": { "valores": {
+      "atrasado": { "ordem": 0, "rotulo": "Atrasado", "icone": "🔴", "cor": "#d03b3b" },
+      "ontem": { "ordem": 1, "rotulo": "De ontem", "icone": "🟠", "cor": "#ec835a" },
+      "recente": { "ordem": 2, "rotulo": "Recente", "icone": "🟡", "cor": "#fab219" },
+      "hoje": { "ordem": 3, "rotulo": "De hoje", "icone": "🔵", "cor": "#2a78d4" },
+      "sem_data": { "ordem": 4, "rotulo": "Sem data", "icone": "⚪", "cor": "#a8a8ad" }
+    } },
+    "grupo": { "valores": {
+      "venda": { "ordem": 0, "rotulo": "Venda não faturada" },
+      "os": { "ordem": 1, "rotulo": "O.S. em aberto" },
+      "receber": { "ordem": 2, "rotulo": "Conta a receber vencida" },
+      "orcamento_venda": { "ordem": 3, "rotulo": "Orçamento de venda" },
+      "orcamento_os": { "ordem": 4, "rotulo": "Orçamento de O.S." },
+      "pagar": { "ordem": 5, "rotulo": "Conta a pagar vencida" },
+      "outro": { "ordem": 6, "rotulo": "Outros" }
+    } }
+  },
+  "resumo": {
+    "total": "conta()",
+    "valorTotal": "arred(soma(valor), 2)",
+    "pessoas": "distintos(pessoa)",
+    "porSituacao": { "contarPor": "situacao" },
+    "porGrupo": { "contarPor": "grupo" }
+  },
+  "grupos": {
+    "porPessoa": {
+      "campo": "pessoa",
+      "por": "pessoa",
+      "metricas": {
+        "pendencias": "conta()",
+        "ontem": "conta(situacao = 'ontem')",
+        "atrasado": "conta(situacao = 'atrasado')",
+        "venda": "conta(grupo = 'venda')",
+        "os": "conta(grupo = 'os')",
+        "receber": "conta(grupo = 'receber')",
+        "orcamentos": "conta(grupo = 'orcamento_venda' ou grupo = 'orcamento_os')",
+        "mais_antiga": "maior(dias)",
+        "valor": "soma(valor)"
+      },
+      "ordem": [["ontem + atrasado", "desc"], ["pendencias", "desc"]]
+    }
+  },
+  "historico": {
+    "descricao": "documento",
+    "campos": [
+      { "campo": "grupo", "titulo": "Tipo", "dominio": "grupo" },
+      { "campo": "pessoa", "titulo": "Cliente ou fornecedor" },
+      { "campo": "valor", "titulo": "Valor", "numero": true },
+      { "campo": "referencia", "titulo": "Data" },
+      { "campo": "situacao", "titulo": "Situação", "dominio": "situacao" }
+    ]
+  },
+  "painel": {
+    "titulo": "Pendências de ontem",
+    "texto": "{{atualizacao}}. Comece o dia por aqui: o que ficou em aberto até ontem. Clique em qualquer número para abrir a lista.",
+    "exportar": { "excel": false, "imprimir": true, "arquivo": "pendencias", "abaIndicadores": "Indicadores" },
+    "kpis": [
+      { "chave": "total", "rotulo": "Pendências", "valor": "total", "menorMelhor": true, "link": "/pendencias/relatorio" },
+      { "chave": "ontem", "rotulo": "De ontem", "valor": "porSituacao.ontem", "menorMelhor": true, "link": "/pendencias/relatorio?situacao=ontem", "forte": true, "nota": "o que ficou do dia anterior" },
+      { "chave": "atrasado", "rotulo": "Atrasadas", "valor": "porSituacao.atrasado", "menorMelhor": true, "link": "/pendencias/relatorio?situacao=atrasado", "nota": "há mais de {{p.diasAtrasado}} dias" },
+      { "chave": "venda", "rotulo": "Vendas não faturadas", "valor": "porGrupo.venda", "menorMelhor": true, "link": "/pendencias/relatorio?grupo=venda" },
+      { "chave": "os", "rotulo": "O.S. em aberto", "valor": "porGrupo.os", "menorMelhor": true, "link": "/pendencias/relatorio?grupo=os" },
+      { "chave": "receber", "rotulo": "Contas a receber vencidas", "valor": "porGrupo.receber", "menorMelhor": true, "link": "/pendencias/relatorio?grupo=receber" }
+    ],
+    "blocos": [
+      { "tipo": "distribuicao", "largura": 8, "titulo": "Situação", "sub": "{{br(total)}} pendências · {{brl(valorTotal)}}", "excel": "Por situação",
+        "campo": "situacao", "dominio": "situacao", "estilo": "legenda", "barra": true, "link": "/pendencias/relatorio?situacao={{valor}}",
+        "nota": "🟠 De ontem: lançado ou vencido no dia anterior. 🔴 Atrasado: há mais de {{p.diasAtrasado}} dias. 🔵 De hoje: vence hoje." },
+      { "tipo": "ultima" },
+      { "tipo": "tabela", "largura": 8, "titulo": "Ficou de ontem", "sub": "{{br(total)}} documentos", "excel": "Ficou de ontem",
+        "filtro": "situacao = 'ontem'", "ordem": [["ordem('grupo', grupo)", "asc"], ["valor", "desc"]], "limite": 15,
+        "colunas": [
+          { "titulo": "Tipo", "valor": "{{rotulo('grupo', grupo)}}" },
+          { "titulo": "Documento", "valor": "{{documento}}", "negrito": true, "link": "/pendencias/item/{{url(chave)}}" },
+          { "titulo": "Cliente ou fornecedor", "valor": "{{pessoa}}" },
+          { "titulo": "Valor", "valor": "{{brl(valor)}}", "numero": true }
+        ],
+        "mais": { "link": "/pendencias/relatorio?situacao=ontem", "texto": "Ver todas as {{br(total)}} →" },
+        "vazio": "Nada ficou em aberto de ontem. 🎉" },
+      { "tipo": "ranking", "largura": 4, "titulo": "Por tipo", "excel": "Por tipo",
+        "por": "grupo", "dominio": "grupo", "a": "conta(situacao = 'atrasado')", "b": "conta(situacao <> 'atrasado')", "total": "conta()",
+        "manter": "total > 0", "ordem": [["ordem('grupo', valor)", "asc"]], "limite": 10,
+        "cores": ["#d03b3b", "#fab219"], "legendas": ["Atrasadas", "Demais"], "valor": "{{br(total)}}",
+        "link": "/pendencias/relatorio?grupo={{url(valor)}}", "vazio": "Nenhuma pendência." }
+    ]
+  },
+  "relatorio": {
+    "titulo": "Lista de pendências",
+    "texto": "{{atualizacao}}. Atrasado = em aberto há mais de {{p.diasAtrasado}} dias.",
+    "tabela": {
+      "titulo": "Pendências de ontem",
+      "arquivo": "pendencias",
+      "colunas": [
+        { "campo": "grupo", "titulo": "Tipo", "dominio": "grupo", "filtro": "multi", "destaque": true, "largura": 170, "larguraExcel": 26 },
+        { "campo": "situacao", "titulo": "Situação", "dominio": "situacao", "filtro": "multi", "destaque": true, "larguraExcel": 16 },
+        { "campo": "documento", "titulo": "Documento", "filtro": "texto", "larguraExcel": 14, "link": "/pendencias/item/{{url(chave)}}" },
+        { "campo": "pessoa", "titulo": "Cliente ou fornecedor", "filtro": "multi", "destaque": true, "largura": 240, "larguraExcel": 40 },
+        { "campo": "referencia", "titulo": "Data", "filtro": "texto", "larguraExcel": 12, "data": true },
+        { "campo": "dias", "titulo": "Dias em aberto", "tipo": "numero", "filtro": "faixa", "vazio": "—" },
+        { "campo": "valor", "titulo": "Valor (R$)", "tipo": "numero", "filtro": "faixa", "casas": 2 },
+        { "campo": "vendedor", "titulo": "Vendedor", "filtro": "multi", "larguraExcel": 22 }
+      ],
+      "busca": ["documento", "pessoa", "vendedor"],
+      "ordem": { "campo": "dias", "desc": false },
+      "periodo": [{ "campo": "referencia", "titulo": "Data" }],
+      "cartoes": [
+        { "rotulo": "Pendências", "valor": "{{br(conta())}}" },
+        { "rotulo": "De ontem", "valor": "{{br(conta(situacao = 'ontem'))}}", "forte": true },
+        { "rotulo": "Atrasadas", "valor": "{{br(conta(situacao = 'atrasado'))}}" },
+        { "rotulo": "Valor", "valor": "R$ {{br(soma(valor), 2)}}" }
+      ],
+      "abaResumo": { "nome": "Resumo por situação", "campo": "situacao", "dominio": "situacao", "colunas": [
+        { "titulo": "Pendências", "valor": "conta()" },
+        { "titulo": "Valor (R$)", "valor": "soma(valor)", "casas": 2 }
+      ] },
+      "exportar": { "excel": true, "csv": true, "imprimir": true },
+      "vazio": "Nenhuma pendência com esses filtros."
+    }
+  },
+  "consolidado": {
+    "titulo": "Por cliente",
+    "texto": "{{atualizacao}}. Quem tem mais pendências de ontem e atrasadas vem primeiro. Clique no nome para ver as pendências.",
+    "grupo": "porPessoa",
+    "tabela": {
+      "titulo": "Pendências por cliente",
+      "arquivo": "pendencias-por-cliente",
+      "colunas": [
+        { "campo": "pessoa", "titulo": "Cliente ou fornecedor", "filtro": "texto", "destaque": true, "largura": 240, "larguraExcel": 40, "link": "/pendencias/relatorio?pessoa={{url(pessoa)}}" },
+        { "campo": "pendencias", "titulo": "Pendências", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "ontem", "titulo": "🟠 De ontem", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "atrasado", "titulo": "🔴 Atrasadas", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "venda", "titulo": "Vendas não faturadas", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "os", "titulo": "O.S. abertas", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "receber", "titulo": "A receber vencidas", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "orcamentos", "titulo": "Orçamentos", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "mais_antiga", "titulo": "Mais antiga (dias)", "tipo": "numero", "filtro": "faixa", "vazio": "—" },
+        { "campo": "valor", "titulo": "Valor (R$)", "tipo": "numero", "filtro": "faixa", "casas": 2 }
+      ],
+      "busca": ["pessoa"],
+      "exportar": { "excel": true, "csv": true, "imprimir": true },
+      "vazio": "Nenhum cliente com esses filtros."
+    }
+  },
+  "detalhe": {
+    "titulo": "{{rotulo('grupo', grupo)}} {{documento}}",
+    "sub": "{{pessoa}}",
+    "voltar": { "texto": "← Pendências de {{pessoa}}", "link": "/pendencias/relatorio?pessoa={{url(pessoa)}}" },
+    "selo": { "campo": "situacao", "dominio": "situacao" },
+    "fatos": [
+      ["Tipo", "{{rotulo('grupo', grupo)}} ({{tipo}})"],
+      ["Cliente ou fornecedor", "{{pessoa}}"],
+      ["Vendedor", "{{valor(vendedor, '—')}}"],
+      ["Data do documento", "{{valor(data(data), '—')}}"],
+      ["Vencimento", "{{valor(data(vencimento), '—')}}"],
+      ["Em aberto há", "{{dias = nulo ? '—' : br(dias) & ' dias'}}"],
+      ["Valor", "{{brl(valor)}}"],
+      ["Situação", "{{ativo ? 'Na lista de pendências' : 'Saiu da lista (resolvida ou fora do relatório)'}}"]
+    ]
+  },
+  "configuracao": {
+    "titulo": "Regra das pendências",
+    "ajuda": "Ao salvar, o painel recalcula a base atual, sem esperar a próxima atualização.",
+    "secoes": [
+      { "titulo": "Situação", "sub": "Como cada pendência é marcada pelo tempo em aberto.", "itens": [
+        { "tipo": "parametros", "chaves": ["diasAtrasado"] }
+      ] },
+      { "titulo": "Clientes", "sub": "Quem fica fora da lista.", "itens": [
+        { "tipo": "parametros", "chaves": ["semNotaDeProposito", "ignorar"] }
+      ] },
+      { "titulo": "Tipo do documento", "sub": "Trechos da coluna Tipo que colocam a linha em cada grupo.", "itens": [
+        { "tipo": "texto", "texto": "A comparação ignora acentos, espaços, símbolos e maiúsculas. Trecho com até 3 letras (ex.: \"os\") precisa ser o tipo inteiro. Os grupos são testados nesta ordem; o primeiro que bater vale. Sem nenhum, a linha vai para \"Outros\"." },
+        { "tipo": "listas", "cabecalho": ["Grupo", "Trechos aceitos"], "chaves": ["palavrasReceber", "palavrasPagar", "palavrasOrcamentoOs", "palavrasOs", "palavrasOrcamentoVenda", "palavrasVenda"] }
+      ] },
+      { "titulo": "Colunas do relatório do Data Lab", "sub": "Como o painel reconhece cada coluna, mesmo que o Data Lab mude o nome.", "itens": [
+        { "tipo": "colunas" }
+      ] }
+    ],
+    "fora": [
+      "**Horário da atualização automática**: todo dia às 07:00, no flow agendado das Pendências de Ontem no Waipe Flow.",
+      "**O que entra**: relatório \"Pendências de Ontem\" no Data Lab do Waipe (período das vendas e O.S. no texto do relatório).",
+      "**Limite**: o Gestor não tem controle de entrega. Entrega amarrada a uma venda ou O.S. aparece por ali; status de entrega, não."
+    ]
+  }
+}

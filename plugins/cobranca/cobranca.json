@@ -1,0 +1,327 @@
+{
+  "formato": "waipe-paginas/1",
+  "slug": "cobranca",
+  "nome": "Cobrança em Aberto",
+  "rotulo": "Cobrança",
+  "descricao": "Títulos vencidos e não pagos, por cliente e por tempo de atraso. Nada é enviado ao cliente: você decide quem cobrar.",
+  "icone": "carteira",
+  "categoria": { "nome": "Financeiro", "icone": "carteira" },
+  "ordem": 20,
+  "versao": "2.1.0",
+  "itens": "títulos",
+  "abas": { "relatorio": "Títulos", "consolidado": "Por cliente" },
+  "dataLab": {
+    "relatorio": "Cobrança em Aberto",
+    "texto": "liste todas as Contas a Receber em aberto (com saldo maior que zero), vencidas ou a vencer nos próximos 7 dias:\nNúmero do Título,\nParcela,\nCódigo do Cliente,\nNome do Cliente,\nData de Emissão,\nData de Vencimento,\nValor do Título,\nSaldo em Aberto,\nForma de Pagamento.",
+    "colunas": "número do título, parcela, código e nome do cliente, emissão, vencimento, valor, saldo em aberto e forma de pagamento. Título com saldo zero fica fora."
+  },
+  "integracao": {
+    "agendamento": {
+      "hora": 7,
+      "minuto": 0
+    },
+    "passos": [
+      {
+        "titulo": "Crie o relatório no Data Lab",
+        "blocos": [
+          {
+            "texto": "No Waipe, abra o **Data Lab**, crie um relatório chamado **{{relatorio}}** com o texto abaixo e salve."
+          },
+          {
+            "ferramenta": "datalab"
+          },
+          {
+            "texto": "Depois de salvar, copie o **ID do relatório** (aparece no Data Lab, na URL ou nos detalhes do relatório) e cole aqui:"
+          },
+          {
+            "ferramenta": "id_relatorio"
+          }
+        ]
+      },
+      {
+        "titulo": "Baixe os dois flows (já configurados para esta empresa)",
+        "blocos": [
+          {
+            "ferramenta": "baixar_flows"
+          }
+        ]
+      },
+      {
+        "titulo": "Importe no Waipe Flow e ative",
+        "blocos": [
+          {
+            "texto": "No Waipe Flow, importe os dois arquivos (o node **Waipe Data** já vem com o relatório **{{relatorio}}**), salve e **ative** os dois flows."
+          }
+        ]
+      },
+      {
+        "titulo": "Cole aqui a URL do webhook",
+        "blocos": [
+          {
+            "texto": "Abra o flow **Atualizar pelo Painel**, clique no gatilho **Atualizar pelo Painel** e copie a URL do webhook."
+          },
+          {
+            "ferramenta": "webhook"
+          }
+        ]
+      },
+      {
+        "titulo": "Teste",
+        "blocos": [
+          {
+            "texto": "Clique em testar: o painel chama o flow, que busca o Data Lab e envia os dados (leva alguns segundos). Depois disso o flow agendado atualiza sozinho todo dia às {{horario}}."
+          },
+          {
+            "ferramenta": "testar"
+          }
+        ]
+      }
+    ]
+  },
+  "parametros": [
+    { "chave": "diasCritico", "tipo": "inteiro", "rotulo": "Crítico depois de", "padrao": 30, "min": 1, "max": 3650, "sufixo": "dias" },
+    { "chave": "diasRevisar", "tipo": "inteiro", "rotulo": "Revisar depois de", "padrao": 365, "min": 2, "max": 3650, "sufixo": "dias" },
+    { "chave": "clientesSeparados", "tipo": "lista", "rotulo": "Clientes com regra própria de pagamento (trecho do nome, um por linha)", "padrao": [],
+      "ajuda": "Ex.: prefeitura que paga quando quer. Os títulos vencidos deles ficam ⚪ separados, sem alerta e fora do total a cobrar. Ao salvar, os títulos atuais são recalculados." },
+    { "chave": "ignorar", "tipo": "lista", "rotulo": "Ignorar sempre (trecho do nome, um por linha)", "padrao": [],
+      "ajuda": "Clientes que nunca entram na página. Vale a partir da próxima atualização." }
+  ],
+  "validacoes": [
+    ["p.diasRevisar <= p.diasCritico", "Os dias para revisar precisam ser maiores que os dias para crítico."],
+    ["tamanho(p.colunas.saldo) = 0 e tamanho(p.colunas.valor) = 0", "Informe nomes aceitos para o saldo em aberto ou para o valor do título."]
+  ],
+  "colunas": {
+    "titulo": { "rotulo": "Número do título", "nomes": ["titulo", "numerotitulo", "numerodotitulo", "lancamento", "numerolancamento", "documento", "numerodocumento", "numerododocumento", "numero", "boleto", "duplicata"], "obrigatoria": true, "max": 40 },
+    "parcela": { "rotulo": "Parcela", "nomes": ["parcela", "numeroparcela", "nparcela"], "max": 20 },
+    "codigo_cliente": { "rotulo": "Código do cliente", "nomes": ["codcliente", "codigocliente", "codigodocliente", "idcliente", "cliente"], "max": 40, "diferenteDe": "cliente" },
+    "cliente": { "rotulo": "Cliente", "nomes": ["nomcliente", "nomecliente", "nomedocliente", "razaosocial", "clientefornecedor", "cliente", "nome"], "max": 160 },
+    "emissao": { "rotulo": "Data de emissão", "nomes": ["emissao", "dataemissao", "datadeemissao", "data"], "tipo": "data" },
+    "vencimento": { "rotulo": "Data de vencimento", "nomes": ["vencimento", "datavencimento", "datadevencimento"], "obrigatoria": true, "tipo": "data" },
+    "valor": { "rotulo": "Valor do título", "nomes": ["valor", "valortitulo", "valordotitulo", "valororiginal"], "tipo": "numero" },
+    "saldo": { "rotulo": "Saldo em aberto", "nomes": ["saldo", "saldoemaberto", "valoremaberto", "remanescente", "valorremanescente", "aberto"], "tipo": "numero", "semColuna": "valor" },
+    "forma": { "rotulo": "Forma de pagamento", "nomes": ["forma", "formapagamento", "formadepagamento", "tipocobranca", "portador"], "max": 80 }
+  },
+  "exigirUma": [["saldo", "valor"]],
+  "entrada": {
+    "chave": "parcela <> '' ? titulo & '/' & parcela : titulo",
+    "campos": [
+      ["cliente", "vazio(cliente) ? '(sem nome)' : cliente"],
+      ["valor", "valor <> 0 ? valor : saldo"]
+    ],
+    "descartar": ["vazio(titulo)", "vazio(vencimento)", "contem(cliente, p.ignorar)", "saldo <= 0"]
+  },
+  "banco": {
+    "tabela": "titulos",
+    "campos": {
+      "titulo": "texto",
+      "parcela": "texto",
+      "codigo_cliente": "texto",
+      "cliente": "texto",
+      "emissao": "data",
+      "vencimento": "data",
+      "valor": "numero",
+      "saldo": "numero",
+      "forma": "texto",
+      "dias_atraso": "inteiro",
+      "situacao": "texto"
+    },
+    "indices": [["cliente"], ["situacao"]],
+    "migracoes": []
+  },
+  "calculo": [
+    { "campo": "dias_atraso", "formula": "valor(dias(vencimento, hoje), 0)" },
+    { "campo": "situacao", "casos": [
+        ["dias_atraso <= 0", "'a_vencer'"],
+        ["contem(cliente, p.clientesSeparados)", "'separado'"],
+        ["dias_atraso > p.diasRevisar", "'revisar'"],
+        ["dias_atraso > p.diasCritico", "'critico'"]
+      ], "senao": "'vencido'" }
+  ],
+  "dominios": {
+    "situacao": { "valores": {
+      "critico": { "ordem": 0, "rotulo": "Crítico", "icone": "🔴", "cor": "#d03b3b" },
+      "vencido": { "ordem": 1, "rotulo": "Vencido", "icone": "🟡", "cor": "#fab219" },
+      "revisar": { "ordem": 2, "rotulo": "Revisar (muito antigo)", "icone": "⚫", "cor": "#55555a" },
+      "separado": { "ordem": 3, "rotulo": "Regra própria do cliente", "icone": "⚪", "cor": "#a8a8ad" },
+      "a_vencer": { "ordem": 4, "rotulo": "A vencer", "icone": "🟢", "cor": "#0ca30c" }
+    } }
+  },
+  "resumo": {
+    "total": "conta()",
+    "porSituacao": { "contarPor": "situacao" },
+    "valorPorSituacao": { "somarPor": "situacao", "valor": "saldo" },
+    "aCobrar": "conta(situacao = 'critico' ou situacao = 'vencido')",
+    "valorACobrar": "arred(soma(saldo, situacao = 'critico' ou situacao = 'vencido'), 2)",
+    "clientesACobrar": "distintos(cliente, situacao = 'critico' ou situacao = 'vencido')"
+  },
+  "grupos": {
+    "porCliente": {
+      "campo": "cliente",
+      "por": "cliente",
+      "metricas": {
+        "codigo_cliente": "primeiro(codigo_cliente)",
+        "a_cobrar": "conta(situacao = 'critico' ou situacao = 'vencido')",
+        "saldo_a_cobrar": "soma(saldo, situacao = 'critico' ou situacao = 'vencido')",
+        "saldo_critico": "soma(saldo, situacao = 'critico')",
+        "maior_atraso": "maior(dias_atraso, situacao = 'critico' ou situacao = 'vencido')",
+        "revisar": "conta(situacao = 'revisar')",
+        "separado": "conta(situacao = 'separado')",
+        "a_vencer": "soma(saldo, situacao = 'a_vencer')",
+        "saldo_total": "soma(saldo)"
+      },
+      "ordem": [["maior_atraso", "desc"], ["saldo_a_cobrar", "desc"], ["saldo_total", "desc"]]
+    }
+  },
+  "historico": {
+    "descricao": "cliente",
+    "campos": [
+      { "campo": "vencimento", "titulo": "Vencimento" },
+      { "campo": "saldo", "titulo": "Saldo", "numero": true },
+      { "campo": "situacao", "titulo": "Situação", "dominio": "situacao" }
+    ]
+  },
+  "painel": {
+    "titulo": "Cobrança em aberto",
+    "texto": "{{atualizacao}}. Nada é enviado ao cliente: a lista é sua, você decide quem cobrar e como. Clique em qualquer número para abrir os títulos.",
+    "exportar": { "excel": false, "imprimir": true, "arquivo": "cobranca", "abaIndicadores": "Indicadores" },
+    "kpis": [
+      { "chave": "valor", "rotulo": "A cobrar (R$)", "valor": "arred(valorACobrar)", "menorMelhor": true, "link": "/cobranca/relatorio?situacao=critico&situacao=vencido", "forte": true, "nota": "vencidos, sem os antigos e os de regra própria" },
+      { "chave": "titulos", "rotulo": "Títulos a cobrar", "valor": "aCobrar", "menorMelhor": true, "link": "/cobranca/relatorio?situacao=critico&situacao=vencido" },
+      { "chave": "clientes", "rotulo": "Clientes a cobrar", "valor": "clientesACobrar", "menorMelhor": true, "link": "/cobranca/consolidado" },
+      { "chave": "critico", "rotulo": "Acima de {{p.diasCritico}} dias (R$)", "valor": "arred(valorPorSituacao.critico)", "menorMelhor": true, "link": "/cobranca/relatorio?situacao=critico" },
+      { "chave": "revisar", "rotulo": "Para revisar", "valor": "porSituacao.revisar", "menorMelhor": true, "link": "/cobranca/relatorio?situacao=revisar", "nota": "vencidos há mais de {{p.diasRevisar}} dias" },
+      { "chave": "avencer", "rotulo": "A vencer (R$)", "valor": "arred(valorPorSituacao.a_vencer)", "menorMelhor": false, "link": "/cobranca/relatorio?situacao=a_vencer" }
+    ],
+    "blocos": [
+      { "tipo": "tabela", "largura": 8, "titulo": "Quem cobrar primeiro", "sub": "o título mais antigo primeiro, depois o maior saldo", "excel": "Quem cobrar primeiro",
+        "fonte": "porCliente", "filtro": "a_cobrar > 0", "ordem": [], "limite": 12,
+        "colunas": [
+          { "titulo": "Cliente", "valor": "{{saldo_critico > 0 ? '🔴' : '🟡'}} {{cliente}}", "negrito": true, "link": "/cobranca/relatorio?cliente={{url(cliente)}}" },
+          { "titulo": "Títulos", "valor": "{{br(a_cobrar)}}", "numero": true },
+          { "titulo": "Mais antigo", "valor": "{{br(maior_atraso)}} dias", "numero": true },
+          { "titulo": "Saldo a cobrar", "valor": "{{brl(saldo_a_cobrar)}}", "numero": true, "negrito": true }
+        ],
+        "mais": { "link": "/cobranca/consolidado", "texto": "Ver os {{br(total)}} clientes →" },
+        "vazio": "Nenhum título vencido para cobrar. 🎉" },
+      { "tipo": "ultima" },
+      { "tipo": "faixas", "largura": 6, "titulo": "Tempo de atraso", "sub": "títulos a cobrar", "excel": "Tempo de atraso",
+        "valor": "dias_atraso", "filtro": "situacao = 'critico' ou situacao = 'vencido'", "medida": "soma(saldo)", "ocultarVazias": true, "cor": "var(--st-ruptura)",
+        "faixas": [["1 a 7 dias", 1, 7], ["8 a 15", 8, 15], ["16 a 30", 16, 30], ["31 a 60", 31, 60], ["61 a 90", 61, 90], ["91 a 180", 91, 180], ["181 a 365", 181, 365], ["Mais de 1 ano", 366, null]],
+        "formato": "{{brl(v)}}", "dica": "{{rotulo}}: {{br(qtd)}} títulos, {{brl(v)}}", "vazio": "Nenhum título vencido.",
+        "link": "/cobranca/relatorio?situacao=critico&situacao=vencido&dias_atraso_min={{de}}{{ate <> nulo ? '&dias_atraso_max=' & ate : ''}}" },
+      { "tipo": "ranking", "largura": 6, "titulo": "Maiores saldos a cobrar", "excel": "Maiores saldos",
+        "por": "cliente", "filtro": "situacao = 'critico' ou situacao = 'vencido'",
+        "a": "soma(saldo, situacao = 'critico')", "b": "soma(saldo, situacao = 'vencido')", "total": "soma(saldo)",
+        "manter": "total > 0", "ordem": [["total", "desc"]], "limite": 10,
+        "cores": ["#d03b3b", "#fab219"], "legendas": ["Acima de {{p.diasCritico}} dias", "Até {{p.diasCritico}} dias"], "valor": "{{brl(total)}}",
+        "link": "/cobranca/relatorio?cliente={{url(nome)}}", "vazio": "Nenhum cliente a cobrar." },
+      { "tipo": "distribuicao", "largura": 12, "titulo": "Situação dos títulos", "sub": "{{br(total)}} títulos em aberto", "excel": "Por situação",
+        "campo": "situacao", "dominio": "situacao", "estilo": "legenda", "extra": "soma(saldo)", "extraTitulo": "Saldo (R$)", "detalhe": " · {{brl(extra)}}",
+        "link": "/cobranca/relatorio?situacao={{valor}}",
+        "nota": "⚫ Revisar: vencido há mais de {{p.diasRevisar}} dias. Pode ser título pago e não baixado: confira no sistema antes de cobrar. A baixa só é confiável com o retorno bancário (remessa) ativo." }
+    ]
+  },
+  "relatorio": {
+    "titulo": "Títulos em aberto",
+    "texto": "{{atualizacao}}. 🔴 Crítico = vencido há mais de {{p.diasCritico}} dias; ⚫ Revisar = mais de {{p.diasRevisar}} dias.",
+    "tabela": {
+      "titulo": "Títulos em aberto",
+      "arquivo": "cobranca-titulos",
+      "colunas": [
+        { "campo": "situacao", "titulo": "Situação", "dominio": "situacao", "filtro": "multi", "destaque": true, "largura": 170, "larguraExcel": 26 },
+        { "campo": "codigo_cliente", "titulo": "Cód. cliente", "filtro": "texto", "larguraExcel": 12 },
+        { "campo": "cliente", "titulo": "Cliente", "filtro": "multi", "destaque": true, "largura": 240, "larguraExcel": 40 },
+        { "campo": "titulo", "titulo": "Título", "filtro": "texto", "larguraExcel": 12, "link": "/cobranca/item/{{url(chave)}}" },
+        { "campo": "parcela", "titulo": "Parcela", "filtro": "texto", "larguraExcel": 10 },
+        { "campo": "vencimento", "titulo": "Vencimento", "filtro": "texto", "larguraExcel": 12, "data": true },
+        { "campo": "dias_atraso", "titulo": "Dias de atraso", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "saldo", "titulo": "Saldo (R$)", "tipo": "numero", "filtro": "faixa", "casas": 2 },
+        { "campo": "valor", "titulo": "Valor do título (R$)", "tipo": "numero", "filtro": "faixa", "casas": 2 },
+        { "campo": "forma", "titulo": "Forma de pagamento", "filtro": "multi", "larguraExcel": 20 },
+        { "campo": "emissao", "titulo": "Emissão", "filtro": "texto", "larguraExcel": 12, "data": true }
+      ],
+      "busca": ["titulo", "codigo_cliente", "cliente", "forma"],
+      "ordem": { "campo": "dias_atraso", "desc": false },
+      "periodo": [{ "campo": "vencimento", "titulo": "Vencimento" }, { "campo": "emissao", "titulo": "Emissão" }],
+      "cartoes": [
+        { "rotulo": "Títulos", "valor": "{{br(conta())}}" },
+        { "rotulo": "Clientes", "valor": "{{br(distintos(cliente))}}" },
+        { "rotulo": "A cobrar", "valor": "R$ {{br(soma(saldo, situacao = 'critico' ou situacao = 'vencido'), 2)}}", "nota": "crítico + vencido", "forte": true },
+        { "rotulo": "Saldo total", "valor": "R$ {{br(soma(saldo), 2)}}" }
+      ],
+      "abaResumo": { "nome": "Resumo por situação", "campo": "situacao", "dominio": "situacao", "colunas": [
+        { "titulo": "Títulos", "valor": "conta()" },
+        { "titulo": "Saldo (R$)", "valor": "soma(saldo)", "casas": 2 }
+      ] },
+      "exportar": { "excel": true, "csv": true, "imprimir": true },
+      "vazio": "Nenhum título com esses filtros."
+    }
+  },
+  "consolidado": {
+    "titulo": "Por cliente",
+    "texto": "{{atualizacao}}. Ordenado pelo título a cobrar mais antigo e, depois, pelo saldo. Clique no cliente para ver os títulos.",
+    "grupo": "porCliente",
+    "tabela": {
+      "titulo": "Cobrança por cliente",
+      "arquivo": "cobranca-por-cliente",
+      "colunas": [
+        { "campo": "codigo_cliente", "titulo": "Cód. cliente", "filtro": "texto", "larguraExcel": 12 },
+        { "campo": "cliente", "titulo": "Cliente", "filtro": "texto", "destaque": true, "largura": 240, "larguraExcel": 40, "link": "/cobranca/relatorio?cliente={{url(cliente)}}" },
+        { "campo": "a_cobrar", "titulo": "Títulos a cobrar", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "maior_atraso", "titulo": "Mais antigo (dias)", "tipo": "numero", "filtro": "faixa", "vazio": "—" },
+        { "campo": "saldo_a_cobrar", "titulo": "A cobrar (R$)", "tipo": "numero", "filtro": "faixa", "casas": 2 },
+        { "campo": "saldo_critico", "titulo": "🔴 Crítico (R$)", "tipo": "numero", "filtro": "faixa", "casas": 2 },
+        { "campo": "revisar", "titulo": "⚫ Revisar", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "separado", "titulo": "⚪ Regra própria", "tipo": "numero", "filtro": "faixa" },
+        { "campo": "a_vencer", "titulo": "🟢 A vencer (R$)", "tipo": "numero", "filtro": "faixa", "casas": 2 },
+        { "campo": "saldo_total", "titulo": "Saldo total (R$)", "tipo": "numero", "filtro": "faixa", "casas": 2 }
+      ],
+      "busca": ["codigo_cliente", "cliente"],
+      "exportar": { "excel": true, "csv": true, "imprimir": true },
+      "vazio": "Nenhum cliente com esses filtros."
+    }
+  },
+  "detalhe": {
+    "titulo": "Título {{titulo}}{{parcela <> '' ? ' · parcela ' & parcela : ''}}",
+    "sub": "{{cliente}}",
+    "voltar": { "texto": "← Títulos de {{cliente}}", "link": "/cobranca/relatorio?cliente={{url(cliente)}}" },
+    "selo": { "campo": "situacao", "dominio": "situacao" },
+    "fatos": [
+      ["Cliente", "{{codigo_cliente <> '' ? codigo_cliente & ' · ' & cliente : cliente}}"],
+      ["Parcela", "{{valor(parcela, '—')}}"],
+      ["Emissão", "{{valor(data(emissao), '—')}}"],
+      ["Vencimento", "{{data(vencimento)}}"],
+      ["Atraso", "{{dias_atraso > 0 ? br(dias_atraso) & ' dias' : 'A vencer'}}"],
+      ["Valor do título", "{{brl(valor)}}"],
+      ["Saldo em aberto", "{{brl(saldo)}}"],
+      ["Forma de pagamento", "{{valor(forma, '—')}}"],
+      ["Situação", "{{ativo ? 'Em aberto' : 'Saiu da lista (pago, baixado ou fora do relatório)'}}"]
+    ]
+  },
+  "configuracao": {
+    "titulo": "Regra da cobrança",
+    "ajuda": "Ao salvar, o painel recalcula os títulos atuais, sem esperar a próxima atualização.",
+    "secoes": [
+      { "titulo": "Tempo de atraso", "sub": "Como cada título vencido é marcado.", "itens": [
+        { "tipo": "parametros", "chaves": ["diasCritico", "diasRevisar"] },
+        { "tipo": "regras", "itens": [
+          { "texto": "🟡 **Vencido**: de 1 a {{p.diasCritico}} dias de atraso." },
+          { "texto": "🔴 **Crítico**: mais de {{p.diasCritico}} dias. Vem primeiro na lista de quem cobrar." },
+          { "texto": "⚫ **Revisar**: mais de {{p.diasRevisar}} dias. Costuma ser título pago e não baixado; fica fora do total a cobrar até alguém conferir." },
+          { "texto": "🟢 **A vencer**: vence hoje ou depois." }
+        ] }
+      ] },
+      { "titulo": "Clientes", "sub": "Quem fica separado ou fora da lista.", "itens": [
+        { "tipo": "parametros", "chaves": ["clientesSeparados", "ignorar"] }
+      ] },
+      { "titulo": "Colunas do relatório do Data Lab", "sub": "Como o painel reconhece cada coluna, mesmo que o Data Lab mude o nome.", "itens": [
+        { "tipo": "colunas" }
+      ] }
+    ],
+    "fora": [
+      "**Nada é enviado ao cliente**: a página só mostra. Quem decide quem cobrar e como é você.",
+      "**Horário da atualização automática**: todo dia às 07:00, no flow agendado da Cobrança em Aberto no Waipe Flow.",
+      "**Baixa dos títulos**: só é confiável com a remessa e o retorno bancário ativos no Gestor."
+    ]
+  }
+}

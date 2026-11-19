@@ -1,0 +1,222 @@
+[
+ {
+  "lancamento": "70000",
+  "parcela": "01/03",
+  "cliente": "200",
+  "nomcliente": "Prefeitura Fictícia",
+  "dataemissao": "2025-05-10",
+  "datavencimento": "2026-09-04",
+  "valor_titulo": 937.02,
+  "saldo_em_aberto": 468.51,
+  "forma_pagamento": "Boleto"
+ },
+ {
+  "lancamento": "70001",
+  "parcela": "02/03",
+  "cliente": "201",
+  "nomcliente": "Clínica Água Clara",
+  "dataemissao": "2025-05-10",
+  "datavencimento": "2026-10-01",
+  "valor_titulo": 2865.14,
+  "saldo_em_aberto": 2865.14,
+  "forma_pagamento": "Dinheiro"
+ },
+ {
+  "lancamento": "70002",
+  "parcela": "03/03",
+  "cliente": "202",
+  "nomcliente": "Piscineiro João (fictício)",
+  "dataemissao": "2025-05-10",
+  "datavencimento": "2026-09-17",
+  "valor_titulo": 2304.93,
+  "saldo_em_aberto": 2304.93,
+  "forma_pagamento": "Dinheiro"
+ },
+ {
+  "lancamento": "70003",
+  "parcela": "01/03",
+  "cliente": "203",
+  "nomcliente": "Academia Fictícia",
+  "dataemissao": "2025-05-10",
+  "datavencimento": "2025-06-28",
+  "valor_titulo": 1905.88,
+  "saldo_em_aberto": 1905.88,
+  "forma_pagamento": "Dinheiro"
+ },
+ {
+  "lancamento": "70004",
+  "parcela": "02/03",
+  "cliente": "204",
+  "nomcliente": "Cliente Balcão Ltda",
+  "dataemissao": "2025-05-10",
+  "datavencimento": "2026-11-20",
+  "valor_titulo": 660.82,
+  "saldo_em_aberto": 330.41,
+  "forma_pagamento": "Pix"
+ },
+ {
+  "lancamento": "70005",
+  "parcela": "03/03",
+  "cliente": "205",
+  "nomcliente": "Condomínio Jardim Exemplo",
+  "dataemissao": "2025-05-10",
+  "datavencimento": "2026-08-18",
+  "valor_titulo": 2864.22,
+  "saldo_em_aberto": 2864.22,
+  "forma_pagamento": "Dinheiro"
+ },
+ {
+  "lancamento": "70006",
+  "parcela": "01/03",
+  "cliente": "206",
+  "nomcliente": "Clínica Água Clara",
+  "dataemissao": "2025-05-10",
+  "datavencimento": "2025-06-20",
+  "valor_titulo": 1026.54,
+  "saldo_em_aberto": 1026.54,
+  "forma_pagamento": "Boleto"
+ },
+ {
+  "lancamento": "70007",
+  "parcela": "02/03",
+  "cliente": "200",
+  "nomcliente": "Prefeitura Fictícia",
+  "dataemissao": "2025-05-10",
+  "datavencimento": "2025-06-12",
+  "valor_titulo": 2645.87,
+  "saldo_em_aberto": 2645.87,
+  "forma_pagamento": "Pix"
+ },
+ {
+  "lancamento": "70008",
+  "parcela": "03/03",
+  "cliente": "201",
+  "nomcliente": "Academia Fictícia",
+  "dataemissao": "2025-05-10",
+  "datavencimento": "2026-08-02",
+  "valor_titulo": 783.35,
+  "saldo_em_aberto": 391.68,
+  "forma_pagamento": "Dinheiro"
+ },
+ {
+  "lancamento": "70009",
+  "parcela": "01/03",
+  "cliente": "202",
+  "nomcliente": "Cliente Balcão Ltda",
+  "dataemissao": "2025-05-10",
+  "datavencimento": "2025-06-03",
+  "valor_titulo": 2217.17,
+  "saldo_em_aberto": 2217.17,
+  "forma_pagamento": "Boleto"
+ },
+ {
+  "lancamento": "70010",
+  "parcela": "02/03",
+  "cliente": "203",
+  "nomcliente": "Condomínio Jardim Exemplo",
+  "dataemissao": "2025-05-10",
+  "datavencimento": "2026-11-25",
+  "valor_titulo": 447.22,
+  "saldo_em_aberto": 447.22,
+  "forma_pagamento": "Dinheiro"
+ },
+ {
+  "lancamento": "70011",
+  "parcela": "03/03",
+  "cliente": "204",
+  "nomcliente": "Clínica Água Clara",
+  "dataemissao": "2025-05-10",
+  "datavencimento": "2026-10-18",
+  "valor_titulo": 562.17,
+  "saldo_em_aberto": 562.17,
+  "forma_pagamento": "Dinheiro"
+ },
+ {
+  "lancamento": "70012",
+  "parcela": "01/03",
+  "cliente": "205",
+  "nomcliente": "Piscineiro João (fictício)",
+  "dataemissao": "2025-05-10",
+  "datavencimento": "2026-11-14",
+  "valor_titulo": 2895.94,
+  "saldo_em_aberto": 1447.97,
+  "forma_pagamento": "Dinheiro"
+ },
+ {
+  "lancamento": "70013",
+  "parcela": "02/03",
+  "cliente": "206",
+  "nomcliente": "Academia Fictícia",
+  "dataemissao": "2025-05-10",
+  "datavencimento": "2026-12-23",
+  "valor_titulo": 667.36,
+  "saldo_em_aberto": 667.36,
+  "forma_pagamento": "Pix"
+ },
+ {
+  "lancamento": "70014",
+  "parcela": "03/03",
+  "cliente": "200",
+  "nomcliente": "Prefeitura Fictícia",
+  "dataemissao": "2025-05-10",
+  "datavencimento": "2026-10-22",
+  "valor_titulo": 1977.64,
+  "saldo_em_aberto": 1977.64,
+  "forma_pagamento": "Pix"
+ },
+ {
+  "lancamento": "70015",
+  "parcela": "01/03",
+  "cliente": "201",
+  "nomcliente": "Condomínio Jardim Exemplo",
+  "dataemissao": "2025-05-10",
+  "datavencimento": "2026-11-15",
+  "valor_titulo": 433.33,
+  "saldo_em_aberto": 433.33,
+  "forma_pagamento": "Boleto"
+ },
+ {
+  "lancamento": "70016",
+  "parcela": "02/03",
+  "cliente": "202",
+  "nomcliente": "Clínica Água Clara",
+  "dataemissao": "2025-05-10",
+  "datavencimento": "2025-06-11",
+  "valor_titulo": 141.42,
+  "saldo_em_aberto": 70.71,
+  "forma_pagamento": "Dinheiro"
+ },
+ {
+  "lancamento": "70017",
+  "parcela": "03/03",
+  "cliente": "203",
+  "nomcliente": "Piscineiro João (fictício)",
+  "dataemissao": "2025-05-10",
+  "datavencimento": "2026-08-19",
+  "valor_titulo": 723.03,
+  "saldo_em_aberto": 723.03,
+  "forma_pagamento": "Boleto"
+ },
+ {
+  "lancamento": "70018",
+  "parcela": "01/03",
+  "cliente": "204",
+  "nomcliente": "Academia Fictícia",
+  "dataemissao": "2025-05-10",
+  "datavencimento": "2026-12-21",
+  "valor_titulo": 251.91,
+  "saldo_em_aberto": 251.91,
+  "forma_pagamento": "Boleto"
+ },
+ {
+  "lancamento": "70019",
+  "parcela": "02/03",
+  "cliente": "205",
+  "nomcliente": "Cliente Balcão Ltda",
+  "dataemissao": "2025-05-10",
+  "datavencimento": "2025-06-28",
+  "valor_titulo": 1044.85,
+  "saldo_em_aberto": 1044.85,
+  "forma_pagamento": "Dinheiro"
+ }
+]
