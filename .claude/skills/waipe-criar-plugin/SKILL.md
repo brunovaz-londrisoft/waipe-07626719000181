@@ -42,8 +42,12 @@ cada tela, parâmetros, campos do banco. Para alteração, o que muda e o nível
    `lancamento`, `estoque_total`...), cobrindo todas as situações (é a base da validação e da prévia).
 4. `.md`: todas as seções do modelo (`.claude/waipe/modelo-plugin.md`); Relatório do Data Lab igual ao `dataLab.texto`;
    uma linha por mudança em `### Não publicado`. Não mexa em `versao` (a release muda).
-5. `plugins validar plugins/<slug>` até passar. Para ver como fica: `plugins gerar-modelos <slug>` e abra
-   `plugins/<slug>/modelos/painel.html`.
+   **Dependências:** se um agente do repositório envia dados para a página ou usa o que ela mostra, preencha
+   `dependencias: agente:<slug>` no cabeçalho e explique em `## Dependências` (e faça o mesmo no `.md` do agente, com
+   `plugin:<slug>`). Sem outras: `dependencias: nenhuma` e a seção cita só os flows da integração.
+5. `plugins validar plugins/<slug>` até passar. Para ver como fica: `plugins gerar-modelos <slug>`: gera a simulação
+   completa em `plugins/<slug>/modelos/` (o flow que alimenta a página, Data Lab, Indicadores, Relatório,
+   Consolidado e Configurações), que o portal de modelos mostra como a simulação de um agente.
 
 ## 5. Enviar, testar e fechar a release
 

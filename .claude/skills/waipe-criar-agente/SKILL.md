@@ -55,6 +55,10 @@ Para alteração, mostre o que muda e a nova versão (patch, minor ou major, ver
    "Relatórios do Data Lab (textos para criar)" e atualize-a sempre que o relatório mudar.
    Se o agente envia WhatsApp ou e-mail a terceiros, gere com o **destino de teste direto no campo do node de envio**
    (sem `modoTeste` no `CONFIG`) e documente a troca para produção numa tabela "Destinos".
+   **Dependências:** se o agente envia dados para uma página do Waipe Páginas (URL `.../api/paginas/<slug>/carga/...`),
+   usa o que outra página ou outro agente produz, ou alimenta outro agente, preencha `dependencias: plugin:<slug>,
+   agente:<slug>` no cabeçalho e explique na seção `## Dependências` (sem dependência: `nenhuma` e "Nenhuma"). O
+   validador avisa quando o flow envia para uma página não declarada; o portal liga um ao outro e junta as simulações.
 4. `waipe validar agentes/<slug>` até passar (o hook já valida a cada edição).
 
 ## 5. Enviar para teste

@@ -1,8 +1,13 @@
 // Prévia de um plugin do Waipe Páginas para o simulador do portal de modelos (portal-modelos-waipe).
 // Uso: node .claude/waipe/plugin/previa.mjs <pasta-do-plugin> [...]   (chamado por plugins.py gerar-modelos)
 // Roda o motor do waipe-paginas (variável WAIPE_PAGINAS ou a pasta irmã ../waipe-paginas) com o exemplo.json
-// (dados fictícios) e grava em <pasta>/modelos/: painel.html (aba Indicadores), relatorio.html (aba Relatório) e
-// modelos.json (lista das peças). O HTML usa o CSS da própria plataforma, então o desenho é o mesmo da tela.
+// (dados fictícios) e grava em <pasta>/modelos/ a simulação completa da página:
+//   fluxo.json         o flow agendado que a página gera (Configurações > Integração), o mesmo que vai para o cliente
+//   datalab.html       o relatório do Data Lab (texto para criar + linhas de exemplo)   → node "Waipe Data"
+//   painel.html        aba Indicadores                                                   → node "Finalizar Carga no Painel"
+//   relatorio.html     aba Relatório;  consolidado.html (se houver);  configuracoes.html (parâmetros e integração)
+//   modelos.json       peças (com o node do flow que mostra cada uma) e o fluxo, lidos pelo simulador do portal.
+// O HTML usa o CSS da própria plataforma, então o desenho é o mesmo da tela.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -19,6 +24,9 @@ const { validarPlugin } = await imp("validar.ts");
 const { calcular, padrao, preparar, resumir } = await imp("motor.ts");
 const { montarPainel } = await imp("painel.ts");
 const { texto: textoExpr } = await imp("expr.ts");
+const { agrupar } = await imp("motor.ts");
+const { montarFlow } = await imp("flows.ts");
+const { passosProntos, horario } = await imp("integracao.ts");
 const css = readFileSync(join(paginas, "src/app/globals.css"), "utf8");
 const plataforma = JSON.parse(readFileSync(join(paginas, "package.json"), "utf8")).version;
 
@@ -141,6 +149,45 @@ function relatorioHtml(pl, itens, cfg, hoje, limite = 40) {
   return `<h1>${esc(txt(r.titulo ?? pl.nome))}</h1>${r.texto ? `<p class="sub">${esc(txt(r.texto))}</p>` : ""}<section class="bloco"><h3>${esc(txt(t.titulo))} <span class="n">${num(lista.length)} ${esc(pl.itens ?? "itens")}</span></h3><div style="overflow-x:auto"><table class="tabela compacta"><thead><tr>${cols.map((c) => `<th${c.tipo === "numero" ? ' class="num"' : ""}>${esc(txt(c.titulo))}</th>`).join("")}</tr></thead><tbody>${linhas}</tbody></table></div>${resto}</section>`;
 }
 
+// ------------------------------------------------------------------ data lab, consolidado, configurações
+
+// Marcações dos textos dos plugins: **negrito**, [[destaque]], `código`.
+const rico = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\[\[(.+?)\]\]/g, "<mark>$1</mark>").replace(/`(.+?)`/g, "<code>$1</code>");
+
+function datalabHtml(pl, linhas) {
+  const cols = [...new Set(linhas.flatMap((l) => Object.keys(l)))];
+  const amostra = linhas.slice(0, 12);
+  return `<h1>Relatório do Data Lab: ${esc(pl.dataLab.relatorio)}</h1><p class="sub">O node Waipe Data do flow roda este relatório e o flow envia as linhas ao Waipe Páginas, que reconhece as colunas e calcula.</p>
+<section class="bloco"><h3>Texto para criar o relatório</h3><pre style="white-space:pre-wrap;margin:0;font-size:13px;line-height:1.5">${esc(pl.dataLab.texto)}</pre></section>
+<section class="bloco" style="margin-top:16px"><h3>Linhas que o relatório devolve <span class="n">${num(linhas.length)} no exemplo</span></h3><div style="overflow-x:auto"><table class="tabela compacta"><thead><tr>${cols.map((c) => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${amostra.map((l) => `<tr>${cols.map((c) => `<td>${esc(l[c] ?? "")}</td>`).join("")}</tr>`).join("")}</tbody></table></div></section>`;
+}
+
+function consolidadoHtml(pl, itens, cfg, hoje) {
+  const c = pl.consolidado;
+  const g = c && pl.grupos?.[c.grupo];
+  if (!g) return null;
+  const linhas = agrupar(g, itens, cfg, hoje);
+  const txt = (s) => { try { return textoExpr(String(s ?? ""), { p: cfg, hoje, dominios: pl.dominios ?? {}, item: { atualizacao: "exemplo" } }); } catch { return String(s ?? ""); } };
+  const cols = c.tabela.colunas;
+  return `<h1>${esc(txt(c.titulo))}</h1>${c.texto ? `<p class="sub">${rico(txt(c.texto))}</p>` : ""}<section class="bloco"><h3>${esc(txt(c.tabela.titulo))} <span class="n">${num(linhas.length)}</span></h3><div style="overflow-x:auto"><table class="tabela compacta"><thead><tr>${c.tabela.posicao ? "<th>#</th>" : ""}${cols.map((k) => `<th${k.tipo === "numero" ? ' class="num"' : ""}>${esc(txt(k.titulo))}</th>`).join("")}</tr></thead><tbody>${linhas.slice(0, 40).map((l, i) => `<tr>${c.tabela.posicao ? `<td>${i + 1}</td>` : ""}${cols.map((k) => `<td${k.tipo === "numero" ? ' class="num"' : ""}>${valorColuna(k, l, pl.dominios ?? {})}</td>`).join("")}</tr>`).join("")}</tbody></table></div></section>`;
+}
+
+function configuracoesHtml(pl) {
+  const valor = (x) => {
+    if (x.tipo === "booleano") return x.padrao ? "Sim" : "Não";
+    if (x.tipo === "percentual") return `${num((x.padrao ?? 0) * 100, 1)}%`;
+    if (x.tipo === "lista") return esc((x.padrao ?? []).join(", ") || "(vazia)");
+    if (x.tipo === "grade") return "tabela por linha";
+    return `${esc(typeof x.padrao === "number" ? num(x.padrao, Number.isInteger(x.padrao) ? 0 : 2) : x.padrao ?? "")}${x.sufixo ? ` ${esc(x.sufixo)}` : ""}`;
+  };
+  const params = (pl.parametros ?? []).map((x) => `<tr><td><b>${esc(x.rotulo)}</b>${x.ajuda ? `<small class="sub">${rico(x.ajuda)}</small>` : ""}</td><td class="num">${valor(x)}</td></tr>`).join("");
+  const nomes = { datalab: "📋 Texto do relatório para copiar", id_relatorio: "🔑 Campo para colar o ID do relatório", baixar_flows: "⬇ Baixar os dois flows (agendado e Atualizar pelo Painel)", webhook: "🔗 Campo para colar a URL do webhook", testar: "▶ Testar a atualização" };
+  const passos = passosProntos(pl).map((ps, i) => `<li style="margin-bottom:12px"><b>${i + 1}. ${esc(ps.titulo)}</b>${ps.blocos.map((b) => "texto" in b ? `<p style="margin:4px 0">${rico(b.texto)}</p>` : `<p class="nota" style="margin:4px 0">${esc(nomes[b.ferramenta] ?? b.ferramenta)}</p>`).join("")}</li>`).join("");
+  return `<h1>Configurações: ${esc(pl.nome)}</h1><p class="sub">O que o cliente ajusta na própria página. Mudar um parâmetro recalcula a base sem esperar o Data Lab.</p>
+<section class="bloco"><h3>Parâmetros <span class="n">valores padrão</span></h3><table class="tabela compacta"><thead><tr><th>Parâmetro</th><th class="num">Padrão</th></tr></thead><tbody>${params}</tbody></table></section>
+<section class="bloco" style="margin-top:16px"><h3>Integração <span class="n">flow agendado todo dia às ${esc(horario(pl))}</span></h3><ol style="list-style:none;padding:0;margin:0">${passos}</ol></section>`;
+}
+
 // ------------------------------------------------------------------ gerar
 
 let falhou = false;
@@ -163,14 +210,19 @@ for (const arg of process.argv.slice(2)) {
     const dir = join(pasta, "modelos");
     mkdirSync(dir, { recursive: true });
     const pecas = [];
-    writeFileSync(join(dir, "painel.html"), pagina(`${pl.nome}: Indicadores`, aviso + painelHtml(d, hoje)));
-    pecas.push({ arquivo: "painel.html", tipo: "pagina", rotulo: "Indicadores", quem: "Aba Indicadores da página" });
+    const gravar = (arquivo, titulo, html, peca) => { writeFileSync(join(dir, arquivo), pagina(titulo, aviso + html)); pecas.push({ arquivo, tipo: "pagina", ...peca }); };
+    // Flow que alimenta a página: o mesmo que a página gera em Configurações > Integração (chaves de exemplo).
+    const fluxo = montarFlow(pl, "agendado", { apiKey: "SUBSTITUA_PELA_API_KEY_DA_EMPRESA", webhookToken: "", dataLabReportId: "" },
+      "https://seu-waipe-paginas.vercel.app", "Empresa Exemplo");
+    writeFileSync(join(dir, "fluxo.json"), JSON.stringify(fluxo, null, 2) + "\n");
+    gravar("datalab.html", `${pl.nome}: Data Lab`, datalabHtml(pl, linhas), { rotulo: "Relatório do Data Lab", quem: pl.dataLab.relatorio, node: "Waipe Data" });
+    gravar("painel.html", `${pl.nome}: Indicadores`, painelHtml(d, hoje), { rotulo: "Indicadores", quem: "Aba Indicadores da página", node: "Finalizar Carga no Painel" });
     const rel = relatorioHtml(pl, itens, cfg, hoje);
-    if (rel) {
-      writeFileSync(join(dir, "relatorio.html"), pagina(`${pl.nome}: Relatório`, aviso + rel));
-      pecas.push({ arquivo: "relatorio.html", tipo: "pagina", rotulo: "Relatório", quem: "Aba Relatório da página" });
-    }
-    writeFileSync(join(dir, "modelos.json"), JSON.stringify({ versao: 1, aviso: "Dados fictícios. Desenho e cálculo do plugin no Waipe Páginas.", pecas }, null, 2) + "\n");
+    if (rel) gravar("relatorio.html", `${pl.nome}: Relatório`, rel, { rotulo: "Relatório", quem: "Aba Relatório da página" });
+    const cons = consolidadoHtml(pl, itens, cfg, hoje);
+    if (cons) gravar("consolidado.html", `${pl.nome}: ${pl.consolidado.titulo}`, cons, { rotulo: pl.abas?.consolidado || pl.consolidado.titulo || "Consolidado", quem: "Aba Consolidado da página" });
+    gravar("configuracoes.html", `${pl.nome}: Configurações`, configuracoesHtml(pl), { rotulo: "Configurações", quem: "Parâmetros e integração" });
+    writeFileSync(join(dir, "modelos.json"), JSON.stringify({ versao: 1, aviso: "Dados fictícios. Desenho e cálculo do plugin no Waipe Páginas.", fluxo: "fluxo.json", pecas }, null, 2) + "\n");
     console.log(`✓ ${slug}: ${pecas.map((p) => p.arquivo).join(", ")} (${itens.length} itens do exemplo)`);
   } catch (e) {
     falhou = true;

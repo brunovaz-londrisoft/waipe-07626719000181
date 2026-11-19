@@ -1,18 +1,39 @@
 {
   "versao": 1,
   "aviso": "Dados fictícios. Desenho e cálculo do plugin no Waipe Páginas.",
+  "fluxo": "fluxo.json",
   "pecas": [
+    {
+      "arquivo": "datalab.html",
+      "tipo": "pagina",
+      "rotulo": "Relatório do Data Lab",
+      "quem": "Giro de Estoque",
+      "node": "Waipe Data"
+    },
     {
       "arquivo": "painel.html",
       "tipo": "pagina",
       "rotulo": "Indicadores",
-      "quem": "Aba Indicadores da página"
+      "quem": "Aba Indicadores da página",
+      "node": "Finalizar Carga no Painel"
     },
     {
       "arquivo": "relatorio.html",
       "tipo": "pagina",
       "rotulo": "Relatório",
       "quem": "Aba Relatório da página"
+    },
+    {
+      "arquivo": "consolidado.html",
+      "tipo": "pagina",
+      "rotulo": "Fabricantes",
+      "quem": "Aba Consolidado da página"
+    },
+    {
+      "arquivo": "configuracoes.html",
+      "tipo": "pagina",
+      "rotulo": "Configurações",
+      "quem": "Parâmetros e integração"
     }
   ]
 }

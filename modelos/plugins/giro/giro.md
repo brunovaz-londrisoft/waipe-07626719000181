@@ -4,6 +4,7 @@ slug: giro
 versao: 2.1.0
 plataforma: 2.1.0
 categoria: Produtos
+dependencias: nenhuma
 modelo_base: nenhum
 atualizado: 2026-11-19
 ---
@@ -117,6 +118,12 @@ tabela `giro.produtos`, uma linha por item (chave + empresa) e uma coluna por ca
    os dois flows, ative e cole a URL do webhook.
 3. Clique em Atualizar agora e confira um produto conhecido na tela de detalhe (saída por dia, cobertura e status).
 4. `exemplo.json` traz linhas fictícias no formato do Data Lab.
+
+## Dependências
+
+Nenhuma além dos flows da integração: o flow agendado (todo dia às 07:00) e o Atualizar pelo Painel, gerados
+pela própria página em Configurações > Integração, buscam o relatório **Giro de Estoque** no Data Lab e
+enviam as linhas para a página. Nenhum agente do repositório é necessário.
 
 ## Histórico
 

@@ -170,6 +170,8 @@ def validar_pasta(pasta):
         for s in SECOES:
             if s not in texto:
                 erros.append(f"{md.name}: falta a seção \"{s}\".")
+    if md.exists() and fm:
+        avisos += dependencias_md(md.name, fm, texto)
     if not ex.exists():
         erros.append("falta exemplo.json (linhas fictícias do Data Lab para validar e mostrar o plugin).")
     else:
@@ -177,6 +179,25 @@ def validar_pasta(pasta):
         if CNPJ.search(t) or EMAIL.search(t):
             avisos.append("exemplo.json parece ter CNPJ ou e-mail: use só dados fictícios.")
     return erros, avisos
+
+
+def dependencias_md(nome, fm, texto):
+    """Cabeçalho "dependencias: agente:<slug>, plugin:<slug>" (ou "nenhuma") + seção ## Dependências."""
+    avisos = []
+    bruto = fm.get("dependencias", "").strip()
+    if not bruto or bruto.lower() in ("nenhuma", "nenhum", "-"):
+        return avisos
+    for x in (s.strip() for s in bruto.split(",")):
+        m = re.match(r"^(agente|plugin):([a-z0-9][a-z0-9_-]*)$", x)
+        if not m:
+            avisos.append(f"{nome}: dependência '{x}' fora do formato (use agente:<slug> ou plugin:<slug>)")
+            continue
+        bases = (RAIZ / "agentes", RAIZ / "modelos" / "agentes") if m.group(1) == "agente" else (PLUGINS, CATALOGO)
+        if not any((b / m.group(2) / f"{m.group(2)}.md").exists() for b in bases):
+            avisos.append(f"{nome}: dependência {x} não existe neste repositório nem no catálogo")
+    if not re.search(r"^## Dependências", texto, re.M):
+        avisos.append(f"{nome}: tem dependências no cabeçalho, explique na seção '## Dependências'")
+    return avisos
 
 
 def validar_motor(lista):
@@ -238,7 +259,8 @@ def ultima_tag(prefixo):
 
 
 def mudou_desde(tag, caminho):
-    return not tag or bool(git("diff", "--name-only", tag, "HEAD", "--", caminho))
+    # As prévias (modelos/) são geradas: não contam como mudança do plugin.
+    return not tag or bool(git("diff", "--name-only", tag, "HEAD", "--", caminho, f":!{caminho}/modelos"))
 
 
 def proxima(atual, pedido):

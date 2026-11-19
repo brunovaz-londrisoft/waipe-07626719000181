@@ -5,6 +5,7 @@ versao: 0.0.0
 plataforma: 2.1.0
 categoria: Produtos
 modelo_base: nenhum
+dependencias: nenhuma
 atualizado: {{data}}
 ---
 
@@ -74,6 +75,13 @@ Ao instalar, o Waipe Páginas cria o schema `{{slug}}` com as tabelas padrão e 
    os dois flows, ative e cole a URL do webhook.
 3. Clique em Atualizar agora e confira: ...
 4. `exemplo.json` traz linhas fictícias no formato do Data Lab (a validação roda o plugin com elas).
+
+## Dependências
+
+O que esta página precisa para funcionar e o que depende dela. Os dois flows que a alimentam (agendado e Atualizar
+pelo Painel) são gerados pela própria página em Configurações > Integração. Se um agente do repositório envia dados
+para ela ou usa o que ela mostra, liste no cabeçalho (`dependencias: agente:<slug>`) e explique aqui; o portal de
+modelos liga um ao outro e junta as simulações. Sem outras dependências: "Nenhuma além dos flows da integração".
 
 ## Histórico
 

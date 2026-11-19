@@ -4,6 +4,7 @@ slug: cobranca
 versao: 2.1.0
 plataforma: 2.1.0
 categoria: Financeiro
+dependencias: nenhuma
 modelo_base: nenhum
 atualizado: 2026-11-19
 ---
@@ -115,6 +116,12 @@ tabela `cobranca.titulos`, uma linha por item (chave + empresa) e uma coluna por
    os dois flows, ative e cole a URL do webhook.
 3. Atualizar agora; confira um título conhecido no detalhe (vencimento, atraso, saldo).
 4. `exemplo.json` traz linhas fictícias no formato do Data Lab.
+
+## Dependências
+
+Nenhuma além dos flows da integração: o flow agendado (todo dia às 07:00) e o Atualizar pelo Painel, gerados
+pela própria página em Configurações > Integração, buscam o relatório **Cobrança em Aberto** no Data Lab e
+enviam as linhas para a página. Nenhum agente do repositório é necessário.
 
 ## Histórico
 

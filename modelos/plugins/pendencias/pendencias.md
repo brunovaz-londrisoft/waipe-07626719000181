@@ -4,6 +4,7 @@ slug: pendencias
 versao: 2.1.0
 plataforma: 2.1.0
 categoria: Rotina
+dependencias: nenhuma
 modelo_base: nenhum
 atualizado: 2026-11-19
 ---
@@ -119,6 +120,12 @@ tabela `pendencias.pendencias`, uma linha por item (chave + empresa) e uma colun
    os dois flows, ative e cole a URL do webhook.
 3. Atualizar agora; confira em Configurações > Colunas que todas as colunas aparecem com ✓ e que "De ontem" bate com o sistema.
 4. `exemplo.json` traz linhas fictícias no formato do Data Lab.
+
+## Dependências
+
+Nenhuma além dos flows da integração: o flow agendado (todo dia às 07:00) e o Atualizar pelo Painel, gerados
+pela própria página em Configurações > Integração, buscam o relatório **Pendências de Ontem** no Data Lab e
+enviam as linhas para a página. Nenhum agente do repositório é necessário.
 
 ## Histórico
 

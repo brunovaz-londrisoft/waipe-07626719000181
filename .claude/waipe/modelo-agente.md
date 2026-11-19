@@ -4,6 +4,7 @@ slug: {{slug}}
 versao: 0.0.0
 modelo_base: nenhum
 gatilho: manual
+dependencias: nenhuma
 atualizado: {{data}}
 ---
 
@@ -42,6 +43,12 @@ Se o texto tiver parâmetros (ex.: `{inicio_mes}`), diga que precisam de valor p
 1. Importe `{{slug}}.json` no Waipe Flow (Dashboard → Importar JSON).
 2. Conecte as credenciais e rode manualmente.
 3. Resultado esperado: ...
+
+## Dependências
+
+Agentes e páginas (plugins do Waipe Páginas) de que este agente depende ou que dependem dele, com o porquê. Liste no
+cabeçalho (`dependencias: plugin:<slug>, agente:<slug>`); o portal de modelos liga um ao outro e junta as simulações.
+Flow que envia dados para uma página (URL `.../api/paginas/<slug>/carga/...`) depende dela. Sem dependências: "Nenhuma".
 
 ## Histórico
 

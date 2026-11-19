@@ -306,6 +306,51 @@ def validar_flow(caminho):
     return erros, avisos
 
 
+# Dependências entre agentes e páginas (plugins): cabeçalho "dependencias: plugin:giro, agente:giro-estoque" (ou
+# "nenhuma") e a seção "## Dependências" no .md. O portal de modelos liga um ao outro e junta as simulações.
+DEP = re.compile(r"^(agente|plugin):([a-z0-9][a-z0-9_-]*)$")
+URL_PAGINA = re.compile(r"/api/(?:paginas/)?([a-z][a-z0-9_]*)/carga/")
+
+
+def ler_dependencias(fm):
+    """[(tipo, slug)] do cabeçalho, e os itens com formato errado."""
+    bruto = (fm or {}).get("dependencias", "").strip()
+    if not bruto or bruto.lower() in ("nenhuma", "nenhum", "-"):
+        return [], []
+    deps, ruins = [], []
+    for x in (s.strip() for s in bruto.split(",")):
+        m = DEP.match(x)
+        (deps.append((m.group(1), m.group(2))) if m else ruins.append(x))
+    return deps, ruins
+
+
+def paginas_alimentadas(flow):
+    """Páginas do Waipe Páginas para as quais o flow envia dados (URL .../api/paginas/<slug>/carga/...)."""
+    return sorted({m.group(1) for n in flow.get("nodes", []) if n.get("type") == "http_request"
+                   for m in [URL_PAGINA.search(str((n.get("parameters") or {}).get("url", "")))] if m})
+
+
+def existe_dependencia(tipo, slug):
+    bases = (AGENTES, CATALOGO) if tipo == "agente" else (RAIZ / "plugins", RAIZ / "modelos" / "plugins")
+    return any((b / slug / f"{slug}.md").exists() for b in bases)
+
+
+def avisos_dependencias(md_nome, fm, texto, flow=None):
+    avisos = []
+    deps, ruins = ler_dependencias(fm)
+    for x in ruins:
+        avisos.append(f"{md_nome}: dependência '{x}' fora do formato (use agente:<slug> ou plugin:<slug>)")
+    for tipo, slug in deps:
+        if not existe_dependencia(tipo, slug):
+            avisos.append(f"{md_nome}: dependência {tipo}:{slug} não existe neste repositório nem no catálogo")
+    if deps and not re.search(r"^## Dependências", texto, re.M):
+        avisos.append(f"{md_nome}: tem dependências no cabeçalho, explique na seção '## Dependências'")
+    for slug in paginas_alimentadas(flow or {}):
+        if ("plugin", slug) not in deps:
+            avisos.append(f"{md_nome}: o flow envia dados para a página '{slug}': declare 'dependencias: plugin:{slug}' e a seção '## Dependências'")
+    return avisos
+
+
 def validar_pasta(pasta, exigir_par=True, modelo=False):
     pasta = Path(pasta)
     slug = pasta.name
@@ -340,6 +385,11 @@ def validar_pasta(pasta, exigir_par=True, modelo=False):
                 nodes = []
             if any(n.get("type") == "waipe_data" and (n.get("parameters") or {}).get("dataSource") == "data_lab" for n in nodes):
                 avisos.append(f"{md.name}: o flow usa Data Lab, documente o texto (prompt) de cada relatório (seção 'Relatórios do Data Lab')")
+        try:
+            flow = json.loads(js.read_text(encoding="utf-8")) if js.exists() else {}
+        except ValueError:
+            flow = {}
+        avisos += avisos_dependencias(md.name, fm, texto, flow if isinstance(flow, dict) else {})
         for s in (SECOES_MODELO if modelo else SECOES_AGENTE):
             if not re.search(rf"^{re.escape(s)}\b", texto, re.M):
                 erros.append(f"{md.name}: falta a seção '{s}'")

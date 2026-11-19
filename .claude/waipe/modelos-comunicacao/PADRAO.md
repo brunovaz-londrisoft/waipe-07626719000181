@@ -79,6 +79,10 @@ peças pelo que **este** agente envia.
    - `arquivo`, `tipo` (`email`, `whatsapp`, `planilha`, `documento`), `rotulo` (ex.: "E-mail do vendedor"), `quem`;
    - e-mail: `assunto`, `de` ("Nome <email>"), `para`, `data` (ex.: "seg., 19 out. 07:00");
    - WhatsApp: `contato` (nome no topo da conversa) e `data` (ex.: "SEGUNDA-FEIRA").
+   - opcional `node`: nome exato do node do flow que produz a peça; na simulação do portal, a peça abre quando a
+     execução passa por ele (sem `node`, o portal liga e-mail e WhatsApp aos nodes de envio sozinho).
+   - Páginas (plugins) têm o próprio gerador (`plugins.py gerar-modelos`): peças do tipo `pagina` e o campo `fluxo`
+     (o flow que alimenta a página). Agente com `dependencias` ganha no portal as peças da página ligada, e vice-versa.
 6. **Confira:** abra cada peça no navegador sem janela (`--screenshot=<png>`), no claro e no escuro
    (`--blink-settings=preferredColorScheme=1` força o claro) e na largura de celular. Rode `waipe.py validar`.
 

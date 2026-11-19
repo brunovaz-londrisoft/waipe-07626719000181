@@ -4,6 +4,17 @@ Cada versão do `waipe-template` (antes `waipe-agentes-template`). Versão maior
 alguma ação, descrita na seção. A atualização nunca toca em `agentes/`, `plugins/`, `CLAUDE.md`, `README.md` nem em
 `.claude/settings.local.json`.
 
+## v4.1.0 (2026-11-19)
+- **Simulação completa das páginas:** `plugins.py gerar-modelos` gera o flow que alimenta a página (`fluxo.json`, o mesmo
+  da Integração) e as peças Data Lab, Indicadores, Relatório, Consolidado e Configurações, cada uma ligada ao node do
+  flow (`node` no `modelos.json`). O portal simula a página como simula um agente. Precisa do `waipe-paginas` v2.1.3+.
+- **Dependências entre agentes e páginas:** cabeçalho `dependencias: plugin:<slug>, agente:<slug>` (ou `nenhuma`) e
+  seção `## Dependências` nos modelos de `.md`. O validador avisa quando o flow envia para uma página não declarada ou
+  cita algo que não existe. Os plugins do catálogo ganharam a seção.
+- `plugins.py status` e `release` não contam as prévias (`modelos/`) como mudança do plugin.
+- **Ação no cliente:** `atualizar`; rode `plugins.py gerar-modelos` para refazer as prévias das páginas e declare as
+  dependências dos agentes que enviam dados a páginas (o `validar` aponta quais).
+
 ## v4.0.2 (2026-11-19)
 - `atualizar` não falha mais quando `agentes/` ou `plugins/` já têm conteúdo (sem `.gitkeep`).
 

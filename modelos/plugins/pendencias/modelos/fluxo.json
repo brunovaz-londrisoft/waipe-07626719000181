@@ -1,0 +1,152 @@
+{
+  "waipe_flow_version": "2",
+  "name": "Pendências de Ontem - Empresa Exemplo",
+  "description": "Todo dia às 07:00 busca o relatório Pendências de Ontem no Data Lab e envia ao Waipe Páginas (https://seu-waipe-paginas.vercel.app). Já vem com o relatório do Data Lab \"Pendências de Ontem\" no node Waipe Data (texto em Waipe Páginas > Pendências de Ontem > Configurações). Depois de importar, salve e ative o flow.",
+  "triggerType": "schedule",
+  "scheduleConfig": {
+    "type": "daily",
+    "hour": 7,
+    "minute": 0,
+    "timezone": "America/Sao_Paulo"
+  },
+  "webhookMethod": null,
+  "nodes": [
+    {
+      "id": "n1",
+      "type": "trigger_schedule",
+      "name": "Todo dia 07:00",
+      "position": {
+        "x": 80,
+        "y": 200
+      },
+      "parameters": {
+        "scheduleType": "daily",
+        "hour": 7,
+        "minute": 0,
+        "timezone": "America/Sao_Paulo"
+      }
+    },
+    {
+      "id": "n2",
+      "type": "waipe_data",
+      "name": "Waipe Data",
+      "position": {
+        "x": 300,
+        "y": 200
+      },
+      "parameters": {
+        "dataSource": "data_lab",
+        "companyIds": [],
+        "companyIdsMode": "fixed",
+        "companyIdsExpression": "",
+        "message": "",
+        "messageMode": "fixed",
+        "expertModelId": "",
+        "dataLabReportId": ""
+      }
+    },
+    {
+      "id": "n3",
+      "type": "code",
+      "name": "Preparar Lotes",
+      "position": {
+        "x": 520,
+        "y": 200
+      },
+      "parameters": {
+        "mode": "all_items",
+        "jsCode": "// ============================================================\n// CONFIG\n// ============================================================\n// O painel é quem reconhece as colunas e calcula, pelas regras da tela Configurações da página.\n// Este node só coleta as linhas do Data Lab e as divide em lotes.\nconst CONFIG = {\n  TAMANHO_LOTE: 500,               // linhas por envio ao painel (cada lote é um POST)\n  PREFIXO_IGNORADO: \"_\",           // colunas técnicas do Data Lab (_cnpjOrigem, _razaoOrigem) não são enviadas\n  DICIONARIO_ATE: 0.3,             // coluna de texto com poucos valores diferentes vai como índice\n  NODE_GATILHO: \"Todo dia 07:00\",// de onde vem o carga_id quando o painel pede a atualização\n  ORIGEM: \"agendada\",// agendada | botao\n};\n\n// ============================================================\n// 1) Coletar as linhas (a saída do Data Lab vem aninhada em dados[].dados[])\n// ============================================================\nfunction ehLinha(o) {\n  const ks = Object.keys(o);\n  return ks.length >= 2 && ks.every((k) => o[k] === null || typeof o[k] !== \"object\");\n}\nfunction coletar(v, acc) {\n  if (Array.isArray(v)) v.forEach((x) => coletar(x, acc));\n  else if (v && typeof v === \"object\") {\n    if (ehLinha(v)) acc.push(v);\n    else Object.keys(v).forEach((k) => coletar(v[k], acc));\n  }\n  return acc;\n}\nconst linhas = items.reduce((acc, it) => coletar(it.json, acc), []);\nif (linhas.length === 0) throw new Error(\"O relatório do Data Lab não retornou linhas. Confira o ID do relatório no node Waipe Data.\");\n\nconst colunas = [];\nfor (const l of linhas) for (const k of Object.keys(l)) {\n  if (k.indexOf(CONFIG.PREFIXO_IGNORADO) !== 0 && colunas.indexOf(k) < 0) colunas.push(k);\n}\n\n// Colunas de texto repetitivo viram índice num dicionário (para a saída caber no limite de 1 MiB do node).\nconst dicionarios = {};\nconst indices = {};\nfor (const c of colunas) {\n  const valores = {};\n  let n = 0, texto = true;\n  for (const l of linhas) {\n    const v = l[c];\n    if (v !== null && v !== undefined && typeof v !== \"string\") { texto = false; break; }\n    const k = v === null || v === undefined ? \"\" : v;\n    if (valores[k] === undefined) { valores[k] = n++; if (n > linhas.length * CONFIG.DICIONARIO_ATE) break; }\n  }\n  if (texto && n <= linhas.length * CONFIG.DICIONARIO_ATE) { indices[c] = valores; dicionarios[c] = Object.keys(valores); }\n}\nconst compactas = linhas.map((l) => colunas.map((c) => {\n  const v = l[c] === undefined ? null : l[c];\n  return indices[c] ? indices[c][v === null ? \"\" : v] : v;\n}));\n\n// ============================================================\n// 2) Identificar a carga e dividir em lotes\n// ============================================================\nlet cargaId = \"\";\ntry { cargaId = String($node[CONFIG.NODE_GATILHO].json.carga_id || \"\"); } catch (e) { cargaId = \"\"; }\nif (!cargaId) {\n  const d = new Date();\n  const p2 = (n) => String(n).padStart(2, \"0\");\n  cargaId = \"agendada-\" + d.getUTCFullYear() + p2(d.getUTCMonth() + 1) + p2(d.getUTCDate()) + p2(d.getUTCHours()) + p2(d.getUTCMinutes())\n    + \"-\" + Math.random().toString(36).slice(2, 8);\n}\nconst totalLotes = Math.ceil(compactas.length / CONFIG.TAMANHO_LOTE);\nconsole.log(\"Carga \" + cargaId + \": \" + compactas.length + \" linhas, \" + totalLotes + \" lotes | colunas: \" + colunas.join(\", \")\n  + \" | em dicionário: \" + Object.keys(dicionarios).join(\", \"));\n\nconst saida = [];\nfor (let i = 0; i < totalLotes; i++) {\n  saida.push({ json: {\n    carga_id: cargaId,\n    origem: CONFIG.ORIGEM,\n    lote: i + 1,\n    total_lotes: totalLotes,\n    total_linhas: compactas.length,\n    colunas: colunas,\n    dicionarios: dicionarios,\n    linhas: compactas.slice(i * CONFIG.TAMANHO_LOTE, (i + 1) * CONFIG.TAMANHO_LOTE),\n  } });\n}\nreturn saida;\n"
+      }
+    },
+    {
+      "id": "n4",
+      "type": "http_request",
+      "name": "Enviar Lote ao Painel",
+      "position": {
+        "x": 740,
+        "y": 200
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://seu-waipe-paginas.vercel.app/api/paginas/pendencias/carga/lote",
+        "urlMode": "fixed",
+        "authType": "bearer_inline",
+        "bearerToken": "SUBSTITUA_PELA_API_KEY_DA_EMPRESA",
+        "contentType": "application/json",
+        "jsonBodyMode": "editor",
+        "body": "{{ JSON.stringify($json) }}",
+        "bodyMode": "expression",
+        "timeoutSeconds": 60,
+        "continueOnError": true,
+        "sendHeaders": false,
+        "sendQueryParams": false,
+        "pagination": false
+      }
+    },
+    {
+      "id": "n5",
+      "type": "code",
+      "name": "Juntar Envios",
+      "position": {
+        "x": 960,
+        "y": 200
+      },
+      "parameters": {
+        "mode": "all_items",
+        "jsCode": "// ============================================================\n// CONFIG\n// ============================================================\nconst CONFIG = {\n  NODE_LOTES: \"Preparar Lotes\",  // node que montou os lotes (de onde vêm carga_id e total_linhas)\n};\n\n// Cada item é a resposta de um POST de lote. Erro em lote vira aviso para o painel marcar a carga como erro\n// (o painel só mexe na base quando chegam todas as linhas).\nconst primeiro = $node[CONFIG.NODE_LOTES].json;\nconst falhas = [];\nlet aceitas = 0;\nitems.forEach((it, i) => {\n  const r = it.json || {};\n  if (r.status >= 200 && r.status < 300 && r.parsedBody && r.parsedBody.ok) aceitas += Number(r.parsedBody.recebidos) || 0;\n  else falhas.push(\"lote \" + (i + 1) + \": \" + (r.httpError || r.networkError || (\"HTTP \" + r.status + \" \" + String(r.body || \"\").slice(0, 200))));\n});\nconsole.log(\"Lotes: \" + items.length + \" | itens aceitos: \" + aceitas + \" de \" + primeiro.total_linhas + \" linhas | falhas: \" + falhas.length);\nreturn [{ json: {\n  carga_id: primeiro.carga_id,\n  total_linhas: primeiro.total_linhas,\n  erro: falhas.length ? falhas.join(\" | \").slice(0, 1000) : \"\",\n} }];\n"
+      }
+    },
+    {
+      "id": "n6",
+      "type": "http_request",
+      "name": "Finalizar Carga no Painel",
+      "position": {
+        "x": 1180,
+        "y": 200
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://seu-waipe-paginas.vercel.app/api/paginas/pendencias/carga/finalizar",
+        "urlMode": "fixed",
+        "authType": "bearer_inline",
+        "bearerToken": "SUBSTITUA_PELA_API_KEY_DA_EMPRESA",
+        "contentType": "application/json",
+        "jsonBodyMode": "editor",
+        "body": "{{ JSON.stringify($json) }}",
+        "bodyMode": "expression",
+        "timeoutSeconds": 120,
+        "continueOnError": false,
+        "sendHeaders": false,
+        "sendQueryParams": false,
+        "pagination": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "n1",
+      "target": "n2"
+    },
+    {
+      "id": "e2",
+      "source": "n2",
+      "target": "n3"
+    },
+    {
+      "id": "e3",
+      "source": "n3",
+      "target": "n4"
+    },
+    {
+      "id": "e4",
+      "source": "n4",
+      "target": "n5"
+    },
+    {
+      "id": "e5",
+      "source": "n5",
+      "target": "n6"
+    }
+  ]
+}
