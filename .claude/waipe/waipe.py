@@ -769,7 +769,8 @@ def cmd_atualizar(args):
             pasta.mkdir(exist_ok=True)
             if not any(pasta.iterdir()):
                 (pasta / ".gitkeep").touch()
-        git("add", "-A", "--", ".claude", ".github", "modelos", "agentes/.gitkeep", "plugins/.gitkeep")
+        git("add", "-A", "--", ".claude", ".github", "modelos",
+            *[f"{p.name}/.gitkeep" for p in (AGENTES, PLUGINS) if (p / ".gitkeep").exists()])
     if not git("status", "--porcelain"):
         print("Nada mudou nos arquivos do framework.")
         return
