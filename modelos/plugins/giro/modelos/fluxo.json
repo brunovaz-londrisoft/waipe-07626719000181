@@ -31,7 +31,7 @@
       "type": "waipe_data",
       "name": "Waipe Data",
       "position": {
-        "x": 300,
+        "x": 400,
         "y": 200
       },
       "parameters": {
@@ -50,7 +50,7 @@
       "type": "code",
       "name": "Preparar Lotes",
       "position": {
-        "x": 520,
+        "x": 720,
         "y": 200
       },
       "parameters": {
@@ -63,7 +63,7 @@
       "type": "http_request",
       "name": "Enviar Lote ao Painel",
       "position": {
-        "x": 740,
+        "x": 1040,
         "y": 200
       },
       "parameters": {
@@ -88,7 +88,7 @@
       "type": "code",
       "name": "Juntar Envios",
       "position": {
-        "x": 960,
+        "x": 1360,
         "y": 200
       },
       "parameters": {
@@ -101,7 +101,7 @@
       "type": "http_request",
       "name": "Finalizar Carga no Painel",
       "position": {
-        "x": 1180,
+        "x": 1680,
         "y": 200
       },
       "parameters": {

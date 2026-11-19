@@ -22,6 +22,7 @@ Comandos do repositório template (o próprio framework)
   clientes                     lista os repositórios de cliente que a conta enxerga (próprios, de organização
                                e compartilhados): waipe-* com o framework
   atualizar-kit                troca o bloco do kit de e-mail (kit-email-waipe.js) em todos os nodes do catálogo
+  espacar [json ...]           afasta os nodes que ficam um por cima do outro no canvas (padrão: todos os flows)
   gerar-modelos [modelo ...]   regera os modelos de comunicação do catálogo (gerar_modelos.py de cada modelo)
   registrar-origem <modelo> <repo> <agente>
                                grava em modelos/agentes/<modelo>/origem.json o fluxo do agente do cliente que deu origem ao
@@ -303,7 +304,57 @@ def validar_flow(caminho):
                 avisos.append(f"node {nid}: '{k}' tem {{{{ }}}} mas {k}Mode é 'fixed'")
     for cred in _credenciais(flow):
         erros.append(f"credentialId preenchido ('{cred}'): deixe \"\" e conecte a credencial no painel")
+    juntos = nodes_sobrepostos(flow)
+    if juntos:
+        avisos.append(f"{len(juntos)} par(es) de nodes um por cima do outro no canvas (ex.: '{juntos[0][0]}' e '{juntos[0][1]}'): "
+                      f"use {ESPACO_NODES} px entre nodes ou rode 'waipe.py espacar {Path(caminho).name}'")
     return erros, avisos
+
+
+# Canvas do Waipe Flow: o node tem ~240 px de largura e 70+ de altura. Nodes mais perto que isso ficam um sobre o outro.
+ESPACO_NODES = 320
+LARGURA_NODE, ALTURA_NODE = 260, 90
+
+
+def nodes_sobrepostos(flow):
+    ns = [n for n in flow.get("nodes", []) if isinstance(n.get("position"), dict)]
+    return [(a.get("name", a.get("id")), b.get("name", b.get("id"))) for i, a in enumerate(ns) for b in ns[i + 1:]
+            if abs(a["position"]["x"] - b["position"]["x"]) < LARGURA_NODE and abs(a["position"]["y"] - b["position"]["y"]) < ALTURA_NODE]
+
+
+def espacar_flow(flow):
+    """Afasta para a direita os nodes que ficam um sobre o outro, mantendo a ordem e as linhas do desenho: cada node
+    fica a ESPACO_NODES do anterior da mesma linha, e o que vem depois anda junto. Devolve quantos nodes mudaram."""
+    ns = sorted((n for n in flow.get("nodes", []) if isinstance(n.get("position"), dict)), key=lambda n: (n["position"]["x"], n["position"]["y"]))
+    colocados, desloc, mudou = [], 0, 0
+    for n in ns:
+        x0, y = n["position"]["x"], n["position"]["y"]
+        x = x0 + desloc
+        for px, py in colocados:
+            if abs(py - y) < ALTURA_NODE and px <= x < px + LARGURA_NODE:
+                x = px + ESPACO_NODES
+        desloc = x - x0
+        if x != x0:
+            n["position"]["x"] = x
+            mudou += 1
+        colocados.append((x, y))
+    return mudou
+
+
+def cmd_espacar(args):
+    """Afasta os nodes sobrepostos dos flows citados (ou de todos os agentes e modelos) e grava o JSON."""
+    arquivos = [Path(a) for a in args] or [j for p in pastas_padrao() for j in sorted(p.glob("*.json"))]
+    for js in arquivos:
+        js = js if js.is_absolute() else (Path.cwd() / js)
+        try:
+            flow = json.loads(js.read_text(encoding="utf-8"))
+        except (ValueError, OSError):
+            continue
+        if not isinstance(flow, dict) or not nodes_sobrepostos(flow):
+            continue
+        n = espacar_flow(flow)
+        js.write_text(json.dumps(flow, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        print(f"✓ {js.relative_to(RAIZ) if RAIZ in js.parents else js}: {n} node(s) afastados")
 
 
 # Dependências entre agentes e páginas (plugins): cabeçalho "dependencias: plugin:giro, agente:giro-estoque" (ou
@@ -1145,7 +1196,7 @@ COMANDOS = {
     "salvar": cmd_salvar, "release": cmd_release, "atualizar": cmd_atualizar, "migrar": cmd_migrar,
     "iniciar": cmd_iniciar, "release-framework": cmd_release_framework,
     "novo-cliente": cmd_novo_cliente, "clientes": cmd_clientes, "comparar-catalogo": cmd_comparar_catalogo,
-    "atualizar-kit": cmd_atualizar_kit, "gerar-modelos": cmd_gerar_modelos, "registrar-origem": cmd_registrar_origem,
+    "atualizar-kit": cmd_atualizar_kit, "espacar": cmd_espacar, "gerar-modelos": cmd_gerar_modelos, "registrar-origem": cmd_registrar_origem,
 }
 
 if __name__ == "__main__":

@@ -41,7 +41,7 @@
       "type": "waipe_data",
       "name": "Buscar Vendas",
       "position": {
-        "x": 660,
+        "x": 908,
         "y": 220
       },
       "parameters": {
@@ -60,7 +60,7 @@
       "type": "code",
       "name": "Filtrar Vendas Faturadas no Mês",
       "position": {
-        "x": 940,
+        "x": 1188,
         "y": 220
       },
       "parameters": {
@@ -73,7 +73,7 @@
       "type": "code",
       "name": "Calcular Comissão",
       "position": {
-        "x": 1220,
+        "x": 1468,
         "y": 220
       },
       "parameters": {
@@ -86,7 +86,7 @@
       "type": "merge_out",
       "name": "Agregar Vendas",
       "position": {
-        "x": 1500,
+        "x": 1748,
         "y": 220
       },
       "parameters": {
@@ -106,7 +106,7 @@
       "type": "waipe_data",
       "name": "Buscar Vendedores",
       "position": {
-        "x": 1780,
+        "x": 2028,
         "y": 220
       },
       "parameters": {
@@ -125,7 +125,7 @@
       "type": "code",
       "name": "Consolidar Comissões",
       "position": {
-        "x": 2060,
+        "x": 2308,
         "y": 220
       },
       "parameters": {
@@ -138,7 +138,7 @@
       "type": "google_sheets",
       "name": "Criar Planilha Geral",
       "position": {
-        "x": 2340,
+        "x": 2588,
         "y": 80
       },
       "parameters": {
@@ -182,7 +182,7 @@
       "type": "code",
       "name": "Expandir Linhas Gerais",
       "position": {
-        "x": 2620,
+        "x": 2868,
         "y": 80
       },
       "parameters": {
@@ -195,7 +195,7 @@
       "type": "google_sheets",
       "name": "Gravar Planilha Geral",
       "position": {
-        "x": 2900,
+        "x": 3148,
         "y": 80
       },
       "parameters": {
@@ -239,7 +239,7 @@
       "type": "merge_out",
       "name": "Resumir Gravação Geral",
       "position": {
-        "x": 3180,
+        "x": 3428,
         "y": 80
       },
       "parameters": {
@@ -259,7 +259,7 @@
       "type": "gmail_send",
       "name": "Enviar Email Gerência",
       "position": {
-        "x": 3760,
+        "x": 4008,
         "y": 80
       },
       "parameters": {
@@ -283,7 +283,7 @@
       "type": "loop",
       "name": "Um Vendedor por Vez",
       "position": {
-        "x": 2340,
+        "x": 2588,
         "y": 360
       },
       "parameters": {
@@ -299,7 +299,7 @@
       "type": "google_sheets",
       "name": "Criar Planilha do Vendedor",
       "position": {
-        "x": 2620,
+        "x": 2868,
         "y": 500
       },
       "parameters": {
@@ -343,7 +343,7 @@
       "type": "code",
       "name": "Linhas do Vendedor",
       "position": {
-        "x": 2900,
+        "x": 3148,
         "y": 500
       },
       "parameters": {
@@ -356,7 +356,7 @@
       "type": "google_sheets",
       "name": "Gravar Planilha do Vendedor",
       "position": {
-        "x": 3180,
+        "x": 3428,
         "y": 500
       },
       "parameters": {
@@ -400,7 +400,7 @@
       "type": "merge_out",
       "name": "Resumir Gravação do Vendedor",
       "position": {
-        "x": 3460,
+        "x": 3708,
         "y": 500
       },
       "parameters": {
@@ -420,7 +420,7 @@
       "type": "gmail_send",
       "name": "Enviar Email ao Vendedor",
       "position": {
-        "x": 4040,
+        "x": 4288,
         "y": 500
       },
       "parameters": {
@@ -463,7 +463,7 @@
       "type": "code",
       "name": "Montar E-mail da Gerência",
       "position": {
-        "x": 3460,
+        "x": 3708,
         "y": 80
       },
       "parameters": {
@@ -476,7 +476,7 @@
       "type": "code",
       "name": "Montar E-mail do Vendedor",
       "position": {
-        "x": 3740,
+        "x": 3988,
         "y": 500
       },
       "parameters": {

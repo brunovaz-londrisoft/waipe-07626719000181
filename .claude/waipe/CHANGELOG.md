@@ -4,6 +4,13 @@ Cada versão do `waipe-template` (antes `waipe-agentes-template`). Versão maior
 alguma ação, descrita na seção. A atualização nunca toca em `agentes/`, `plugins/`, `CLAUDE.md`, `README.md` nem em
 `.claude/settings.local.json`.
 
+## v4.3.0 (2026-11-19)
+- Nodes sem sobreposição no canvas: o `validar` avisa quando dois nodes ficam um por cima do outro e o comando novo
+  `waipe.py espacar [json ...]` afasta (320 px entre nodes, mantendo as linhas do desenho). Guia dos nodes: 320 px.
+- Flows das páginas (prévia `fluxo.json`) regerados com o espaçamento novo do Waipe Páginas v2.1.4.
+- Catálogo: `comissao-mensal-gerencia-vendedores` com o filtro e o "Buscar Vendas" separados no canvas.
+- **Ação no cliente:** `atualizar`, `waipe.py espacar` e `plugins.py gerar-modelos`.
+
 ## v4.2.0 (2026-11-19)
 - Páginas em produção: cabeçalho `url` e `acesso` e seção `## Em produção` (endereço, quem acessa, onde roda,
   atendimento) no modelo de `.md` do plugin. O portal mostra "Abrir o painel do cliente" só quando há `url`.

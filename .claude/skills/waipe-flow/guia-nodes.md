@@ -138,7 +138,7 @@ Campos extras da exportação (`exportedAt`, `source`, `graphReflects`, `status`
 | `id` | string | **Sim** | Não vazio e **único** no flow. Pode ser `"n1"`, `"n2"`… ou um UUID. |
 | `type` | string | **Sim** | Um dos **21** tipos exatos da Parte 1. Tipo desconhecido → importação rejeitada. |
 | `name` | string | Não (recomendado) | Default = `id`. É o rótulo no canvas **e a chave usada em `$node["nome"]`** nas expressões — o nome tem de ser **único no flow** e descritivo. Desde 2026-08-18 o editor numera o nó novo cujo nome já existe e **recusa** renomear para um nome ocupado; o gerador de flow do Copilot **reprova** um flow com nomes repetidos. A importação de JSON não bloqueia (ver §2.5), mas o resultado é o mesmo: as saídas colidem. |
-| `position` | objeto | **Sim** | `{ "x": número, "y": número }` — números finitos. `x` cresce para a direita, `y` para baixo. Sugestão: ~300px de espaçamento horizontal entre nodes; ramos do IF/Switch com ±150px de deslocamento vertical. |
+| `position` | objeto | **Sim** | `{ "x": número, "y": número }` — números finitos. `x` cresce para a direita, `y` para baixo. **Use 320 px entre nodes na horizontal** (o node tem ~240 px de largura: menos que 260 fica um por cima do outro no canvas); ramos do IF/Switch com ±150 px na vertical. O `validar` avisa sobreposição e `waipe.py espacar <json>` corrige. |
 | `parameters` | objeto | Não | Configuração do node (Parte 4). Chaves omitidas recebem os **defaults automaticamente** (merge). Parâmetros que violem o schema do tipo → importação rejeitada com a mensagem `"Parâmetros inválidos no nó {id} ({type})"`. |
 | `disabled` | boolean | Não | `true` = node desativado: não executa; o fluxo segue direto pela primeira conexão de saída. |
 
