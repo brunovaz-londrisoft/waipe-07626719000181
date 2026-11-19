@@ -4,6 +4,9 @@ Cada versão do `waipe-template` (antes `waipe-agentes-template`). Versão maior
 alguma ação, descrita na seção. A atualização nunca toca em `agentes/`, `plugins/`, `CLAUDE.md`, `README.md` nem em
 `.claude/settings.local.json`.
 
+## v4.0.1 (2026-11-19)
+- `plugins.py gerar-modelos` sem slug, no cliente, gera só as prévias de `plugins/` (o catálogo é do framework).
+
 ## v4.0.0 (2026-11-19)
 - **Agentes e plugins num repositório só.** O template passa a se chamar `waipe-template` e recebe o antigo
   `waipe-paginas-plugins` (histórico mantido): os clientes `waipe-<cnpj>` criam agentes (flows do Waipe Flow) em

@@ -368,7 +368,8 @@ def cmd_gerar_modelos(args):
         if not p:
             erro(f"plugin '{slug}' não existe.")
         lista.append(p)
-    if not gerar_previas(lista or todas()):
+    # Sem slug: no template, o catálogo; no cliente, só os plugins dele (o catálogo é do framework).
+    if not gerar_previas(lista or (_dirs(CATALOGO) if modo_template() else pastas())):
         sys.exit(1)
 
 
